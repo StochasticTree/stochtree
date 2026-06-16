@@ -27,6 +27,27 @@ from .utils import (
 from stochtree_cpp import bart_sample_cpp, bart_predict_cpp
 
 
+def _migrate_bart_v0_to_v1(serializer: JSONSerializer, loaded_version: int) -> None:
+    """In-place v0 -> v1 migration for a BART model envelope.
+
+    Currently: positional forest keys (``forests/forest_0``, ...) -> named keys
+    (``mean_forest`` / ``variance_forest``), driven by the ``include_*_forest`` flags
+    (which are unchanged across v0/v1).
+    """
+    include_mean = serializer.get_boolean_or_default("include_mean_forest", False)
+    include_variance = serializer.get_boolean_or_default(
+        "include_variance_forest", False
+    )
+    if include_mean:
+        serializer.rename_field("forest_0", "mean_forest", subfolder_name="forests")
+        if include_variance:
+            serializer.rename_field(
+                "forest_1", "variance_forest", subfolder_name="forests"
+            )
+    elif include_variance:
+        serializer.rename_field("forest_0", "variance_forest", subfolder_name="forests")
+
+
 class BARTModel:
     r"""
     Class that handles sampling, storage, and serialization of stochastic forest models for supervised learning. 
@@ -2303,11 +2324,11 @@ class BARTModel:
         # Initialize JSONSerializer object
         bart_json = JSONSerializer()
 
-        # Add the forests
+        # Add the forests under self-describing named keys
         if self.include_mean_forest:
-            bart_json.add_forest(self.forest_container_mean)
+            bart_json.add_forest(self.forest_container_mean, "mean_forest")
         if self.include_variance_forest:
-            bart_json.add_forest(self.forest_container_variance)
+            bart_json.add_forest(self.forest_container_variance, "variance_forest")
 
         # Add the rfx
         if self.has_rfx:
@@ -2382,7 +2403,7 @@ class BARTModel:
         _ver = _infer_stochtree_version(json_string)
         bart_json = JSONSerializer()
         bart_json.load_from_json_string(json_string)
-        resolve_schema_version(bart_json)
+        resolve_schema_version(bart_json, migrate=_migrate_bart_v0_to_v1)
 
         # Unpack forests
         self.include_mean_forest = bart_json.get_boolean("include_mean_forest")
@@ -2401,23 +2422,16 @@ class BARTModel:
                 f"Re-save your model to suppress this warning."
             )
 
+        # v1 forests are stored under self-describing named keys.
         if self.include_mean_forest:
-            # TODO: don't just make this a placeholder that we overwrite
             self.forest_container_mean = ForestContainer(0, 0, False, False)
             self.forest_container_mean.forest_container_cpp.LoadFromJson(
-                bart_json.json_cpp, "forest_0"
+                bart_json.json_cpp, "mean_forest"
             )
-            if self.include_variance_forest:
-                # TODO: don't just make this a placeholder that we overwrite
-                self.forest_container_variance = ForestContainer(0, 0, False, False)
-                self.forest_container_variance.forest_container_cpp.LoadFromJson(
-                    bart_json.json_cpp, "forest_1"
-                )
-        else:
-            # TODO: don't just make this a placeholder that we overwrite
+        if self.include_variance_forest:
             self.forest_container_variance = ForestContainer(0, 0, False, False)
             self.forest_container_variance.forest_container_cpp.LoadFromJson(
-                bart_json.json_cpp, "forest_0"
+                bart_json.json_cpp, "variance_forest"
             )
 
         # Unpack random effects
@@ -2553,11 +2567,12 @@ class BARTModel:
 
         # For scalar / preprocessing details which aren't sample-dependent, defer to the first json
         json_object_default = json_object_list[0]
-        resolve_schema_version(json_object_default)
+        for json_object in json_object_list:
+            resolve_schema_version(json_object, migrate=_migrate_bart_v0_to_v1)
         _raw = json.loads(json_string_list[0])
         _ver = _infer_stochtree_version(json_string_list[0])
 
-        # Unpack forests
+        # Unpack forests (v1 named keys)
         self.include_mean_forest = json_object_default.get_boolean(
             "include_mean_forest"
         )
@@ -2565,40 +2580,26 @@ class BARTModel:
             "include_variance_forest"
         )
         if self.include_mean_forest:
-            # TODO: don't just make this a placeholder that we overwrite
             self.forest_container_mean = ForestContainer(0, 0, False, False)
             for i in range(len(json_object_list)):
                 if i == 0:
                     self.forest_container_mean.forest_container_cpp.LoadFromJson(
-                        json_object_list[i].json_cpp, "forest_0"
+                        json_object_list[i].json_cpp, "mean_forest"
                     )
                 else:
                     self.forest_container_mean.forest_container_cpp.AppendFromJson(
-                        json_object_list[i].json_cpp, "forest_0"
+                        json_object_list[i].json_cpp, "mean_forest"
                     )
-            if self.include_variance_forest:
-                # TODO: don't just make this a placeholder that we overwrite
-                self.forest_container_variance = ForestContainer(0, 0, False, False)
-                for i in range(len(json_object_list)):
-                    if i == 0:
-                        self.forest_container_variance.forest_container_cpp.LoadFromJson(
-                            json_object_list[i].json_cpp, "forest_1"
-                        )
-                    else:
-                        self.forest_container_variance.forest_container_cpp.AppendFromJson(
-                            json_object_list[i].json_cpp, "forest_1"
-                        )
-        else:
-            # TODO: don't just make this a placeholder that we overwrite
+        if self.include_variance_forest:
             self.forest_container_variance = ForestContainer(0, 0, False, False)
             for i in range(len(json_object_list)):
                 if i == 0:
                     self.forest_container_variance.forest_container_cpp.LoadFromJson(
-                        json_object_list[i].json_cpp, "forest_0"
+                        json_object_list[i].json_cpp, "variance_forest"
                     )
                 else:
                     self.forest_container_variance.forest_container_cpp.AppendFromJson(
-                        json_object_list[i].json_cpp, "forest_0"
+                        json_object_list[i].json_cpp, "variance_forest"
                     )
 
         # Unpack random effects

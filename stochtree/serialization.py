@@ -43,7 +43,7 @@ SCHEMA_VERSION = 1
 # -----------------------------------------------------------------------------
 
 
-def resolve_schema_version(serializer: "JSONSerializer") -> int:
+def resolve_schema_version(serializer: "JSONSerializer", migrate=None) -> int:
     """Read the envelope ``schema_version`` and enforce the RFC 0005 reader rules.
 
     Returns the loaded version (``0`` for a legacy / absent stamp). Behavior vs the
@@ -62,6 +62,10 @@ def resolve_schema_version(serializer: "JSONSerializer") -> int:
             f"installation of stochtree supports up to schema_version={SCHEMA_VERSION}. "
             "Please upgrade stochtree to load it."
         )
+    if loaded < SCHEMA_VERSION and migrate is not None:
+        # Dispatch owns the migration: upgrade the JSON in place to the current
+        # schema before the (v1-only) parser runs.
+        migrate(serializer, loaded)
     return loaded
 
 
@@ -99,17 +103,25 @@ class JSONSerializer:
         """
         self.json_cpp.LoadFromString(json_string)
 
-    def add_forest(self, forest_samples: ForestContainer) -> None:
+    def add_forest(
+        self, forest_samples: ForestContainer, forest_label: str = ""
+    ) -> str:
         """Adds a container of forest samples to a json object
 
         Parameters
         ----------
         forest_samples : ForestContainer
             Samples of a tree ensemble
+        forest_label : str, optional
+            Key under the ``forests`` subfolder to store this container. Defaults
+            to an auto-numbered ``forest_<n>`` label when empty.
         """
-        forest_label = self.json_cpp.AddForest(forest_samples.forest_container_cpp)
+        forest_label = self.json_cpp.AddForest(
+            forest_samples.forest_container_cpp, forest_label
+        )
         self.num_forests += 1
         self.forest_labels.append(forest_label)
+        return forest_label
 
     def add_random_effects(self, rfx_container: RandomEffectsContainer) -> None:
         """Adds a container of random effect samples to a json object

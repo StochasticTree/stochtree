@@ -2485,12 +2485,12 @@ saveBARTModelToJson <- function(object) {
     stop("This BCF model has not yet been sampled")
   }
 
-  # Add the forests
+  # Add the forests under self-describing named keys
   if (object$model_params$include_mean_forest) {
-    jsonobj$add_forest(object$mean_forests)
+    jsonobj$add_forest(object$mean_forests, "mean_forest")
   }
   if (object$model_params$include_variance_forest) {
-    jsonobj$add_forest(object$variance_forests)
+    jsonobj$add_forest(object$variance_forests, "variance_forest")
   }
 
   # Add version stamp and global parameters
@@ -2635,6 +2635,33 @@ saveBARTModelToJsonString <- function(object) {
   model_params
 }
 
+# In-place v0 -> v1 migration for a BART model envelope: positional forest keys
+# (forests/forest_0, ...) -> named keys (mean_forest / variance_forest), driven by
+# the include_*_forest flags (unchanged across v0/v1).
+.migrateBartJsonV0ToV1 <- function(json_object, loaded_version) {
+  include_mean <- json_object$get_boolean_or_default("include_mean_forest", FALSE)
+  include_variance <- json_object$get_boolean_or_default(
+    "include_variance_forest",
+    FALSE
+  )
+  if (include_mean) {
+    json_object$rename_field("forest_0", "mean_forest", subfolder_name = "forests")
+    if (include_variance) {
+      json_object$rename_field(
+        "forest_1",
+        "variance_forest",
+        subfolder_name = "forests"
+      )
+    }
+  } else if (include_variance) {
+    json_object$rename_field(
+      "forest_0",
+      "variance_forest",
+      subfolder_name = "forests"
+    )
+  }
+}
+
 #' @title Convert JSON to BART Model
 #' @rdname BARTSerialization
 #' @param json_object Object of type `CppJson` containing Json representation of a BART model
@@ -2645,7 +2672,7 @@ createBARTModelFromJson <- function(json_object) {
 
   # Helpers for optional-field presence checks
   .ver <- inferStochtreeJsonVersion(json_object)
-  resolveSchemaVersion(json_object)
+  resolveSchemaVersion(json_object, migrate = .migrateBartJsonV0ToV1)
   has_field <- function(name) {
     json_contains_field_cpp(json_object$json_ptr, name)
   }
@@ -2661,18 +2688,13 @@ createBARTModelFromJson <- function(json_object) {
   if (include_mean_forest) {
     output[["mean_forests"]] <- loadForestContainerJson(
       json_object,
-      "forest_0"
+      "mean_forest"
     )
-    if (include_variance_forest) {
-      output[["variance_forests"]] <- loadForestContainerJson(
-        json_object,
-        "forest_1"
-      )
-    }
-  } else {
+  }
+  if (include_variance_forest) {
     output[["variance_forests"]] <- loadForestContainerJson(
       json_object,
-      "forest_0"
+      "variance_forest"
     )
   }
 
@@ -2898,7 +2920,9 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
 
   # Helpers for optional-field presence checks
   .ver <- inferStochtreeJsonVersion(json_object_default)
-  resolveSchemaVersion(json_object_default)
+  for (.jo in json_object_list) {
+    resolveSchemaVersion(.jo, migrate = .migrateBartJsonV0ToV1)
+  }
   has_field <- function(name) {
     json_contains_field_cpp(json_object_default$json_ptr, name)
   }
@@ -2920,18 +2944,13 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   if (include_mean_forest) {
     output[["mean_forests"]] <- loadForestContainerCombinedJson(
       json_object_list,
-      "forest_0"
+      "mean_forest"
     )
-    if (include_variance_forest) {
-      output[["variance_forests"]] <- loadForestContainerCombinedJson(
-        json_object_list,
-        "forest_1"
-      )
-    }
-  } else {
+  }
+  if (include_variance_forest) {
     output[["variance_forests"]] <- loadForestContainerCombinedJson(
       json_object_list,
-      "forest_0"
+      "variance_forest"
     )
   }
 
@@ -3210,7 +3229,9 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
 
   # Helpers for optional-field presence checks
   .ver <- inferStochtreeJsonVersion(json_object_default)
-  resolveSchemaVersion(json_object_default)
+  for (.jo in json_object_list) {
+    resolveSchemaVersion(.jo, migrate = .migrateBartJsonV0ToV1)
+  }
   has_field <- function(name) {
     json_contains_field_cpp(json_object_default$json_ptr, name)
   }
@@ -3232,18 +3253,13 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
   if (include_mean_forest) {
     output[["mean_forests"]] <- loadForestContainerCombinedJson(
       json_object_list,
-      "forest_0"
+      "mean_forest"
     )
-    if (include_variance_forest) {
-      output[["variance_forests"]] <- loadForestContainerCombinedJson(
-        json_object_list,
-        "forest_1"
-      )
-    }
-  } else {
+  }
+  if (include_variance_forest) {
     output[["variance_forests"]] <- loadForestContainerCombinedJson(
       json_object_list,
-      "forest_0"
+      "variance_forest"
     )
   }
 

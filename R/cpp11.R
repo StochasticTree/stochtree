@@ -900,8 +900,8 @@ json_extract_string_vector_cpp <- function(json_ptr, field_name) {
   .Call(`_stochtree_json_extract_string_vector_cpp`, json_ptr, field_name)
 }
 
-json_add_forest_cpp <- function(json_ptr, forest_samples) {
-  .Call(`_stochtree_json_add_forest_cpp`, json_ptr, forest_samples)
+json_add_forest_cpp <- function(json_ptr, forest_samples, forest_label) {
+  .Call(`_stochtree_json_add_forest_cpp`, json_ptr, forest_samples, forest_label)
 }
 
 json_increment_rfx_count_cpp <- function(json_ptr) {

@@ -1809,9 +1809,11 @@ class JsonCpp {
     return json_->dump();
   }
 
-  std::string AddForest(ForestContainerCpp& forest_samples) {
+  std::string AddForest(ForestContainerCpp& forest_samples, std::string forest_label = "") {
     int forest_num = json_->at("num_forests");
-    std::string forest_label = "forest_" + std::to_string(forest_num);
+    if (forest_label.empty()) {
+      forest_label = "forest_" + std::to_string(forest_num);
+    }
     nlohmann::json forest_json = forest_samples.ToJson();
     json_->at("forests").emplace(forest_label, forest_json);
     json_->at("num_forests") = forest_num + 1;
@@ -3665,7 +3667,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
       .def("AddIntegerVectorSubfolder", &JsonCpp::AddIntegerVectorSubfolder)
       .def("AddStringVector", &JsonCpp::AddStringVector)
       .def("AddStringVectorSubfolder", &JsonCpp::AddStringVectorSubfolder)
-      .def("AddForest", &JsonCpp::AddForest)
+      .def("AddForest", &JsonCpp::AddForest, py::arg("forest_samples"), py::arg("forest_label") = std::string(""))
       .def("AddRandomEffectsContainer", &JsonCpp::AddRandomEffectsContainer)
       .def("AddRandomEffectsLabelMapper", &JsonCpp::AddRandomEffectsLabelMapper)
       .def("AddRandomEffectsGroupIDs", &JsonCpp::AddRandomEffectsGroupIDs)

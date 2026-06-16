@@ -39,7 +39,7 @@ STOCHTREE_SCHEMA_VERSION <- 1L
 # newer stochtree than this installation supports. A value below the current version
 # is the hook for the migration ladder (no rungs exist yet at version 1; legacy v0
 # models are handled by field-presence default-filling during parsing).
-resolveSchemaVersion <- function(json_object) {
+resolveSchemaVersion <- function(json_object, migrate = NULL) {
   loaded <- json_object$get_integer_or_default("schema_version", 0L)
   if (loaded > STOCHTREE_SCHEMA_VERSION) {
     stop(sprintf(
@@ -50,6 +50,11 @@ resolveSchemaVersion <- function(json_object) {
       loaded,
       STOCHTREE_SCHEMA_VERSION
     ))
+  }
+  if (loaded < STOCHTREE_SCHEMA_VERSION && !is.null(migrate)) {
+    # Dispatch owns the migration: upgrade the JSON in place to the current
+    # schema before the (v1-only) parser runs.
+    migrate(json_object, loaded)
   }
   loaded
 }
@@ -174,14 +179,18 @@ CppJson <- R6::R6Class(
     #' @description
     #' Convert a forest container to json and add to the current `CppJson` object
     #' @param forest_samples `ForestSamples` R class
+    #' @param forest_label Key under the `forests` subfolder to store this
+    #'   container. Defaults to an auto-numbered `forest_<n>` label when empty.
     #' @return None
-    add_forest = function(forest_samples) {
+    add_forest = function(forest_samples, forest_label = "") {
       forest_label <- json_add_forest_cpp(
         self$json_ptr,
-        forest_samples$forest_container_ptr
+        forest_samples$forest_container_ptr,
+        forest_label
       )
       self$num_forests <- self$num_forests + 1
       self$forest_labels <- c(self$forest_labels, forest_label)
+      invisible(forest_label)
     },
 
     #' @description

@@ -375,9 +375,11 @@ cpp11::writable::strings json_extract_string_vector_cpp(cpp11::external_pointer<
 }
 
 [[cpp11::register]]
-std::string json_add_forest_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
+std::string json_add_forest_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, cpp11::external_pointer<StochTree::ForestContainer> forest_samples, std::string forest_label) {
   int forest_num = json_ptr->at("num_forests");
-  std::string forest_label = "forest_" + std::to_string(forest_num);
+  if (forest_label.empty()) {
+    forest_label = "forest_" + std::to_string(forest_num);
+  }
   nlohmann::json forest_json = forest_samples->to_json();
   json_ptr->at("forests").emplace(forest_label, forest_json);
   json_ptr->at("num_forests") = forest_num + 1;

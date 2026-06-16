@@ -1669,10 +1669,10 @@ extern "C" SEXP _stochtree_json_extract_string_vector_cpp(SEXP json_ptr, SEXP fi
   END_CPP11
 }
 // serialization.cpp
-std::string json_add_forest_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, cpp11::external_pointer<StochTree::ForestContainer> forest_samples);
-extern "C" SEXP _stochtree_json_add_forest_cpp(SEXP json_ptr, SEXP forest_samples) {
+std::string json_add_forest_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, cpp11::external_pointer<StochTree::ForestContainer> forest_samples, std::string forest_label);
+extern "C" SEXP _stochtree_json_add_forest_cpp(SEXP json_ptr, SEXP forest_samples, SEXP forest_label) {
   BEGIN_CPP11
-    return cpp11::as_sexp(json_add_forest_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples)));
+    return cpp11::as_sexp(json_add_forest_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<std::string>>(forest_label)));
   END_CPP11
 }
 // serialization.cpp
@@ -1824,7 +1824,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_json_add_bool_subfolder_cpp",                         (DL_FUNC) &_stochtree_json_add_bool_subfolder_cpp,                          4},
     {"_stochtree_json_add_double_cpp",                                 (DL_FUNC) &_stochtree_json_add_double_cpp,                                  3},
     {"_stochtree_json_add_double_subfolder_cpp",                       (DL_FUNC) &_stochtree_json_add_double_subfolder_cpp,                        4},
-    {"_stochtree_json_add_forest_cpp",                                 (DL_FUNC) &_stochtree_json_add_forest_cpp,                                  2},
+    {"_stochtree_json_add_forest_cpp",                                 (DL_FUNC) &_stochtree_json_add_forest_cpp,                                  3},
     {"_stochtree_json_add_integer_cpp",                                (DL_FUNC) &_stochtree_json_add_integer_cpp,                                 3},
     {"_stochtree_json_add_integer_subfolder_cpp",                      (DL_FUNC) &_stochtree_json_add_integer_subfolder_cpp,                       4},
     {"_stochtree_json_add_integer_vector_cpp",                         (DL_FUNC) &_stochtree_json_add_integer_vector_cpp,                          3},
