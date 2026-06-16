@@ -1118,68 +1118,32 @@ test_that("BART cloglog ordinal: probability transform correctness (K=4)", {
   gamma_samples <- bart_model$cloglog_cutpoint_samples # (K-1) x num_mcmc
   expect_equal(dim(gamma_samples), c(n_categories - 1L, num_mcmc))
 
-  # --- R path (run_cpp = FALSE) ---
-  f_hat_r <- predict(
+  f_hat <- predict(
     bart_model,
     X = X_test,
     scale = "linear",
-    terms = "mean_forest",
-    run_cpp = FALSE
+    terms = "mean_forest"
   )
-  expect_equal(dim(f_hat_r), c(n_test, num_mcmc))
+  expect_equal(dim(f_hat), c(n_test, num_mcmc))
 
-  p_manual_r <- assemble_probs(f_hat_r, gamma_samples, n_categories)
+  p_manual <- assemble_probs(f_hat, gamma_samples, n_categories)
 
-  p_model_r <- predict(
+  p_model <- predict(
     bart_model,
     X = X_test,
     scale = "probability",
-    terms = "y_hat",
-    run_cpp = FALSE
+    terms = "y_hat"
   )
-  expect_equal(dim(p_model_r), c(n_test, n_categories, num_mcmc))
+  expect_equal(dim(p_model), c(n_test, n_categories, num_mcmc))
 
-  expect_equal(p_manual_r, p_model_r, tolerance = 1e-10)
-  expect_true(all(p_model_r >= 0))
-  row_sums_r <- apply(p_model_r, c(1, 3), sum)
+  expect_equal(p_manual, p_model, tolerance = 1e-10)
+  expect_true(all(p_model >= 0))
+  row_sums <- apply(p_model, c(1, 3), sum)
   expect_equal(
-    row_sums_r,
+    row_sums,
     matrix(1, nrow = n_test, ncol = num_mcmc),
     tolerance = 1e-10
   )
-
-  # --- C++ path (run_cpp = TRUE) ---
-  f_hat_cpp <- predict(
-    bart_model,
-    X = X_test,
-    scale = "linear",
-    terms = "mean_forest",
-    run_cpp = TRUE
-  )
-  expect_equal(dim(f_hat_cpp), c(n_test, num_mcmc))
-
-  p_manual_cpp <- assemble_probs(f_hat_cpp, gamma_samples, n_categories)
-
-  p_model_cpp <- predict(
-    bart_model,
-    X = X_test,
-    scale = "probability",
-    terms = "y_hat",
-    run_cpp = TRUE
-  )
-  expect_equal(dim(p_model_cpp), c(n_test, n_categories, num_mcmc))
-
-  expect_equal(p_manual_cpp, p_model_cpp, tolerance = 1e-10)
-  expect_true(all(p_model_cpp >= 0))
-  row_sums_cpp <- apply(p_model_cpp, c(1, 3), sum)
-  expect_equal(
-    row_sums_cpp,
-    matrix(1, nrow = n_test, ncol = num_mcmc),
-    tolerance = 1e-10
-  )
-
-  # Both paths must agree
-  expect_equal(p_model_r, p_model_cpp, tolerance = 1e-10)
 })
 
 test_that("BART gaussian: posterior interval and contrast", {

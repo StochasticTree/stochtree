@@ -23,8 +23,7 @@ bart(
   general_params = list(),
   mean_forest_params = list(),
   variance_forest_params = list(),
-  random_effects_params = list(),
-  run_cpp = TRUE
+  random_effects_params = list()
 )
 }
 \arguments{
@@ -94,7 +93,7 @@ referred to internally in the C++ layer as "variance weights" (\code{var_weights
 \item \code{verbose} Whether or not to print progress during the sampling loops. Default: \code{FALSE}.
 \item \code{outcome_model} A structured \code{OutcomeModel} object that specifies the outcome type and desired link function. This argument pre-empts the legacy (deprecated) \code{probit_outcome_model} option. Default: \code{OutcomeModel(outcome='continuous', link='identity')}.
 \item \code{probit_outcome_model} Deprecated in favor of \code{outcome_model}. Whether or not the outcome should be modeled as explicitly binary via a probit link. If \code{TRUE}, \code{y} must only contain the values \code{0} and \code{1}. Default: \code{FALSE}.
-\item \code{num_threads} Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to \code{1}, otherwise to the maximum number of available threads.
+\item \code{num_threads} Number of threads to use in the GFR and MCMC algorithms, as well as prediction. Defaults to \code{1} (single-threaded). Set to \code{-1} to use the maximum number of available threads, or a positive integer for a specific count. OpenMP must be available for values other than \code{1}.
 }}
 
 \item{mean_forest_params}{(Optional) A list of mean forest model parameters, each of which has a default value processed internally, so this argument list is optional.
@@ -139,8 +138,6 @@ referred to internally in the C++ layer as "variance weights" (\code{var_weights
 \item \code{variance_prior_shape} Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
 \item \code{variance_prior_scale} Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
 }}
-
-\item{run_cpp}{Whether or not to run the core C++ sampler. Default \code{TRUE}.}
 }
 \value{
 List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
