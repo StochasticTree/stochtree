@@ -433,11 +433,18 @@ void BARTSampler::run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr, int 
     gfr_snapshots_.reserve(num_chains - 1);
   }
 
+  if (config_.verbose && num_gfr > 0) {
+    Log::Info("Running GFR sampler (%d iterations)", num_gfr);
+  }
+  const int gfr_report_every = std::max(1, num_gfr / 10);
   bool write_snapshot = false;
   for (int i = 0; i < num_gfr; i++) {
     // Do not snapshot the final GFR iteration: chain 1 uses the live sampler state directly.
     write_snapshot = (i >= snapshot_start) && (i < num_gfr - 1);
     RunOneIteration(samples, /*gfr=*/true, /*keep_sample=*/keep_gfr, /*write_snapshot=*/write_snapshot);
+    if (config_.verbose && ((i + 1) % gfr_report_every == 0 || i + 1 == num_gfr)) {
+      Log::Info("GFR: %d%% (%d/%d)", (100 * (i + 1)) / num_gfr, i + 1, num_gfr);
+    }
   }
 }
 
@@ -458,12 +465,17 @@ void BARTSampler::run_mcmc(BARTSamples& samples, int num_burnin, int keep_every,
 
   // Create leaf models and pass them to the RunOneIteration function; these are updated in place and will reflect the current state of the leaf scale parameters (if they are being sampled)
   bool keep_forest = false;
-  for (int i = 0; i < num_burnin + keep_every * num_mcmc; i++) {
+  const int mcmc_total = num_burnin + keep_every * num_mcmc;
+  const int mcmc_report_every = std::max(1, mcmc_total / 10);
+  for (int i = 0; i < mcmc_total; i++) {
     if (i >= num_burnin && (i - num_burnin) % keep_every == 0)
       keep_forest = true;
     else
       keep_forest = false;
     RunOneIteration(samples, /*gfr=*/false, /*keep_sample=*/keep_forest, /*write_snapshot=*/false);
+    if (config_.verbose && ((i + 1) % mcmc_report_every == 0 || i + 1 == mcmc_total)) {
+      Log::Info("MCMC: %d%% (%d/%d)", (100 * (i + 1)) / mcmc_total, i + 1, mcmc_total);
+    }
   }
 }
 
@@ -479,6 +491,9 @@ void BARTSampler::run_mcmc_chains(BARTSamples& samples, int num_chains, int num_
       if (snapshot_idx >= 0 && snapshot_idx < static_cast<int>(gfr_snapshots_.size())) {
         RestoreStateFromGFRSnapshot(samples, snapshot_idx);
       }
+    }
+    if (config_.verbose) {
+      Log::Info("Running MCMC chain %d/%d (%d samples)", chain_idx + 1, num_chains, num_mcmc);
     }
     run_mcmc(samples, num_burnin, keep_every, num_mcmc);
   }

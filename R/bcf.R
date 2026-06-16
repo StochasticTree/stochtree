@@ -1583,6 +1583,7 @@ bcf <- function(
   bcf_config <- list(
     "standardize_outcome" = standardize,
     "num_threads" = num_threads,
+    "verbose" = verbose,
     "cutpoint_grid_size" = cutpoint_grid_size,
     "link_function" = ifelse(
       outcome_model$link == "identity",

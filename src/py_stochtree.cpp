@@ -2191,6 +2191,7 @@ inline StochTree::BARTConfig convert_dict_to_bart_config(py::dict config_dict) {
   // Global model parameters
   output.standardize_outcome = get_config_scalar_default<bool>(config_dict, "standardize_outcome", true);
   output.num_threads = get_config_scalar_default<int>(config_dict, "num_threads", 1);
+  output.verbose = get_config_scalar_default<bool>(config_dict, "verbose", false);
   output.cutpoint_grid_size = get_config_scalar_default<int>(config_dict, "cutpoint_grid_size", 100);
   output.link_function = static_cast<StochTree::LinkFunction>(get_config_scalar_default<int>(config_dict, "link_function", 0));
   output.outcome_type = static_cast<StochTree::OutcomeType>(get_config_scalar_default<int>(config_dict, "outcome_type", 0));
@@ -2564,6 +2565,7 @@ inline StochTree::BCFConfig convert_dict_to_bcf_config(py::dict config_dict) {
   // Global model parameters
   output.standardize_outcome = get_config_scalar_default<bool>(config_dict, "standardize_outcome", true);
   output.num_threads = get_config_scalar_default<int>(config_dict, "num_threads", 1);
+  output.verbose = get_config_scalar_default<bool>(config_dict, "verbose", false);
   output.cutpoint_grid_size = get_config_scalar_default<int>(config_dict, "cutpoint_grid_size", 100);
   output.link_function = static_cast<StochTree::LinkFunction>(get_config_scalar_default<int>(config_dict, "link_function", 0));
   output.outcome_type = static_cast<StochTree::OutcomeType>(get_config_scalar_default<int>(config_dict, "outcome_type", 0));

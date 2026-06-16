@@ -190,6 +190,7 @@ class BARTModel:
         - **outcome_model** (*stochtree.OutcomeModel*): An object of class ``OutcomeModel`` specifying the outcome model. Default: ``OutcomeModel(outcome="continuous", link="identity")``. Pre-empts the deprecated ``probit_outcome_model`` parameter if specified.
         - **probit_outcome_model** (*bool*): Deprecated in favor of ``outcome_model``. Whether or not the outcome should be modeled as explicitly binary via a probit link. If ``True``, ``y`` must only contain the values ``0`` and ``1``. Default: ``False``.
         - **num_threads** (*int*): Number of threads to use in the GFR and MCMC algorithms, as well as prediction. Defaults to ``1`` (single-threaded). Set to ``-1`` to use the maximum number of available threads, or a positive integer for a specific count. OpenMP must be available for values other than ``1``.
+        - **verbose** (*bool*): Whether to print sampler progress (GFR / MCMC iteration updates) to the console during sampling. Defaults to ``False``.
 
         **mean_forest_params keys**
 
@@ -250,6 +251,7 @@ class BARTModel:
             "outcome_model": OutcomeModel(outcome="continuous", link="identity"),
             "probit_outcome_model": False,
             "num_threads": 1,
+            "verbose": False,
         }
         general_params_updated = _preprocess_params(
             general_params_default, general_params
@@ -326,6 +328,7 @@ class BARTModel:
         self.probit_outcome_model = general_params_updated["probit_outcome_model"]
         self.outcome_model = general_params_updated["outcome_model"]
         num_threads = general_params_updated["num_threads"]
+        verbose = general_params_updated["verbose"]
 
         # 2. Mean forest parameters
         num_trees_mean = mean_forest_params_updated["num_trees"]
@@ -1163,6 +1166,7 @@ class BARTModel:
         bart_config = {
             "standardize_outcome": self.standardize,
             "num_threads": num_threads,
+            "verbose": verbose,
             "cutpoint_grid_size": cutpoint_grid_size,
             "link_function": 0
             if self.outcome_model.link == "identity"

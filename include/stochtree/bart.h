@@ -53,6 +53,7 @@ struct BARTConfig {
   // High level parameters
   bool standardize_outcome = true;                      // whether to standardize the outcome before fitting and unstandardize predictions after
   int num_threads = 1;                                  // number of threads to use for sampling
+  bool verbose = false;                                 // whether to print sampler progress to the console
   int cutpoint_grid_size = 100;                         // number of cutpoints to consider for each covariate when sampling splits
   std::vector<FeatureType> feature_types;               // feature types for each covariate (should be same length as number of covariates in the dataset), where 0 = continuous, 1 = categorical
   LinkFunction link_function = LinkFunction::Identity;  // link function to use (Identity, Probit, Cloglog)

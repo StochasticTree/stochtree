@@ -154,3 +154,31 @@ test_that("BCF internal propensity model is reproducible with random_seed", {
   # full fit) must be reproducible across runs.
   expect_equal(fit(), fit())
 })
+
+test_that("verbose prints sampler progress", {
+  skip_on_cran()
+  set.seed(8)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  y <- X[, 1] + rnorm(n)
+  # verbose = TRUE prints GFR/MCMC progress to the console.
+  expect_output(
+    bart(
+      X_train = X, y_train = y,
+      num_gfr = 5, num_burnin = 0, num_mcmc = 20,
+      general_params = list(random_seed = 1, verbose = TRUE)
+    ),
+    "Running GFR sampler"
+  )
+  # verbose = FALSE is silent. Assign the result inside capture.output so the
+  # returned model is not auto-printed (its print method itself mentions GFR/MCMC).
+  silent_output <- capture.output(
+    fit_silent <- bart(
+      X_train = X, y_train = y,
+      num_gfr = 5, num_burnin = 0, num_mcmc = 20,
+      general_params = list(random_seed = 1, verbose = FALSE)
+    )
+  )
+  expect_false(any(grepl("Running GFR sampler|GFR:|MCMC:", silent_output)))
+})

@@ -186,3 +186,20 @@ class TestInitParamsHonored:
         # The internally-estimated propensity (and hence the full fit) must be
         # reproducible across runs with a fixed random_seed.
         np.testing.assert_allclose(fit(), fit())
+
+    def test_verbose_prints_progress(self, capfd):
+        rng = np.random.default_rng(8)
+        n, p = 100, 3
+        X = rng.uniform(size=(n, p))
+        y = X[:, 0] + rng.normal(size=n)
+        kwargs = dict(X_train=X, y_train=y, num_gfr=5, num_burnin=0, num_mcmc=20)
+
+        BARTModel().sample(**kwargs, general_params={"random_seed": 1, "verbose": True})
+        out = capfd.readouterr().out
+        assert "GFR" in out and "MCMC" in out
+
+        BARTModel().sample(
+            **kwargs, general_params={"random_seed": 1, "verbose": False}
+        )
+        out_silent = capfd.readouterr().out
+        assert "GFR" not in out_silent and "MCMC" not in out_silent

@@ -14,6 +14,7 @@ StochTree::BARTConfig convert_list_to_bart_config(cpp11::list config) {
   // Global model parameters
   output.standardize_outcome = get_config_scalar_default<bool>(config, "standardize_outcome", true);
   output.num_threads = get_config_scalar_default<int>(config, "num_threads", 1);
+  output.verbose = get_config_scalar_default<bool>(config, "verbose", false);
   output.cutpoint_grid_size = get_config_scalar_default<int>(config, "cutpoint_grid_size", 100);
   output.link_function = static_cast<StochTree::LinkFunction>(get_config_scalar_default<int>(config, "link_function", 0));
   output.outcome_type = static_cast<StochTree::OutcomeType>(get_config_scalar_default<int>(config, "outcome_type", 0));
