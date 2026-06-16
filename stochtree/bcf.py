@@ -1842,6 +1842,7 @@ class BCFModel:
             "leaf_prior_calibration_param": a_0,
             "shape_variance_forest": a_forest,
             "scale_variance_forest": b_forest,
+            "variance_forest_leaf_init": variance_forest_leaf_init,
             "alpha_variance": alpha_variance,
             "beta_variance": beta_variance,
             "min_samples_leaf_variance": min_samples_leaf_variance,

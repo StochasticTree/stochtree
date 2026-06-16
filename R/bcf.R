@@ -431,7 +431,7 @@ bcf <- function(
   min_samples_leaf_variance <- variance_forest_params_updated$min_samples_leaf
   max_depth_variance <- variance_forest_params_updated$max_depth
   a_0 <- variance_forest_params_updated$leaf_prior_calibration_param
-  variance_forest_init <- variance_forest_params_updated$init_root_val
+  variance_forest_init <- variance_forest_params_updated$variance_forest_init
   a_forest <- variance_forest_params_updated$var_forest_prior_shape
   b_forest <- variance_forest_params_updated$var_forest_prior_scale
   keep_vars_variance <- variance_forest_params_updated$keep_vars
@@ -1664,6 +1664,7 @@ bcf <- function(
     "leaf_prior_calibration_param" = a_0,
     "shape_variance_forest" = a_forest,
     "scale_variance_forest" = b_forest,
+    "variance_forest_leaf_init" = variance_forest_init,
     "alpha_variance" = alpha_variance,
     "beta_variance" = beta_variance,
     "min_samples_leaf_variance" = min_samples_leaf_variance,

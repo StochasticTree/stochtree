@@ -2229,6 +2229,7 @@ inline StochTree::BARTConfig convert_dict_to_bart_config(py::dict config_dict) {
   output.leaf_prior_calibration_param = get_config_scalar_default<double>(config_dict, "leaf_prior_calibration_param", 1.5);
   output.shape_variance_forest = get_config_scalar_default<double>(config_dict, "shape_variance_forest", -1.0);
   output.scale_variance_forest = get_config_scalar_default<double>(config_dict, "scale_variance_forest", -1.0);
+  output.variance_forest_leaf_init = get_config_scalar_default<double>(config_dict, "variance_forest_leaf_init", -1.0);
   output.alpha_variance = get_config_scalar_default<double>(config_dict, "alpha_variance", 0.5);
   output.beta_variance = get_config_scalar_default<double>(config_dict, "beta_variance", 2.0);
   output.min_samples_leaf_variance = get_config_scalar_default<int>(config_dict, "min_samples_leaf_variance", 5);
@@ -2617,6 +2618,7 @@ inline StochTree::BCFConfig convert_dict_to_bcf_config(py::dict config_dict) {
   output.leaf_prior_calibration_param = get_config_scalar_default<double>(config_dict, "leaf_prior_calibration_param", 1.5);
   output.shape_variance_forest = get_config_scalar_default<double>(config_dict, "shape_variance_forest", -1.0);
   output.scale_variance_forest = get_config_scalar_default<double>(config_dict, "scale_variance_forest", -1.0);
+  output.variance_forest_leaf_init = get_config_scalar_default<double>(config_dict, "variance_forest_leaf_init", -1.0);
   output.alpha_variance = get_config_scalar_default<double>(config_dict, "alpha_variance", 0.5);
   output.beta_variance = get_config_scalar_default<double>(config_dict, "beta_variance", 2.0);
   output.min_samples_leaf_variance = get_config_scalar_default<int>(config_dict, "min_samples_leaf_variance", 5);

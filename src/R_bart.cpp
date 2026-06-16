@@ -52,6 +52,7 @@ StochTree::BARTConfig convert_list_to_bart_config(cpp11::list config) {
   output.leaf_prior_calibration_param = get_config_scalar_default<double>(config, "leaf_prior_calibration_param", 1.5);
   output.shape_variance_forest = get_config_scalar_default<double>(config, "shape_variance_forest", -1.0);
   output.scale_variance_forest = get_config_scalar_default<double>(config, "scale_variance_forest", -1.0);
+  output.variance_forest_leaf_init = get_config_scalar_default<double>(config, "variance_forest_leaf_init", -1.0);
   output.alpha_variance = get_config_scalar_default<double>(config, "alpha_variance", 0.5);
   output.beta_variance = get_config_scalar_default<double>(config, "beta_variance", 2.0);
   output.min_samples_leaf_variance = get_config_scalar_default<int>(config, "min_samples_leaf_variance", 5);

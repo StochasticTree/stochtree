@@ -207,7 +207,9 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
         config_.scale_variance_forest = config_.num_trees_variance / (config_.leaf_prior_calibration_param * config_.leaf_prior_calibration_param);
       }
     }
-    if (config_.standardize_outcome) {
+    if (config_.variance_forest_leaf_init > 0.0) {
+      init_val_variance_ = config_.variance_forest_leaf_init;
+    } else if (config_.standardize_outcome) {
       init_val_variance_ = 1.0;
     } else {
       init_val_variance_ = y_var;

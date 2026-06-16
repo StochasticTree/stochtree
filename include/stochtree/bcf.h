@@ -115,6 +115,7 @@ struct BCFConfig {
   double leaf_prior_calibration_param = 1.5;       // calibration parameter for variance forest leaf prior
   double shape_variance_forest = -1.0;             // shape parameter for variance forest leaf model (calibrated internally based on leaf_prior_calibration_param if set to sentinel value of -1)
   double scale_variance_forest = -1.0;             // scale parameter for variance forest leaf model (calibrated internally based on leaf_prior_calibration_param if set to sentinel value of -1)
+  double variance_forest_leaf_init = -1.0;         // initial (raw-scale) root value for the variance forest; each leaf starts at log(value)/num_trees_variance. Sentinel <= 0 = calibrate internally
   double alpha_variance = 0.5;                     // alpha parameter for variance forest tree prior
   double beta_variance = 2.0;                      // beta parameter for variance forest tree prior
   int min_samples_leaf_variance = 5;               // minimum number of samples per leaf for variance forest
