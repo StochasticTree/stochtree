@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pytest
 from sklearn.model_selection import train_test_split
 
@@ -1577,6 +1578,29 @@ class TestBART:
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
         assert bart_model.cloglog_cutpoint_samples.shape == (2, num_mcmc)
+
+    def test_categorical_covariates_mean_only(self):
+        """A mean-only BART model with categorical (one-hot expanded) covariates
+        must sample and predict without error.
+
+        Regression test: the "zero out excluded variable weights" step ran
+        outside the include_*_forest guards, so variable_weights_variance was
+        never expanded to the processed (one-hot) length for a model without a
+        variance forest, and indexing it raised an IndexError.
+        """
+        rng = np.random.default_rng(0)
+        n = 100
+        X_num = rng.uniform(0, 1, (n, 3))
+        X = pd.DataFrame(X_num, columns=["a", "b", "c"])
+        X["cat"] = pd.Categorical(rng.choice(["x", "y", "z"], size=n))
+        y = X_num[:, 0] + rng.normal(scale=0.5, size=n)
+
+        model = BARTModel()
+        # Mean forest only (no variance forest) is the failing configuration.
+        model.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=5)
+
+        preds = model.predict(X)
+        assert preds["y_hat"].shape[0] == n
 
 
 class TestBARTFloat32:
