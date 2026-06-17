@@ -14,6 +14,7 @@ import warnings
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from stochtree import BARTModel, BCFModel
@@ -477,6 +478,78 @@ class TestBARTFieldRoundtrip:
         combined.from_json_string_list([m_a.to_json(), m_b.to_json()])
         assert combined.num_samples == 20
         assert isinstance(str(combined), str)
+
+
+def _matrix_covariates(categorical, k, seed=7):
+    """Predict-time covariates matching the v1 fixture matrix training layout:
+    4 numeric columns, plus an unordered categorical column for the categorical
+    fixtures (mirrors generate_v1_fixtures.py)."""
+    rng = np.random.default_rng(seed)
+    X_num = rng.uniform(size=(k, 4))
+    if not categorical:
+        return X_num
+    X = pd.DataFrame(X_num, columns=[f"x{i}" for i in range(4)])
+    X["cat"] = pd.Categorical(rng.choice(["a", "b", "c"], size=k))
+    return X
+
+
+class TestV1Snapshot:
+    """Load the checked-in schema_version=1 fixture matrix (unified envelope).
+
+    The matrix is {bart, bcf} x {numeric, categorical} x {no-rfx, rfx}; these lock
+    the on-disk v1 format directly -- named forest keys, ``covariate_preprocessor``
+    (identity vs categorical encoding), and the ``random_effects`` layout
+    (including the relocated ``rfx_unique_group_ids``) -- whereas the legacy v0
+    fixtures above guard the v0 -> v1 migration path. Regenerate with
+    ``python test/python/fixtures/generate_v1_fixtures.py``.
+    """
+
+    @pytest.mark.parametrize("categorical", [False, True])
+    @pytest.mark.parametrize("rfx", [False, True])
+    def test_bart_v1_matrix(self, categorical, rfx):
+        kind = "categorical" if categorical else "numeric"
+        name = f"bart_{kind}{'_rfx' if rfx else ''}_v1.json"
+        obj = _load_fixture(name)
+        assert obj["schema_version"] == 1
+        assert set(obj["forests"]) == {"mean_forest"}
+
+        m = BARTModel()
+        m.from_json(_to_json_string(obj))
+        assert m.has_rfx == rfx
+
+        k = 12
+        X = _matrix_covariates(categorical, k)
+        kw = {}
+        if rfx:
+            kw["rfx_group_ids"] = np.arange(k) % 3
+            kw["rfx_basis"] = np.ones((k, 1))
+        preds = m.predict(X, **kw)
+        assert preds["y_hat"].shape[0] == k
+
+    @pytest.mark.parametrize("categorical", [False, True])
+    @pytest.mark.parametrize("rfx", [False, True])
+    def test_bcf_v1_matrix(self, categorical, rfx):
+        kind = "categorical" if categorical else "numeric"
+        name = f"bcf_{kind}{'_rfx' if rfx else ''}_v1.json"
+        obj = _load_fixture(name)
+        assert obj["schema_version"] == 1
+        assert {"prognostic_forest", "treatment_forest"} <= set(obj["forests"])
+
+        m = BCFModel()
+        m.from_json(_to_json_string(obj))
+        assert m.has_rfx == rfx
+
+        k = 12
+        X = _matrix_covariates(categorical, k)
+        rng = np.random.default_rng(3)
+        Z = rng.binomial(1, 0.5, k).astype(float)
+        pi = np.full(k, 0.5)
+        kw = {}
+        if rfx:
+            kw["rfx_group_ids"] = np.arange(k) % 3
+            kw["rfx_basis"] = np.ones((k, 1))
+        preds = m.predict(X, Z, pi, **kw)
+        assert preds["y_hat"].shape[0] == k
 
 
 def test_future_schema_version_raises():

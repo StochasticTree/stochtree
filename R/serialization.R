@@ -67,7 +67,7 @@ resolveSchemaVersion <- function(json_object, migrate = NULL) {
 #' loading a single [ForestSamples] container from a broader BART / BCF model (which may include multiple forests and other parametric terms).
 #'
 #' `loadForestContainerJson` converts a [CppJson] object representing a BART or BCF model into a [ForestSamples] container
-#' by extracting the JSON indexed by a forest label (i.e. `"forest_0"`) and deserializing it into a [ForestSamples] object.
+#' by extracting the JSON indexed by a forest label (i.e. `"mean_forest"`) and deserializing it into a [ForestSamples] object.
 #'
 #' Both `loadForestContainerJson` and `loadForestContainerCombinedJson` operate similarly, but on a list of [CppJson] or JSON string
 #' representations of BART / BCF models with the same structure.
@@ -85,9 +85,9 @@ resolveSchemaVersion <- function(json_object, migrate = NULL) {
 #' bart_json_string <- saveBARTModelToJsonString(bart_model)
 #' bart_json_list <- list(bart_json)
 #' bart_json_string_list <- list(bart_json_string)
-#' mean_forest <- loadForestContainerJson(bart_json, "forest_0")
-#' mean_forest <- loadForestContainerCombinedJson(bart_json_list, "forest_0")
-#' mean_forest <- loadForestContainerCombinedJsonString(bart_json_string_list, "forest_0")
+#' mean_forest <- loadForestContainerJson(bart_json, "mean_forest")
+#' mean_forest <- loadForestContainerCombinedJson(bart_json_list, "mean_forest")
+#' mean_forest <- loadForestContainerCombinedJsonString(bart_json_string_list, "mean_forest")
 #'
 NULL
 #> NULL
@@ -768,7 +768,7 @@ CppJson <- R6::R6Class(
 #' @title Load Forest Samples from JSON
 #' @rdname ForestSamplesSerialization
 #' @param json_object Object of class `CppJson`
-#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
+#' @param json_forest_label Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
 #' @export
 loadForestContainerJson <- function(json_object, json_forest_label) {
   invisible(output <- ForestSamples$new(0, 1, T))
@@ -779,7 +779,7 @@ loadForestContainerJson <- function(json_object, json_forest_label) {
 #' @title Combine JSON Model Objects into ForestSamples
 #' @rdname ForestSamplesSerialization
 #' @param json_object_list List of objects of class `CppJson`
-#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
+#' @param json_forest_label Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
 #' @export
 loadForestContainerCombinedJson <- function(
   json_object_list,
@@ -800,7 +800,7 @@ loadForestContainerCombinedJson <- function(
 #' @title Combine JSON Strings into ForestSamples
 #' @rdname ForestSamplesSerialization
 #' @param json_string_list List of strings that parse into objects of type `CppJson`
-#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
+#' @param json_forest_label Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
 #' @export
 loadForestContainerCombinedJsonString <- function(
   json_string_list,

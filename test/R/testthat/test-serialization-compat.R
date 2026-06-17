@@ -353,3 +353,89 @@ test_that("a future schema_version is refused with a clear error", {
   expect_false(identical(js, js_future)) # confirm the substitution matched
   expect_error(createBARTModelFromJsonString(js_future), "schema_version")
 })
+
+# ===========================================================================
+# v1 (unified-envelope) golden-fixture matrix snapshot tests
+# ===========================================================================
+#
+# Matrix: {bart, bcf} x {numeric, categorical} x {no-rfx, rfx}. These lock the
+# on-disk schema_version=1 format directly (named forest keys,
+# covariate_preprocessor, and rfx_unique_group_ids relocated into
+# random_effects), whereas the legacy v0 fixtures above guard the v0 -> v1
+# migration path. Regenerate with test/R/testthat/fixtures/generate_v1_fixtures.R.
+
+make_v1_covariates <- function(categorical, k, seed = 7) {
+  set.seed(seed)
+  X_num <- matrix(runif(k * 4), ncol = 4)
+  if (!categorical) {
+    return(X_num)
+  }
+  X <- data.frame(X_num)
+  X$cat <- factor(
+    sample(c("a", "b", "c"), k, replace = TRUE),
+    levels = c("a", "b", "c")
+  )
+  X
+}
+
+for (.categorical in c(FALSE, TRUE)) {
+  for (.rfx in c(FALSE, TRUE)) {
+    local({
+      categorical <- .categorical
+      rfx <- .rfx
+      kind <- if (categorical) "categorical" else "numeric"
+      sfx <- if (rfx) "_rfx" else ""
+
+      test_that(sprintf("BART v1 fixture loads and predicts (%s%s)", kind, sfx), {
+        skip_on_cran()
+        skip_if_not_installed("jsonlite")
+        obj <- read_fixture_json(sprintf("bart_%s%s_v1.json", kind, sfx))
+        expect_equal(obj$schema_version, 1)
+        expect_equal(names(obj$forests), "mean_forest")
+        if (rfx) {
+          # rfx unique group ids live in the random_effects subfolder, not top-level
+          expect_true("rfx_unique_group_ids" %in% names(obj$random_effects))
+          expect_false("rfx_unique_group_ids" %in% names(obj))
+        }
+        m <- createBARTModelFromJsonString(write_json_string(obj))
+        expect_equal(m$model_params$has_rfx, rfx)
+        k <- 12
+        X <- make_v1_covariates(categorical, k)
+        args <- list(object = m, X = X)
+        if (rfx) {
+          args$rfx_group_ids <- (0:(k - 1)) %% 3
+          args$rfx_basis <- matrix(1, nrow = k, ncol = 1)
+        }
+        preds <- do.call(predict, args)
+        expect_equal(nrow(preds$y_hat), k)
+      })
+
+      test_that(sprintf("BCF v1 fixture loads and predicts (%s%s)", kind, sfx), {
+        skip_on_cran()
+        skip_if_not_installed("jsonlite")
+        obj <- read_fixture_json(sprintf("bcf_%s%s_v1.json", kind, sfx))
+        expect_equal(obj$schema_version, 1)
+        expect_true(all(
+          c("prognostic_forest", "treatment_forest") %in% names(obj$forests)
+        ))
+        if (rfx) {
+          expect_true("rfx_unique_group_ids" %in% names(obj$random_effects))
+        }
+        m <- createBCFModelFromJsonString(write_json_string(obj))
+        expect_equal(m$model_params$has_rfx, rfx)
+        k <- 12
+        X <- make_v1_covariates(categorical, k)
+        set.seed(3)
+        Z <- rbinom(k, 1, 0.5)
+        pi <- rep(0.5, k)
+        args <- list(object = m, X = X, Z = Z, propensity = pi)
+        if (rfx) {
+          args$rfx_group_ids <- (0:(k - 1)) %% 3
+          args$rfx_basis <- matrix(1, nrow = k, ncol = 1)
+        }
+        preds <- do.call(predict, args)
+        expect_equal(nrow(preds$y_hat), k)
+      })
+    })
+  }
+}
