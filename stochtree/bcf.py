@@ -13,7 +13,12 @@ from .bart import BARTModel
 from .forest import ForestContainer
 from .preprocessing import CovariatePreprocessor, _preprocess_params
 from .random_effects import RandomEffectsContainer
-from .serialization import JSONSerializer, SCHEMA_VERSION, resolve_schema_version
+from .serialization import (
+    JSONSerializer,
+    SCHEMA_VERSION,
+    resolve_schema_version,
+    infer_platform_v0,
+)
 from .utils import (
     OutcomeModel,
     NotSampledError,
@@ -34,8 +39,10 @@ def _migrate_bcf_v0_to_v1(serializer: JSONSerializer, loaded_version: int) -> No
     Positional forest keys -> named keys: ``forest_0`` -> ``prognostic_forest``,
     ``forest_1`` -> ``treatment_forest``, and (when present) ``forest_2`` ->
     ``variance_forest``. The prognostic (mu) and treatment (tau) forests are always
-    present in a BCF model; the variance forest is optional.
+    present in a BCF model; the variance forest is optional. Also stamps the
+    writer ``platform`` (inferred from structural fingerprints).
     """
+    serializer.add_string("platform", infer_platform_v0(serializer, "python"))
     serializer.rename_field("forest_0", "prognostic_forest", subfolder_name="forests")
     serializer.rename_field("forest_1", "treatment_forest", subfolder_name="forests")
     if serializer.get_boolean_or_default("include_variance_forest", False):
@@ -2927,9 +2934,15 @@ class BCFModel:
         # Add the rfx
         if self.has_rfx:
             bcf_json.add_random_effects(self.rfx_container)
+            # Python rfx group ids are always integer-valued, so an rfx model is
+            # cross-platform compatible on the rfx axis.
+            bcf_json.add_boolean(
+                "cross_platform_compatible", True, subfolder_name="random_effects"
+            )
 
         # Add version stamp and global parameters
         bcf_json.add_string("stochtree_version", _get_stochtree_version())
+        bcf_json.add_string("platform", "python")
         bcf_json.add_integer("schema_version", SCHEMA_VERSION)
         bcf_json.add_scalar("outcome_scale", self.y_std)
         bcf_json.add_scalar("outcome_mean", self.y_bar)

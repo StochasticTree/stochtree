@@ -69,6 +69,21 @@ def resolve_schema_version(serializer: "JSONSerializer", migrate=None) -> int:
     return loaded
 
 
+def infer_platform_v0(serializer: "JSONSerializer", default: str) -> str:
+    """Infer the writer platform of a legacy (v0) envelope from structural
+    fingerprints. R wrote ``preprocessor_metadata`` and a top-level
+    ``rfx_unique_group_ids``; Python wrote ``covariate_preprocessor``. Called
+    before the v0->v1 renames, so the legacy keys are still present. Falls back
+    to ``default`` (the loading platform) when no fingerprint is decisive."""
+    if serializer.contains("covariate_preprocessor"):
+        return "python"
+    if serializer.contains("preprocessor_metadata") or serializer.contains(
+        "rfx_unique_group_ids"
+    ):
+        return "R"
+    return default
+
+
 class JSONSerializer:
     """
     Class that handles serialization and deserialization of stochastic forest models

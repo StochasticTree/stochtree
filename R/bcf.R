@@ -3334,6 +3334,7 @@ saveBCFModelToJson <- function(object) {
 
   # Add version stamp and global parameters
   jsonobj$add_string("stochtree_version", getStochtreeVersion())
+  jsonobj$add_string("platform", "R")
   jsonobj$add_integer("schema_version", STOCHTREE_SCHEMA_VERSION)
   jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
   jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
@@ -3442,6 +3443,14 @@ saveBCFModelToJson <- function(object) {
       object$rfx_unique_group_ids,
       subfolder_name = "random_effects"
     )
+    # Cross-platform compatible on the rfx axis iff the group id levels are
+    # integer-valued (Python supports only integer group ids).
+    rfx_compatible <- all(grepl("^-?[0-9]+$", object$rfx_unique_group_ids))
+    jsonobj$add_boolean(
+      "cross_platform_compatible",
+      rfx_compatible,
+      subfolder_name = "random_effects"
+    )
   }
   jsonobj$add_string(
     "rfx_model_spec",
@@ -3520,6 +3529,7 @@ saveBCFModelToJsonString <- function(object) {
 # named keys (forest_0 -> prognostic_forest, forest_1 -> treatment_forest, and when
 # present forest_2 -> variance_forest). The mu/tau forests are always present.
 .migrateBcfJsonV0ToV1 <- function(json_object, loaded_version) {
+  json_object$add_string("platform", inferPlatformV0(json_object, "R"))
   json_object$rename_field(
     "forest_0",
     "prognostic_forest",

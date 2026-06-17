@@ -59,6 +59,24 @@ resolveSchemaVersion <- function(json_object, migrate = NULL) {
   loaded
 }
 
+# Infer the writer platform of a legacy (v0) envelope from structural
+# fingerprints. R wrote `preprocessor_metadata` and a top-level
+# `rfx_unique_group_ids`; Python wrote `covariate_preprocessor`. Called before
+# the v0 -> v1 renames, so the legacy keys are still present. Falls back to
+# `default` (the loading platform) when no fingerprint is decisive.
+inferPlatformV0 <- function(json_object, default) {
+  if (json_object$contains("covariate_preprocessor")) {
+    return("python")
+  }
+  if (
+    json_object$contains("preprocessor_metadata") ||
+      json_object$contains("rfx_unique_group_ids")
+  ) {
+    return("R")
+  }
+  default
+}
+
 #' Forest Container Serialization Routines
 #' @name ForestSamplesSerialization
 #' @description

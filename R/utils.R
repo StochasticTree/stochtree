@@ -554,6 +554,25 @@ savePreprocessorToJson <- function(object) {
     }
   }
 
+  # Cross-platform portability (RFC 0005): portable iff every covariate is
+  # numeric (no categorical encoding). The cross-platform loader peeks at this
+  # flag via a plain JSON parse without reconstructing the native preprocessor.
+  portable <- (object$num_ordered_cat_vars == 0) &&
+    (object$num_unordered_cat_vars == 0)
+  jsonobj$add_boolean("cross_platform_portable", portable)
+  if (!portable) {
+    non_portable_columns <- c(
+      if (object$num_ordered_cat_vars > 0) object$ordered_cat_vars else NULL,
+      if (object$num_unordered_cat_vars > 0) object$unordered_cat_vars else NULL
+    )
+    # Human-readable string for the cross-platform refusal message (the gate
+    # only branches on the boolean above).
+    jsonobj$add_string(
+      "non_portable_columns",
+      paste(non_portable_columns, collapse = ", ")
+    )
+  }
+
   return(jsonobj)
 }
 
