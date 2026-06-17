@@ -990,13 +990,19 @@ class BARTModel:
                     * variable_weights_adj
                 )
 
-        # Zero out weights for excluded variables
-        variable_weights_mean[
-            [variable_subset_mean.count(i) == 0 for i in original_var_indices]
-        ] = 0
-        variable_weights_variance[
-            [variable_subset_variance.count(i) == 0 for i in original_var_indices]
-        ] = 0
+        # Zero out weights for excluded variables. The weight arrays are only
+        # expanded to processed (post-preprocessing) length inside the
+        # include_*_forest guards above, so the zero-out must be guarded the same
+        # way -- otherwise a mean-only (or variance-only) model with categorical
+        # covariates indexes an unexpanded array and raises. (Matches R's logic.)
+        if self.include_mean_forest:
+            variable_weights_mean[
+                [variable_subset_mean.count(i) == 0 for i in original_var_indices]
+            ] = 0
+        if self.include_variance_forest:
+            variable_weights_variance[
+                [variable_subset_variance.count(i) == 0 for i in original_var_indices]
+            ] = 0
 
         # Set num_features_subsample to default, ncol(X_train), if not already set
         if num_features_subsample_mean is None:
