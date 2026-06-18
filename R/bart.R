@@ -2698,6 +2698,7 @@ createBARTModelFromJson <- function(json_object) {
   # Helpers for optional-field presence checks
   .ver <- inferStochtreeJsonVersion(json_object)
   resolveSchemaVersion(json_object, migrate = .migrateBartJsonV0ToV1)
+  cross_platform <- enforceCrossPlatformGate(json_object, "R")
   has_field <- function(name) {
     json_contains_field_cpp(json_object$json_ptr, name)
   }
@@ -2882,7 +2883,11 @@ createBARTModelFromJson <- function(json_object) {
   }
 
   # Unpack covariate preprocessor
-  if (has_field("covariate_preprocessor")) {
+  if (cross_platform) {
+    # Identity metadata for the cross-platform all-numeric path (gate enforced);
+    # the foreign native preprocessor is not reconstructed.
+    output[["train_set_metadata"]] <- buildIdentityPreprocessorMetadata(json_object)
+  } else if (has_field("covariate_preprocessor")) {
     preprocessor_metadata_string <- json_object$get_string(
       "covariate_preprocessor"
     )
@@ -2949,6 +2954,7 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   for (.jo in json_object_list) {
     resolveSchemaVersion(.jo, migrate = .migrateBartJsonV0ToV1)
   }
+  cross_platform <- enforceCrossPlatformGate(json_object_default, "R")
   has_field <- function(name) {
     json_contains_field_cpp(json_object_default$json_ptr, name)
   }
@@ -3215,7 +3221,13 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   }
 
   # Unpack covariate preprocessor
-  if (has_field("covariate_preprocessor")) {
+  if (cross_platform) {
+    # Identity metadata for the cross-platform all-numeric path (gate enforced);
+    # the foreign native preprocessor is not reconstructed.
+    output[["train_set_metadata"]] <- buildIdentityPreprocessorMetadata(
+      json_object_default
+    )
+  } else if (has_field("covariate_preprocessor")) {
     preprocessor_metadata_string <- json_object_default$get_string(
       "covariate_preprocessor"
     )
@@ -3261,6 +3273,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
   for (.jo in json_object_list) {
     resolveSchemaVersion(.jo, migrate = .migrateBartJsonV0ToV1)
   }
+  cross_platform <- enforceCrossPlatformGate(json_object_default, "R")
   has_field <- function(name) {
     json_contains_field_cpp(json_object_default$json_ptr, name)
   }
@@ -3528,7 +3541,13 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
   }
 
   # Unpack covariate preprocessor
-  if (has_field("covariate_preprocessor")) {
+  if (cross_platform) {
+    # Identity metadata for the cross-platform all-numeric path (gate enforced);
+    # the foreign native preprocessor is not reconstructed.
+    output[["train_set_metadata"]] <- buildIdentityPreprocessorMetadata(
+      json_object_default
+    )
+  } else if (has_field("covariate_preprocessor")) {
     preprocessor_metadata_string <- json_object_default$get_string(
       "covariate_preprocessor"
     )

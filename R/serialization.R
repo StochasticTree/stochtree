@@ -77,6 +77,79 @@ inferPlatformV0 <- function(json_object, default) {
   default
 }
 
+# Return TRUE iff this is a cross-platform load (writer `platform` != loader).
+# For a cross-platform load, verify the model is portable (all-numeric covariates)
+# and rfx-compatible (integer group ids); otherwise stop() with a clear, actionable
+# error. Same-platform loads return FALSE and ignore the flags. The portability
+# flag is peeked from the covariate_preprocessor JSON via the C++ parser -- the
+# foreign native preprocessor is never reconstructed. An absent portability flag
+# is treated as non-portable (e.g. legacy v0 models), so such a cross-platform load
+# is refused rather than mis-handled.
+enforceCrossPlatformGate <- function(json_object, loader_platform) {
+  writer_platform <- json_object$get_string_or_default("platform", loader_platform)
+  if (identical(writer_platform, loader_platform)) {
+    return(FALSE)
+  }
+  portable <- FALSE
+  non_portable_columns <- ""
+  if (json_object$contains("covariate_preprocessor")) {
+    prep <- createCppJsonString(json_object$get_string("covariate_preprocessor"))
+    portable <- prep$get_boolean_or_default("cross_platform_portable", FALSE)
+    non_portable_columns <- prep$get_string_or_default("non_portable_columns", "")
+  }
+  compatible <- json_object$get_boolean_or_default(
+    "cross_platform_compatible",
+    TRUE,
+    subfolder_name = "random_effects"
+  )
+  if (!portable) {
+    stop(sprintf(
+      paste0(
+        "Cannot load a model written on platform '%s' from '%s': it was fit with ",
+        "non-numeric covariates (columns: %s), which are not cross-platform portable. ",
+        "Load it on '%s', or refit / re-save with all-numeric covariates."
+      ),
+      writer_platform,
+      loader_platform,
+      if (nzchar(non_portable_columns)) non_portable_columns else "unknown",
+      writer_platform
+    ))
+  }
+  if (!compatible) {
+    stop(sprintf(
+      paste0(
+        "Cannot load a model written on platform '%s' from '%s': it has string-labeled ",
+        "random effects, which are not cross-platform compatible (only integer-valued ",
+        "group ids are). Load it on '%s'."
+      ),
+      writer_platform,
+      loader_platform,
+      writer_platform
+    ))
+  }
+  TRUE
+}
+
+# Minimal identity preprocessor metadata for a cross-platform all-numeric load.
+# The foreign native preprocessor can't be reconstructed, but the model is
+# all-numeric (gate enforced), so prediction on a numeric matrix passes through;
+# the feature count is read from the foreign preprocessor for the dimension check.
+buildIdentityPreprocessorMetadata <- function(json_object) {
+  n_features <- 0L
+  if (json_object$contains("covariate_preprocessor")) {
+    prep <- createCppJsonString(json_object$get_string("covariate_preprocessor"))
+    n_features <- prep$get_integer_or_default(
+      "num_original_features",
+      prep$get_integer_or_default("num_numeric_vars", 0L)
+    )
+  }
+  list(
+    num_numeric_vars = n_features,
+    num_ordered_cat_vars = 0,
+    num_unordered_cat_vars = 0
+  )
+}
+
 #' Forest Container Serialization Routines
 #' @name ForestSamplesSerialization
 #' @description

@@ -15,6 +15,7 @@ from .serialization import (
     SCHEMA_VERSION,
     resolve_schema_version,
     infer_platform_v0,
+    enforce_cross_platform_gate,
 )
 from .utils import (
     OutcomeModel,
@@ -2356,6 +2357,10 @@ class BARTModel:
         bart_json.add_string("stochtree_version", _get_stochtree_version())
         bart_json.add_string("platform", "python")
         bart_json.add_integer("schema_version", SCHEMA_VERSION)
+        # Covariate count: written so a cross-platform (R) loader can validate
+        # prediction-set dimension. For all-numeric (portable) models the
+        # processed count equals the original count R expects.
+        bart_json.add_scalar("num_covariates", self.num_covariates)
         bart_json.add_scalar("outcome_scale", self.y_std)
         bart_json.add_scalar("outcome_mean", self.y_bar)
         bart_json.add_boolean("standardize", self.standardize)
@@ -2423,6 +2428,7 @@ class BARTModel:
         bart_json = JSONSerializer()
         bart_json.load_from_json_string(json_string)
         resolve_schema_version(bart_json, migrate=_migrate_bart_v0_to_v1)
+        cross_platform = enforce_cross_platform_gate(bart_json, "python")
 
         # Unpack forests
         self.include_mean_forest = bart_json.get_boolean("include_mean_forest")
@@ -2550,7 +2556,12 @@ class BARTModel:
                     )
 
         # Unpack covariate preprocessor
-        if "covariate_preprocessor" in _raw:
+        if cross_platform:
+            # The foreign native preprocessor can't be reconstructed; the gate
+            # guarantees the model is all-numeric, so an unfitted (identity)
+            # preprocessor passes numeric covariates through at predict time.
+            self._covariate_preprocessor = CovariatePreprocessor()
+        elif "covariate_preprocessor" in _raw:
             covariate_preprocessor_string = bart_json.get_string(
                 "covariate_preprocessor"
             )
@@ -2588,6 +2599,7 @@ class BARTModel:
         json_object_default = json_object_list[0]
         for json_object in json_object_list:
             resolve_schema_version(json_object, migrate=_migrate_bart_v0_to_v1)
+        cross_platform = enforce_cross_platform_gate(json_object_default, "python")
         _raw = json.loads(json_string_list[0])
         _ver = _infer_stochtree_version(json_string_list[0])
 
@@ -2777,7 +2789,11 @@ class BARTModel:
                         )
 
         # Unpack covariate preprocessor
-        if "covariate_preprocessor" in _raw:
+        if cross_platform:
+            # Identity preprocessor for the cross-platform all-numeric path (gate
+            # enforced); the foreign native preprocessor is not reconstructed.
+            self._covariate_preprocessor = CovariatePreprocessor()
+        elif "covariate_preprocessor" in _raw:
             covariate_preprocessor_string = json_object_default.get_string(
                 "covariate_preprocessor"
             )

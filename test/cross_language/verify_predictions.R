@@ -32,6 +32,10 @@ read_matrix <- function(path) {
   as.matrix(read.table(path, sep = ",", header = FALSE))
 }
 
+read_text <- function(path) {
+  paste(readLines(path, warn = FALSE), collapse = "")
+}
+
 check_parity <- function(label, python_mat, r_mat, tol = 1e-10) {
   stopifnot(identical(dim(python_mat), dim(r_mat)))
   max_diff <- max(abs(python_mat - r_mat))
@@ -46,6 +50,48 @@ check_parity <- function(label, python_mat, r_mat, tol = 1e-10) {
 
 scenario_exists <- function(fixture_dir, name) {
   file.exists(file.path(fixture_dir, paste0(name, ".json")))
+}
+
+# WS-E cross-load correctness. Cross-language prediction *equality* is confounded
+# by ~1-ULP differences between R and numpy CSV float parsing (which flip
+# split-boundary observations), so we assert the real serialization guarantee
+# directly: the foreign-written forest round-trips into R bit-exactly. A loaded
+# forest container is re-serialized and compared to the original named forest at
+# full precision.
+check_forest_bitexact <- function(label, forest_samples, envelope, forest_name) {
+  reser <- createCppJson()
+  reser$add_forest(forest_samples)
+  got <- jsonlite::fromJSON(reser$return_json_string(), simplifyVector = FALSE)
+  got <- got$forests$forest_0
+  want <- envelope$forests[[forest_name]]
+  if (identical(got, want)) {
+    cat(sprintf("  PASS  %-44s (forest bit-exact across platforms)\n", label))
+  } else {
+    cat(sprintf("  FAIL  %-44s (forest did NOT round-trip bit-exactly)\n", label))
+    stop(paste("Cross-load forest round-trip failed:", label))
+  }
+}
+
+# Soft prediction sanity check: cross-language predictions agree except for rare
+# split-boundary flips from float-parsing noise, so we only report the magnitude
+# and guard against gross errors (e.g. a transpose), not exact equality.
+soft_pred_info <- function(label, a, b) {
+  md <- max(abs(a - b))
+  # Rows differing beyond float-exchange noise are split-boundary flips from
+  # ~1-ULP R/numpy CSV parsing differences -- inherently rare and scale-free to
+  # count. A large fraction would indicate a real cross-load bug (the magnitude
+  # alone is scale-dependent and not a reliable signal).
+  frac <- mean(apply(abs(a - b), 1, max) > 1e-6)
+  cat(sprintf(
+    "  INFO  %-40s max|diff|=%.2e, boundary-flipped rows=%.1f%%\n",
+    label, md, 100 * frac
+  ))
+  if (frac > 0.15) {
+    stop(sprintf(
+      "Cross-load: %.1f%% of rows differ for %s -- likely a real bug, not float noise",
+      100 * frac, label
+    ))
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -82,6 +128,17 @@ scenario_bart_basic <- function(fixture_dir) {
   py_yhat_test <- read_matrix(file.path(fixture_dir, "bart_basic_yhat_test.csv"))
   r_yhat_test  <- predict(model, X_test, terms = "y_hat")
   check_parity("bart_basic / yhat_test", py_yhat_test, r_yhat_test)
+
+  # WS-E cross-load: R loads the Python-written model; assert the forest round-
+  # trips bit-exactly, then sanity-check predictions.
+  py_path <- file.path(fixture_dir, "bart_basic_py_model.json")
+  envelope <- fromJSON(read_text(py_path), simplifyVector = FALSE)
+  py_model <- createBARTModelFromJsonString(read_text(py_path))
+  check_forest_bitexact(
+    "bart_basic / R<-py mean_forest", py_model$mean_forests, envelope, "mean_forest"
+  )
+  soft_pred_info("bart_basic / R<-py yhat_train", py_yhat_train,
+                 predict(py_model, X_train, terms = "y_hat"))
 }
 
 
@@ -136,6 +193,23 @@ scenario_bcf_basic <- function(fixture_dir) {
       predict(model, X_s, Z_s, propensity = pi_s, terms = "mu")
     )
   }
+
+  # WS-E cross-load: R loads the Python-written model; assert forests round-trip
+  # bit-exactly, then sanity-check predictions.
+  py_path <- file.path(fixture_dir, "bcf_basic_py_model.json")
+  envelope <- fromJSON(read_text(py_path), simplifyVector = FALSE)
+  py_model <- createBCFModelFromJsonString(read_text(py_path))
+  check_forest_bitexact(
+    "bcf_basic / R<-py prognostic", py_model$forests_mu, envelope, "prognostic_forest"
+  )
+  check_forest_bitexact(
+    "bcf_basic / R<-py treatment", py_model$forests_tau, envelope, "treatment_forest"
+  )
+  soft_pred_info(
+    "bcf_basic / R<-py yhat_train",
+    read_matrix(file.path(fixture_dir, "bcf_basic_yhat_train.csv")),
+    predict(py_model, X_train, Z_train, propensity = pi_train, terms = "y_hat")
+  )
 }
 
 
@@ -243,6 +317,26 @@ scenario_bcf_varforest <- function(fixture_dir) {
       predict(model, X_s, Z_s, propensity = pi_s, terms = "variance_forest")
     )
   }
+
+  # WS-E cross-load: R loads the Python-written model; assert forests round-trip
+  # bit-exactly (incl. the variance forest), then sanity-check predictions.
+  py_path <- file.path(fixture_dir, "bcf_varforest_py_model.json")
+  envelope <- fromJSON(read_text(py_path), simplifyVector = FALSE)
+  py_model <- createBCFModelFromJsonString(read_text(py_path))
+  check_forest_bitexact(
+    "bcf_varforest / R<-py prognostic", py_model$forests_mu, envelope, "prognostic_forest"
+  )
+  check_forest_bitexact(
+    "bcf_varforest / R<-py treatment", py_model$forests_tau, envelope, "treatment_forest"
+  )
+  check_forest_bitexact(
+    "bcf_varforest / R<-py variance", py_model$forests_variance, envelope, "variance_forest"
+  )
+  soft_pred_info(
+    "bcf_varforest / R<-py yhat_train",
+    read_matrix(file.path(fixture_dir, "bcf_varforest_yhat_train.csv")),
+    predict(py_model, X_train, Z_train, propensity = pi_train, terms = "y_hat")
+  )
 }
 
 

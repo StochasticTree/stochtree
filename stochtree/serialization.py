@@ -1,3 +1,4 @@
+import json
 import warnings
 
 import numpy as np
@@ -82,6 +83,49 @@ def infer_platform_v0(serializer: "JSONSerializer", default: str) -> str:
     ):
         return "R"
     return default
+
+
+def enforce_cross_platform_gate(
+    serializer: "JSONSerializer", loader_platform: str
+) -> bool:
+    """Return ``True`` iff this is a cross-platform load (writer ``platform`` !=
+    loader). For a cross-platform load, verify the model is portable (all-numeric
+    covariates) and rfx-compatible (integer group ids); otherwise raise a clear,
+    actionable error. Same-platform loads return ``False`` and ignore the flags.
+
+    The portability flag is peeked from the ``covariate_preprocessor`` JSON via a
+    plain parse -- the foreign native preprocessor is never reconstructed. An
+    absent portability flag is treated as non-portable (e.g. legacy v0 models),
+    so a cross-platform load of such a model is refused rather than mis-handled.
+    """
+    writer_platform = serializer.get_string_or_default("platform", loader_platform)
+    if writer_platform == loader_platform:
+        return False
+    portable = False
+    non_portable_columns = ""
+    if serializer.contains("covariate_preprocessor"):
+        prep = json.loads(serializer.get_string("covariate_preprocessor"))
+        portable = bool(prep.get("cross_platform_portable", False))
+        non_portable_columns = prep.get("non_portable_columns", "")
+    compatible = serializer.get_boolean_or_default(
+        "cross_platform_compatible", True, subfolder_name="random_effects"
+    )
+    if not portable:
+        raise ValueError(
+            f"Cannot load a model written on platform '{writer_platform}' from "
+            f"'{loader_platform}': it was fit with non-numeric covariates "
+            f"(columns: {non_portable_columns or 'unknown'}), which are not "
+            f"cross-platform portable. Load it on '{writer_platform}', or "
+            "refit / re-save with all-numeric covariates."
+        )
+    if not compatible:
+        raise ValueError(
+            f"Cannot load a model written on platform '{writer_platform}' from "
+            f"'{loader_platform}': it has string-labeled random effects, which are "
+            "not cross-platform compatible (only integer-valued group ids are). "
+            f"Load it on '{writer_platform}'."
+        )
+    return True
 
 
 class JSONSerializer:

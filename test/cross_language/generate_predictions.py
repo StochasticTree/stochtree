@@ -46,6 +46,12 @@ def write_metadata(path: str, meta: dict) -> None:
         json.dump(meta, f, indent=2)
 
 
+def write_model_json(path: str, model) -> None:
+    """Serialize a fitted model so the other language can load it (WS-E cross-load)."""
+    with open(path, "w") as f:
+        f.write(model.to_json())
+
+
 # ---------------------------------------------------------------------------
 # Scenario: bart_basic
 # ---------------------------------------------------------------------------
@@ -104,6 +110,7 @@ def scenario_bart_basic(output_dir: str) -> None:
         "num_mcmc": num_mcmc,
         "params": {},
     }
+    write_model_json(os.path.join(output_dir, "bart_basic_py_model.json"), model)
     write_metadata(os.path.join(output_dir, "bart_basic.json"), meta)
 
     print("  bart_basic — OK")
@@ -211,6 +218,7 @@ def scenario_bcf_basic(output_dir: str) -> None:
         "num_mcmc": num_mcmc,
         "params": {"sample_intercept": True, "num_trees_variance": 0},
     }
+    write_model_json(os.path.join(output_dir, "bcf_basic_py_model.json"), model)
     write_metadata(os.path.join(output_dir, "bcf_basic.json"), meta)
 
     print("  bcf_basic — OK")
@@ -291,6 +299,7 @@ def scenario_bart_rfx(output_dir: str) -> None:
         "num_mcmc": num_mcmc,
         "params": {"model_spec": "intercept_only"},
     }
+    write_model_json(os.path.join(output_dir, "bart_rfx_py_model.json"), model)
     write_metadata(os.path.join(output_dir, "bart_rfx.json"), meta)
 
     print("  bart_rfx — OK")
@@ -404,6 +413,7 @@ def scenario_bcf_varforest(output_dir: str) -> None:
             "num_trees_variance": num_trees_variance,
         },
     }
+    write_model_json(os.path.join(output_dir, "bcf_varforest_py_model.json"), model)
     write_metadata(os.path.join(output_dir, "bcf_varforest.json"), meta)
 
     print("  bcf_varforest — OK")

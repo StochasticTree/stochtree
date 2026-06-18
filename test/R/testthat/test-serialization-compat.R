@@ -439,3 +439,80 @@ for (.categorical in c(FALSE, TRUE)) {
     })
   }
 }
+
+# ===========================================================================
+# WS-E: cross-platform load gate
+# ===========================================================================
+#
+# A cross-platform load succeeds for portable (all-numeric, integer-rfx) models
+# and is refused with a clear error otherwise; same-platform loads ignore the
+# flags. We relabel a fixture's `platform` as the other platform to drive the
+# gate from within R's own suite (the gate peeks generic flags; the foreign
+# preprocessor body is ignored).
+
+read_fixture_raw <- function(fixture_name) {
+  paste(
+    readLines(testthat::test_path("fixtures", fixture_name), warn = FALSE),
+    collapse = ""
+  )
+}
+
+as_foreign <- function(fixture_name, compat = NULL) {
+  cj <- createCppJsonString(read_fixture_raw(fixture_name))
+  cj$erase_field("platform")
+  cj$add_string("platform", "python")
+  if (!is.null(compat)) {
+    cj$add_boolean(
+      "cross_platform_compatible",
+      compat,
+      subfolder_name = "random_effects"
+    )
+  }
+  cj$return_json_string()
+}
+
+test_that("numeric BART loads cross-platform and predicts", {
+  skip_on_cran()
+  skip_if_not_installed("jsonlite")
+  m <- createBARTModelFromJsonString(as_foreign("bart_numeric_v1.json"))
+  set.seed(0)
+  X <- matrix(runif(8 * 4), ncol = 4)
+  expect_equal(nrow(predict(m, X = X)$y_hat), 8)
+})
+
+test_that("numeric BCF loads cross-platform and predicts", {
+  skip_on_cran()
+  skip_if_not_installed("jsonlite")
+  m <- createBCFModelFromJsonString(as_foreign("bcf_numeric_v1.json"))
+  set.seed(0)
+  X <- matrix(runif(8 * 4), ncol = 4)
+  Z <- rbinom(8, 1, 0.5)
+  preds <- predict(m, X = X, Z = Z, propensity = rep(0.5, 8))
+  expect_equal(nrow(preds$y_hat), 8)
+})
+
+test_that("non-portable models are refused cross-platform", {
+  skip_on_cran()
+  skip_if_not_installed("jsonlite")
+  expect_error(
+    createBARTModelFromJsonString(as_foreign("bart_categorical_v1.json")),
+    "non-numeric covariates"
+  )
+  expect_error(
+    createBCFModelFromJsonString(as_foreign("bcf_categorical_v1.json")),
+    "non-numeric covariates"
+  )
+  expect_error(
+    createBARTModelFromJsonString(
+      as_foreign("bart_numeric_rfx_v1.json", compat = FALSE)
+    ),
+    "random effects"
+  )
+})
+
+test_that("same-platform categorical load is not refused", {
+  skip_on_cran()
+  skip_if_not_installed("jsonlite")
+  m <- createBARTModelFromJsonString(read_fixture_raw("bart_categorical_v1.json"))
+  expect_s3_class(m, "bartmodel")
+})

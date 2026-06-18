@@ -552,6 +552,61 @@ class TestV1Snapshot:
         assert preds["y_hat"].shape[0] == k
 
 
+def _as_foreign(fixture_name, **overrides):
+    """Relabel a fixture's ``platform`` as the *other* platform so the
+    cross-platform gate can be exercised from within Python's own test suite
+    (the gate peeks generic flags; the foreign preprocessor body is ignored)."""
+    obj = _load_fixture(fixture_name)
+    obj["platform"] = "R"
+    obj.update(overrides)
+    return _to_json_string(obj)
+
+
+class TestCrossPlatformGate:
+    """WS-E: cross-platform load succeeds for portable (all-numeric, integer-rfx)
+    models and is refused with a clear error otherwise. Same-platform loads ignore
+    the flags."""
+
+    def test_numeric_bart_cross_platform_loads_and_predicts(self):
+        m = BARTModel()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            m.from_json(_as_foreign("bart_numeric_v1.json"))
+            preds = m.predict(np.random.default_rng(0).uniform(size=(8, 4)))
+        assert preds["y_hat"].shape[0] == 8
+
+    def test_numeric_bcf_cross_platform_loads_and_predicts(self):
+        m = BCFModel()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            m.from_json(_as_foreign("bcf_numeric_v1.json"))
+            rng = np.random.default_rng(0)
+            X = rng.uniform(size=(8, 4))
+            Z = rng.binomial(1, 0.5, 8).astype(float)
+            preds = m.predict(X, Z, np.full(8, 0.5))
+        assert preds["y_hat"].shape[0] == 8
+
+    def test_categorical_cross_platform_refused(self):
+        with pytest.raises(ValueError, match="non-numeric covariates"):
+            BARTModel().from_json(_as_foreign("bart_categorical_v1.json"))
+        with pytest.raises(ValueError, match="non-numeric covariates"):
+            BCFModel().from_json(_as_foreign("bcf_categorical_v1.json"))
+
+    def test_string_rfx_cross_platform_refused(self):
+        # Force the rfx-incompatible flag (Python never writes string rfx itself).
+        obj = _load_fixture("bart_numeric_rfx_v1.json")
+        obj["platform"] = "R"
+        obj["random_effects"]["cross_platform_compatible"] = False
+        with pytest.raises(ValueError, match="random effects"):
+            BARTModel().from_json(_to_json_string(obj))
+
+    def test_same_platform_categorical_not_refused(self):
+        # Loaded on its own platform, a categorical model must NOT trip the gate.
+        m = BARTModel()
+        m.from_json(_to_json_string(_load_fixture("bart_categorical_v1.json")))
+        assert m.sampled
+
+
 def test_future_schema_version_raises():
     """A model stamped with a newer schema_version than this install supports must error."""
     from stochtree.serialization import SCHEMA_VERSION
