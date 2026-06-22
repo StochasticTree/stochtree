@@ -2875,11 +2875,11 @@ createBARTModelFromJson <- function(json_object) {
 
   # Unpack random effects
   if (model_params[["has_rfx"]]) {
-    output[["rfx_unique_group_ids"]] <- json_object$get_string_vector(
-      "rfx_unique_group_ids",
-      subfolder_name = "random_effects"
-    )
     output[["rfx_samples"]] <- loadRandomEffectSamplesJson(json_object, 0)
+    output[["rfx_unique_group_ids"]] <- resolveRfxUniqueGroupIds(
+      json_object,
+      output[["rfx_samples"]]
+    )
   }
 
   # Unpack covariate preprocessor
@@ -3208,15 +3208,13 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
 
   # Unpack random effects
   if (model_params[["has_rfx"]]) {
-    output[[
-      "rfx_unique_group_ids"
-    ]] <- json_object_default$get_string_vector(
-      "rfx_unique_group_ids",
-      subfolder_name = "random_effects"
-    )
     output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(
       json_object_list,
       0
+    )
+    output[["rfx_unique_group_ids"]] <- resolveRfxUniqueGroupIds(
+      json_object_default,
+      output[["rfx_samples"]]
     )
   }
 
@@ -3528,15 +3526,13 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
 
   # Unpack random effects
   if (model_params[["has_rfx"]]) {
-    output[[
-      "rfx_unique_group_ids"
-    ]] <- json_object_default$get_string_vector(
-      "rfx_unique_group_ids",
-      subfolder_name = "random_effects"
-    )
     output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(
       json_object_list,
       0
+    )
+    output[["rfx_unique_group_ids"]] <- resolveRfxUniqueGroupIds(
+      json_object_default,
+      output[["rfx_samples"]]
     )
   }
 

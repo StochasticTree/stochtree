@@ -120,6 +120,10 @@ scenario_bart_basic <- function(fixture_dir) {
     num_mcmc = meta$num_mcmc,
     general_params = list(random_seed = meta$seed)
   )
+  writeLines(
+    saveBARTModelToJsonString(model),
+    file.path(fixture_dir, "bart_basic_r_model.json")
+  )
 
   py_yhat_train <- read_matrix(file.path(fixture_dir, "bart_basic_yhat_train.csv"))
   r_yhat_train  <- predict(model, X_train, terms = "y_hat")
@@ -170,6 +174,10 @@ scenario_bcf_basic <- function(fixture_dir) {
     num_burnin = meta$num_burnin,
     num_mcmc = meta$num_mcmc,
     general_params = list(random_seed = meta$seed)
+  )
+  writeLines(
+    saveBCFModelToJsonString(model),
+    file.path(fixture_dir, "bcf_basic_r_model.json")
   )
 
   for (split in c("train", "test")) {
@@ -241,6 +249,10 @@ scenario_bart_rfx <- function(fixture_dir) {
     general_params = list(random_seed = meta$seed),
     random_effects_params = list(model_spec = "intercept_only")
   )
+  writeLines(
+    saveBARTModelToJsonString(model),
+    file.path(fixture_dir, "bart_rfx_r_model.json")
+  )
 
   for (split in c("train", "test")) {
     X_s <- if (split == "train") X_train else X_test
@@ -257,6 +269,23 @@ scenario_bart_rfx <- function(fixture_dir) {
       predict(model, X_s, rfx_group_ids = g_s, terms = "rfx")
     )
   }
+
+  # WS-E cross-load: R loads the Python-written rfx model. Python never writes
+  # rfx_unique_group_ids, so R reconstructs the levels from the rfx label mapper.
+  py_path <- file.path(fixture_dir, "bart_rfx_py_model.json")
+  envelope <- fromJSON(read_text(py_path), simplifyVector = FALSE)
+  py_model <- createBARTModelFromJsonString(read_text(py_path))
+  check_forest_bitexact(
+    "bart_rfx / R<-py mean_forest", py_model$mean_forests, envelope, "mean_forest"
+  )
+  soft_pred_info(
+    "bart_rfx / R<-py yhat_train",
+    read_matrix(file.path(fixture_dir, "bart_rfx_yhat_train.csv")),
+    predict(py_model, X_train,
+      rfx_group_ids = g_train, rfx_basis = matrix(1, nrow(X_train), 1),
+      terms = "y_hat"
+    )
+  )
 }
 
 
@@ -289,6 +318,10 @@ scenario_bcf_varforest <- function(fixture_dir) {
     num_mcmc = meta$num_mcmc,
     general_params = list(random_seed = meta$seed),
     variance_forest_params = list(num_trees = meta$params$num_trees_variance)
+  )
+  writeLines(
+    saveBCFModelToJsonString(model),
+    file.path(fixture_dir, "bcf_varforest_r_model.json")
   )
 
   for (split in c("train", "test")) {

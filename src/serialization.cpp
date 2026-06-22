@@ -410,6 +410,20 @@ std::string json_add_rfx_label_mapper_cpp(cpp11::external_pointer<nlohmann::json
   return rfx_label;
 }
 
+// Unique (sorted) integer group ids tracked by an rfx label mapper. Used to
+// reconstruct R's `rfx_unique_group_ids` levels when loading a model written
+// without them (e.g. a cross-platform Python model). Mirrors Python's
+// RandomEffectsLabelMapperCpp::GetUniqueGroupIds.
+[[cpp11::register]]
+cpp11::writable::integers rfx_label_mapper_unique_group_ids_cpp(cpp11::external_pointer<StochTree::LabelMapper> label_mapper) {
+  std::vector<int>& keys = label_mapper->Keys();
+  cpp11::writable::integers result(static_cast<R_xlen_t>(keys.size()));
+  for (size_t i = 0; i < keys.size(); i++) {
+    result[i] = keys[i];
+  }
+  return result;
+}
+
 [[cpp11::register]]
 std::string json_add_rfx_groupids_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, cpp11::integers groupids) {
   int rfx_num = json_ptr->at("num_random_effects");

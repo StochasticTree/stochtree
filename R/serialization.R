@@ -143,11 +143,36 @@ buildIdentityPreprocessorMetadata <- function(json_object) {
       prep$get_integer_or_default("num_numeric_vars", 0L)
     )
   }
+  # A complete all-numeric metadata: predict only needs `num_numeric_vars`, but
+  # the extra fields let a cross-loaded model be re-saved (savePreprocessorToJson
+  # requires feature_types / original_var_indices / numeric_vars). Original column
+  # names are unknown cross-platform, so use positional placeholders.
   list(
     num_numeric_vars = n_features,
     num_ordered_cat_vars = 0,
-    num_unordered_cat_vars = 0
+    num_unordered_cat_vars = 0,
+    feature_types = rep(0, n_features),
+    original_var_indices = seq_len(n_features),
+    numeric_vars = as.character(seq_len(n_features))
   )
+}
+
+# Resolve rfx group-id levels: read `rfx_unique_group_ids` when present (R-written
+# models), or reconstruct sorted integer levels from the rfx label mapper when
+# absent (e.g. a cross-platform Python model, which never writes that field).
+resolveRfxUniqueGroupIds <- function(json_object, rfx_samples) {
+  if (
+    json_object$contains("rfx_unique_group_ids", subfolder_name = "random_effects")
+  ) {
+    json_object$get_string_vector(
+      "rfx_unique_group_ids",
+      subfolder_name = "random_effects"
+    )
+  } else {
+    as.character(
+      rfx_label_mapper_unique_group_ids_cpp(rfx_samples$label_mapper_ptr)
+    )
+  }
 }
 
 #' Forest Container Serialization Routines

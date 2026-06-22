@@ -916,6 +916,10 @@ json_add_rfx_label_mapper_cpp <- function(json_ptr, label_mapper) {
   .Call(`_stochtree_json_add_rfx_label_mapper_cpp`, json_ptr, label_mapper)
 }
 
+rfx_label_mapper_unique_group_ids_cpp <- function(label_mapper) {
+  .Call(`_stochtree_rfx_label_mapper_unique_group_ids_cpp`, label_mapper)
+}
+
 json_add_rfx_groupids_cpp <- function(json_ptr, groupids) {
   .Call(`_stochtree_json_add_rfx_groupids_cpp`, json_ptr, groupids)
 }

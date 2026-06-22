@@ -1698,6 +1698,13 @@ extern "C" SEXP _stochtree_json_add_rfx_label_mapper_cpp(SEXP json_ptr, SEXP lab
   END_CPP11
 }
 // serialization.cpp
+cpp11::writable::integers rfx_label_mapper_unique_group_ids_cpp(cpp11::external_pointer<StochTree::LabelMapper> label_mapper);
+extern "C" SEXP _stochtree_rfx_label_mapper_unique_group_ids_cpp(SEXP label_mapper) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(rfx_label_mapper_unique_group_ids_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::LabelMapper>>>(label_mapper)));
+  END_CPP11
+}
+// serialization.cpp
 std::string json_add_rfx_groupids_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, cpp11::integers groupids);
 extern "C" SEXP _stochtree_json_add_rfx_groupids_cpp(SEXP json_ptr, SEXP groupids) {
   BEGIN_CPP11
@@ -1935,6 +1942,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_rfx_label_mapper_from_json_cpp",                      (DL_FUNC) &_stochtree_rfx_label_mapper_from_json_cpp,                       2},
     {"_stochtree_rfx_label_mapper_from_json_string_cpp",               (DL_FUNC) &_stochtree_rfx_label_mapper_from_json_string_cpp,                2},
     {"_stochtree_rfx_label_mapper_to_list_cpp",                        (DL_FUNC) &_stochtree_rfx_label_mapper_to_list_cpp,                         1},
+    {"_stochtree_rfx_label_mapper_unique_group_ids_cpp",               (DL_FUNC) &_stochtree_rfx_label_mapper_unique_group_ids_cpp,                1},
     {"_stochtree_rfx_model_cpp",                                       (DL_FUNC) &_stochtree_rfx_model_cpp,                                        2},
     {"_stochtree_rfx_model_predict_cpp",                               (DL_FUNC) &_stochtree_rfx_model_predict_cpp,                                3},
     {"_stochtree_rfx_model_sample_random_effects_cpp",                 (DL_FUNC) &_stochtree_rfx_model_sample_random_effects_cpp,                  8},

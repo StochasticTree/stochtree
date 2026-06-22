@@ -30,4 +30,7 @@ cd "$REPO_ROOT"
 export STOCHTREE_REPO_ROOT="$REPO_ROOT"
 Rscript "$SCRIPT_DIR/verify_predictions.R" "$FIXTURE_DIR"
 
+echo "==> Verifying Python loads R-written models (Python<-R cross-load)..."
+python "$SCRIPT_DIR/verify_r_models.py" "$FIXTURE_DIR"
+
 echo "==> Done"
