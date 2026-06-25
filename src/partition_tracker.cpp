@@ -368,60 +368,66 @@ void FeatureUnsortedPartition::ReconstituteFromTree(Tree& tree, ForestDataset& d
   data_size_t num_true, num_false;
   TreeSplit split_rule;
   int split_index;
+  // Record deleted (recycled) node slots so the free list matches the tree.
   for (int i = 0; i < num_nodes_; i++) {
-    is_deleted = tree.IsDeleted(i);
-    if (is_deleted) {
-      deleted_nodes_.push_back(i);
+    if (tree.IsDeleted(i)) deleted_nodes_.push_back(i);
+  }
+
+  // Partition the observation indices top-down, processing each node only after its
+  // parent has set this node's [node_begin_, node_begin_+node_length_) bounds. We must
+  // traverse in topological (root-to-leaf) order rather than by node id, because the
+  // tree's node ids may be RECYCLED after prune+regrow, so a child can have a smaller
+  // id than its parent. Iterating by id (the previous behavior) read stale bounds for
+  // such nodes and mis-assigned observations, which broke warm-start continuation.
+  node_begin_[0] = 0;
+  node_length_[0] = n;
+  std::vector<int> traversal_queue;
+  traversal_queue.push_back(0);
+  for (std::size_t qh = 0; qh < traversal_queue.size(); qh++) {
+    int i = traversal_queue[qh];
+    node_start_idx = node_begin_[i];
+    num_node_elements = node_length_[i];
+    // Tree node info
+    parent_nodes_[i] = tree.Parent(i);
+    node_type = tree.NodeType(i);
+    left_nodes_[i] = tree.LeftChild(i);
+    right_nodes_[i] = tree.RightChild(i);
+    // Only partition / descend if this node is an internal split node
+    if (node_type == TreeNodeType::kNumericalSplitNode) {
+      split_rule = TreeSplit(tree.Threshold(i));
+      split_index = tree.SplitIndex(i);
+    } else if (node_type == TreeNodeType::kCategoricalSplitNode) {
+      std::vector<uint32_t> categories = tree.CategoryList(i);
+      split_rule = TreeSplit(categories);
+      split_index = tree.SplitIndex(i);
     } else {
-      // Node beginning and length in indices_
-      if (i == 0) {
-        node_start_idx = 0;
-        num_node_elements = n;
-      } else {
-        node_start_idx = node_begin_[i];
-        num_node_elements = node_length_[i];
-      }
-      // Tree node info
-      parent_nodes_[i] = tree.Parent(i);
-      node_type = tree.NodeType(i);
-      left_nodes_[i] = tree.LeftChild(i);
-      right_nodes_[i] = tree.RightChild(i);
-      // Only update indices_, node_begin_ and node_length_ if a split is to be added
-      if (node_type == TreeNodeType::kNumericalSplitNode) {
-        // Extract split rule
-        split_rule = TreeSplit(tree.Threshold(i));
-        split_index = tree.SplitIndex(i);
-      } else if (node_type == TreeNodeType::kCategoricalSplitNode) {
-        std::vector<uint32_t> categories = tree.CategoryList(i);
-        split_rule = TreeSplit(categories);
-        split_index = tree.SplitIndex(i);
-      } else {
-        continue;
-      }
-      // Partition the node indices
-      auto node_begin = (indices_.begin() + node_begin_[i]);
-      auto node_end = (indices_.begin() + node_begin_[i] + node_length_[i]);
-      auto right_node_begin = std::stable_partition(node_begin, node_end, [&](int row) { return split_rule.SplitTrue(covariates(row, split_index)); });
-
-      // Determine the number of true and false elements
-      node_begin = (indices_.begin() + node_begin_[i]);
-      num_true = std::distance(node_begin, right_node_begin);
-      num_false = num_node_elements - num_true;
-
-      // Add left node tracking information
-      node_begin_[left_nodes_[i]] = node_start_idx;
-      node_length_[left_nodes_[i]] = num_true;
-      parent_nodes_[left_nodes_[i]] = i;
-      left_nodes_[left_nodes_[i]] = StochTree::Tree::kInvalidNodeId;
-      left_nodes_[right_nodes_[i]] = StochTree::Tree::kInvalidNodeId;
-
-      // Add right node tracking information
-      node_begin_[right_nodes_[i]] = node_start_idx + num_true;
-      node_length_[right_nodes_[i]] = num_false;
-      parent_nodes_[right_nodes_[i]] = i;
-      right_nodes_[left_nodes_[i]] = StochTree::Tree::kInvalidNodeId;
-      right_nodes_[right_nodes_[i]] = StochTree::Tree::kInvalidNodeId;
+      continue;
     }
+    // Partition the node indices
+    auto node_begin = (indices_.begin() + node_start_idx);
+    auto node_end = (indices_.begin() + node_start_idx + num_node_elements);
+    auto right_node_begin = std::stable_partition(node_begin, node_end, [&](int row) { return split_rule.SplitTrue(covariates(row, split_index)); });
+
+    // Determine the number of true and false elements
+    num_true = std::distance(node_begin, right_node_begin);
+    num_false = num_node_elements - num_true;
+
+    int left_id = left_nodes_[i];
+    int right_id = right_nodes_[i];
+
+    // Add left node tracking information
+    node_begin_[left_id] = node_start_idx;
+    node_length_[left_id] = num_true;
+    parent_nodes_[left_id] = i;
+
+    // Add right node tracking information
+    node_begin_[right_id] = node_start_idx + num_true;
+    node_length_[right_id] = num_false;
+    parent_nodes_[right_id] = i;
+
+    // Descend into children (their bounds are now set)
+    traversal_queue.push_back(left_id);
+    traversal_queue.push_back(right_id);
   }
 }
 

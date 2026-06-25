@@ -31,11 +31,11 @@ void AddModelTermsForProbit(double* outcome_preds, ForestTracker* mu_forest_trac
   }
 }
 
-BCFSampler::BCFSampler(BCFSamples& samples, BCFConfig& config, BCFData& data) : config_{config}, data_{data}, mu_leaf_model_(GaussianConstantLeafModel(0.0)), tau_leaf_model_(GaussianUnivariateRegressionLeafModel(0.0)), variance_leaf_model_(0.0, 0.0) {
-  InitializeState(samples);
+BCFSampler::BCFSampler(BCFSamples& samples, BCFConfig& config, BCFData& data, bool continuation) : config_{config}, data_{data}, mu_leaf_model_(GaussianConstantLeafModel(0.0)), tau_leaf_model_(GaussianUnivariateRegressionLeafModel(0.0)), variance_leaf_model_(0.0, 0.0) {
+  InitializeState(samples, continuation);
 }
 
-void BCFSampler::InitializeState(BCFSamples& samples) {
+void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
   // Validate y_train values match the expected support for discrete link functions
   if (config_.link_function == LinkFunction::Probit) {
     for (int i = 0; i < data_.n_train; i++) {
@@ -60,6 +60,28 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
   // Validate outcome type
   if (config_.outcome_type == OutcomeType::Ordinal) {
     Log::Fatal("Ordinal outcome type is not currently supported in BCF");
+  }
+
+  // Continued sampling currently supports only the basic Gaussian, identity-link,
+  // univariate-treatment case; reject configurations whose warm-start init is not yet
+  // implemented so that unsupported continuations fail loudly rather than silently
+  // re-initializing from root.
+  if (continuation) {
+    if (config_.num_trees_variance > 0) {
+      Log::Fatal("Continued sampling is not yet supported for models with a variance forest");
+    }
+    if (config_.has_random_effects) {
+      Log::Fatal("Continued sampling is not yet supported for models with random effects");
+    }
+    if (config_.link_function != LinkFunction::Identity) {
+      Log::Fatal("Continued sampling is not yet supported for probit or cloglog link functions");
+    }
+    if (config_.adaptive_coding) {
+      Log::Fatal("Continued sampling is not yet supported for adaptive coding");
+    }
+    if (data_.treatment_dim != 1 || config_.tau_leaf_model_type != MeanLeafModelType::GaussianUnivariateRegression) {
+      Log::Fatal("Continued sampling is not yet supported for multivariate treatment effects");
+    }
   }
 
   // Switch off treatment forest leaf scale sampling if treatment is multivariate
@@ -264,24 +286,51 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
   //  3. Probit link (since y_bar = norm_inv_cdf(mean(y)) and y_std = 1)
   for (int i = 0; i < data_.n_train; i++) residual_->GetData()[i] = (data_.y_train[i] - samples.y_bar) / samples.y_std;
 
-  // Initialize mean forest state
+  // Initialize mean forest state.
+  // On continuation, do NOT re-create samples.mu_forests so that new draws are appended to the
+  // existing container; otherwise allocate a fresh container.
   mu_forest_ = std::make_unique<TreeEnsemble>(config_.num_trees_mu, config_.leaf_dim_mu, config_.leaf_constant_mu, config_.exponentiated_leaf_mu);
-  samples.mu_forests = std::make_unique<ForestContainer>(config_.num_trees_mu, config_.leaf_dim_mu, config_.leaf_constant_mu, config_.exponentiated_leaf_mu);
+  if (!continuation) {
+    samples.mu_forests = std::make_unique<ForestContainer>(config_.num_trees_mu, config_.leaf_dim_mu, config_.leaf_constant_mu, config_.exponentiated_leaf_mu);
+  }
   mu_forest_tracker_ = std::make_unique<ForestTracker>(forest_dataset_->GetCovariates(), config_.feature_types, config_.num_trees_mu, data_.n_train);
   tree_prior_mu_ = std::make_unique<TreePrior>(config_.alpha_mu, config_.beta_mu, config_.min_samples_leaf_mu, config_.max_depth_mu);
   mu_forest_->SetLeafValue(init_val_mu_ / config_.num_trees_mu);
   UpdateResidualEntireForest(*mu_forest_tracker_, *forest_dataset_, *residual_, mu_forest_.get(), !config_.leaf_constant_mu, std::minus<double>());
   mu_forest_tracker_->UpdatePredictions(mu_forest_.get(), *forest_dataset_.get());
+  if (continuation) {
+    // Warm-start from the last retained mu sample. The reset requires the already-populated
+    // tracker established by the root init above (mirrors RestoreStateFromGFRSnapshot).
+    int last_mu_idx = samples.mu_forests->NumSamples() - 1;
+    TreeEnsemble& last_mu = *samples.mu_forests->GetEnsemble(last_mu_idx);
+    mu_forest_->ReconstituteFromForest(last_mu);
+    mu_forest_tracker_->ReconstituteFromForest(last_mu, *forest_dataset_, *residual_, true);
+    mu_forest_tracker_->UpdatePredictions(mu_forest_.get(), *forest_dataset_.get());
+  }
 
-  // Initialize treatment effect forest state
+  // Initialize treatment effect forest state.
+  // On continuation, do NOT re-create samples.tau_forests (append to the existing container).
   if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression) {
     tau_forest_ = std::make_unique<TreeEnsemble>(config_.num_trees_tau, config_.leaf_dim_tau, config_.leaf_constant_tau, config_.exponentiated_leaf_tau);
-    samples.tau_forests = std::make_unique<ForestContainer>(config_.num_trees_tau, config_.leaf_dim_tau, config_.leaf_constant_tau, config_.exponentiated_leaf_tau);
+    if (!continuation) {
+      samples.tau_forests = std::make_unique<ForestContainer>(config_.num_trees_tau, config_.leaf_dim_tau, config_.leaf_constant_tau, config_.exponentiated_leaf_tau);
+    }
     tau_forest_tracker_ = std::make_unique<ForestTracker>(forest_dataset_->GetCovariates(), config_.feature_types, config_.num_trees_tau, data_.n_train);
     tree_prior_tau_ = std::make_unique<TreePrior>(config_.alpha_tau, config_.beta_tau, config_.min_samples_leaf_tau, config_.max_depth_tau);
     tau_forest_->SetLeafValue(init_val_tau_ / config_.num_trees_tau);
     UpdateResidualEntireForest(*tau_forest_tracker_, *forest_dataset_, *residual_, tau_forest_.get(), !config_.leaf_constant_tau, std::minus<double>());
     tau_forest_tracker_->UpdatePredictions(tau_forest_.get(), *forest_dataset_.get());
+    if (continuation) {
+      // Warm-start from the last retained tau sample. At this point the residual already has the
+      // warm-started mu contribution removed; reconstitution swaps the root tau contribution out
+      // and the last-sample tau contribution in. The treatment intercept tau_0 is restored
+      // separately (below), after both forests are warm-started.
+      int last_tau_idx = samples.tau_forests->NumSamples() - 1;
+      TreeEnsemble& last_tau = *samples.tau_forests->GetEnsemble(last_tau_idx);
+      tau_forest_->ReconstituteFromForest(last_tau);
+      tau_forest_tracker_->ReconstituteFromForest(last_tau, *forest_dataset_, *residual_, true);
+      tau_forest_tracker_->UpdatePredictions(tau_forest_.get(), *forest_dataset_.get());
+    }
   } else if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
     tau_forest_ = std::make_unique<TreeEnsemble>(config_.num_trees_tau, config_.leaf_dim_tau, config_.leaf_constant_tau, config_.exponentiated_leaf_tau);
     samples.tau_forests = std::make_unique<ForestContainer>(config_.num_trees_tau, config_.leaf_dim_tau, config_.leaf_constant_tau, config_.exponentiated_leaf_tau);
@@ -470,10 +519,48 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
   rng_ = std::mt19937(config_.random_seed >= 0 ? config_.random_seed : std::random_device{}());
 
   // Other internal model state
-  global_variance_ = config_.sigma2_global_init;
-  leaf_scale_mu_ = config_.sigma2_mu_init;
-  leaf_scale_tau_ = config_.sigma2_tau_init;
-  leaf_scale_tau_multivariate_ = config_.sigma2_leaf_tau_matrix;
+  if (continuation) {
+    // Warm-start the scalar state from the last retained sample. Within the sampler lifecycle
+    // all of these arrays hold STANDARDIZED values (postprocess_samples applies the y_std^2
+    // factor to global variance only at the very end; the continuation binding supplies
+    // standardized history), so read the last value directly here.
+    if (sample_sigma2_global_ && !samples.global_error_variance_samples.empty()) {
+      global_variance_ = samples.global_error_variance_samples.back();
+    } else {
+      global_variance_ = config_.sigma2_global_init;
+    }
+    if (sample_sigma2_leaf_mu_ && !samples.leaf_scale_mu_samples.empty()) {
+      leaf_scale_mu_ = samples.leaf_scale_mu_samples.back();
+    } else {
+      leaf_scale_mu_ = config_.sigma2_mu_init;
+    }
+    if (sample_sigma2_leaf_tau_ && !samples.leaf_scale_tau_samples.empty()) {
+      leaf_scale_tau_ = samples.leaf_scale_tau_samples.back();
+    } else {
+      leaf_scale_tau_ = config_.sigma2_tau_init;
+    }
+    leaf_scale_tau_multivariate_ = config_.sigma2_leaf_tau_matrix;
+    // Sync the leaf models' scales with the warm-started leaf scales so the first continued
+    // iteration samples each forest using the last retained scale (matching the one-shot run).
+    mu_leaf_model_.SetScale(leaf_scale_mu_);
+    std::visit(ScaleUpdateVisitor{*this, leaf_scale_tau_}, tau_leaf_model_);
+    // Restore the treatment intercept and remove its contribution from the residual.
+    // After the forest warm-starts above, residual_ = y_std - mu_last - Z*tau_last; the one-shot
+    // sampler additionally carries -Z*tau_0_last at the start of the next iteration.
+    if (sample_tau_0_ && !samples.tau_0_samples.empty()) {
+      tau_0_scalar_ = samples.tau_0_samples.back();
+      double* resid_ptr = residual_->GetData().data();
+      const double* basis = data_.treatment_train;  // adaptive coding is guarded off for continuation
+      for (int i = 0; i < data_.n_train; i++) {
+        resid_ptr[i] -= tau_0_scalar_ * basis[i];
+      }
+    }
+  } else {
+    global_variance_ = config_.sigma2_global_init;
+    leaf_scale_mu_ = config_.sigma2_mu_init;
+    leaf_scale_tau_ = config_.sigma2_tau_init;
+    leaf_scale_tau_multivariate_ = config_.sigma2_leaf_tau_matrix;
+  }
 
   tau_raw_sum_preds_.assign(data_.n_train * data_.treatment_dim, 0.0);
 

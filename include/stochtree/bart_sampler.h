@@ -18,7 +18,11 @@
 #include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
+#include <iomanip>
 #include <memory>
+#include <sstream>
+#include <string>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
@@ -26,7 +30,10 @@ namespace StochTree {
 
 class BARTSampler {
  public:
-  BARTSampler(BARTSamples& samples, BARTConfig& config, BARTData& data);
+  // If continuation is true, the sampler warm-starts from the last retained sample
+  // already present in `samples` (rather than initializing forests to root), and the
+  // existing forest container is preserved so that new samples are appended to it.
+  BARTSampler(BARTSamples& samples, BARTConfig& config, BARTData& data, bool continuation = false);
 
   // Main entry point for running the BART GFR sampler
   // If num_chains > 0, captures snapshots of the last num_chains GFR states for fork_chains()
@@ -41,9 +48,63 @@ class BARTSampler {
   // Post-process samples by extracting test set predictions and running any necessary transformations
   void postprocess_samples(BARTSamples& samples);
 
+  // Serialize the internal RNG state to a string. std::mt19937 round-trips losslessly through
+  // its stream operators, so this captures the exact position in the random stream -- used to
+  // persist RNG state across a sample() / continue_sampling() boundary for bit-identical results.
+  std::string GetRngState() const {
+    std::ostringstream oss;
+    oss << rng_;
+    return oss.str();
+  }
+
+  // Restore the internal RNG state from a string produced by GetRngState(). Resumes the random
+  // stream at exactly the captured position. Must be called after construction (InitializeState
+  // unconditionally re-seeds rng_) and before any sampling draws.
+  void SetRngState(const std::string& state) {
+    std::istringstream iss(state);
+    iss >> rng_;
+  }
+
+  // The mean leaf model's normal sampler caches a Marsaglia-polar spare value between draws.
+  // That cache is sampler-internal state (not part of the saved model), so a freshly
+  // constructed continuation sampler would start with an empty cache while the original run
+  // ended with a (possibly populated) one -- breaking bit-identity. Encode/restore it as
+  // "<has_cached> <cached_value>". Only the Gaussian (identity-link) mean leaf models carry
+  // this sampler; other variants encode an empty cache.
+  std::string GetLeafNormalCache() {
+    bool has_cached = false;
+    double cached_value = 0.0;
+    std::visit([&](auto& model) {
+      using T = std::decay_t<decltype(model)>;
+      if constexpr (std::is_same_v<T, GaussianConstantLeafModel> ||
+                    std::is_same_v<T, GaussianUnivariateRegressionLeafModel>) {
+        has_cached = model.NormalSampler().Dist().HasCachedValue();
+        cached_value = model.NormalSampler().Dist().CachedValue();
+      }
+    }, mean_leaf_model_);
+    std::ostringstream oss;
+    oss << (has_cached ? 1 : 0) << ' ' << std::setprecision(17) << cached_value;
+    return oss.str();
+  }
+
+  void SetLeafNormalCache(const std::string& state) {
+    if (state.empty()) return;
+    std::istringstream iss(state);
+    int has_cached = 0;
+    double cached_value = 0.0;
+    iss >> has_cached >> cached_value;
+    std::visit([&](auto& model) {
+      using T = std::decay_t<decltype(model)>;
+      if constexpr (std::is_same_v<T, GaussianConstantLeafModel> ||
+                    std::is_same_v<T, GaussianUnivariateRegressionLeafModel>) {
+        model.NormalSampler().Dist().SetCachedState(has_cached != 0, cached_value);
+      }
+    }, mean_leaf_model_);
+  }
+
  private:
   /*! Initialize state variables */
-  void InitializeState(BARTSamples& samples);
+  void InitializeState(BARTSamples& samples, bool continuation = false);
   bool initialized_ = false;
 
   /*! Internal function to restore sampler state based on a GFR snapshot */
@@ -125,6 +186,49 @@ class BARTSampler {
       sampler.mean_forest_->ReconstituteFromForest(forest);
       sampler.mean_forest_tracker_->ReconstituteFromForest(forest, *sampler.forest_dataset_, *sampler.residual_, true);
       sampler.mean_forest_tracker_->UpdatePredictions(sampler.mean_forest_.get(), *sampler.forest_dataset_.get());
+    }
+  };
+
+  /*! Continued-sampling initialization visitor.
+   *  Warm-starts the active mean forest from the last retained sample in the
+   *  existing container (rather than from root), and intentionally does NOT
+   *  re-create samples.mean_forests so that new draws are appended to it.
+   *  Only the basic Gaussian (Identity-link) leaf models are supported for now;
+   *  other leaf models hard-error until their continuation paths are implemented. */
+  struct MeanForestContinuationInitVisitor {
+    BARTSampler& sampler;
+    BARTSamples& samples;
+    void WarmStart(bool expand_basis) {
+      // Step 1: standard root init (mirrors MeanForestInitVisitor) so the forest,
+      // tracker, and residual reach a consistent state -- but DO NOT re-create
+      // samples.mean_forests, so continuation appends to the existing container.
+      sampler.mean_forest_ = std::make_unique<TreeEnsemble>(sampler.config_.num_trees_mean, sampler.config_.leaf_dim_mean, sampler.config_.leaf_constant_mean, sampler.config_.exponentiated_leaf_mean);
+      sampler.mean_forest_tracker_ = std::make_unique<ForestTracker>(sampler.forest_dataset_->GetCovariates(), sampler.config_.feature_types, sampler.config_.num_trees_mean, sampler.data_.n_train);
+      sampler.tree_prior_mean_ = std::make_unique<TreePrior>(sampler.config_.alpha_mean, sampler.config_.beta_mean, sampler.config_.min_samples_leaf_mean, sampler.config_.max_depth_mean);
+      sampler.mean_forest_->SetLeafValue(sampler.init_val_mean_ / sampler.config_.num_trees_mean);
+      UpdateResidualEntireForest(*sampler.mean_forest_tracker_, *sampler.forest_dataset_, *sampler.residual_, sampler.mean_forest_.get(), expand_basis, std::minus<double>());
+      sampler.mean_forest_tracker_->UpdatePredictions(sampler.mean_forest_.get(), *sampler.forest_dataset_.get());
+      sampler.has_mean_forest_ = true;
+      // Step 2: reset the now-consistent state to the last retained sample
+      // (mirrors MeanForestResetVisitor / RestoreStateFromGFRSnapshot). The reset
+      // requires an already-populated tracker, which step 1 provides.
+      int last_idx = samples.mean_forests->NumSamples() - 1;
+      TreeEnsemble& last_forest = *samples.mean_forests->GetEnsemble(last_idx);
+      sampler.mean_forest_->ReconstituteFromForest(last_forest);
+      sampler.mean_forest_tracker_->ReconstituteFromForest(last_forest, *sampler.forest_dataset_, *sampler.residual_, true);
+      sampler.mean_forest_tracker_->UpdatePredictions(sampler.mean_forest_.get(), *sampler.forest_dataset_.get());
+    }
+    void operator()(GaussianConstantLeafModel& model) {
+      WarmStart(!sampler.config_.leaf_constant_mean);
+    }
+    void operator()(GaussianUnivariateRegressionLeafModel& model) {
+      WarmStart(!sampler.config_.leaf_constant_mean);
+    }
+    void operator()(GaussianMultivariateRegressionLeafModel& model) {
+      Log::Fatal("Continued sampling is not yet supported for multivariate leaf regression models");
+    }
+    void operator()(CloglogOrdinalLeafModel& model) {
+      Log::Fatal("Continued sampling is not yet supported for cloglog ordinal models");
     }
   };
 

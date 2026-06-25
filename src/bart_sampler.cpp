@@ -14,11 +14,11 @@
 
 namespace StochTree {
 
-BARTSampler::BARTSampler(BARTSamples& samples, BARTConfig& config, BARTData& data) : config_{config}, data_{data}, mean_leaf_model_(GaussianConstantLeafModel(0.0)), variance_leaf_model_(0.0, 0.0) {
-  InitializeState(samples);
+BARTSampler::BARTSampler(BARTSamples& samples, BARTConfig& config, BARTData& data, bool continuation) : config_{config}, data_{data}, mean_leaf_model_(GaussianConstantLeafModel(0.0)), variance_leaf_model_(0.0, 0.0) {
+  InitializeState(samples, continuation);
 }
 
-void BARTSampler::InitializeState(BARTSamples& samples) {
+void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
   // Validate y_train values match the expected support for discrete link functions
   if (config_.link_function == LinkFunction::Probit) {
     for (int i = 0; i < data_.n_train; i++) {
@@ -48,6 +48,24 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
     }
     if (config_.has_random_effects) {
       Log::Fatal("Random effects are not currently supported with the cloglog link function");
+    }
+  }
+
+  // Continued sampling currently supports only the basic Gaussian mean-forest case;
+  // reject configurations whose warm-start init is not yet implemented so that
+  // unsupported continuations fail loudly rather than silently re-initializing from root.
+  if (continuation) {
+    if (config_.num_trees_mean <= 0) {
+      Log::Fatal("Continued sampling requires an existing mean forest");
+    }
+    if (config_.num_trees_variance > 0) {
+      Log::Fatal("Continued sampling is not yet supported for models with a variance forest");
+    }
+    if (config_.has_random_effects) {
+      Log::Fatal("Continued sampling is not yet supported for models with random effects");
+    }
+    if (config_.link_function != LinkFunction::Identity) {
+      Log::Fatal("Continued sampling is not yet supported for probit or cloglog link functions");
     }
   }
 
@@ -225,7 +243,11 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
 
   // Initialize mean forest state (if present)
   if (config_.num_trees_mean > 0) {
-    std::visit(MeanForestInitVisitor{*this, samples}, mean_leaf_model_);
+    if (continuation) {
+      std::visit(MeanForestContinuationInitVisitor{*this, samples}, mean_leaf_model_);
+    } else {
+      std::visit(MeanForestInitVisitor{*this, samples}, mean_leaf_model_);
+    }
   }
 
   // Initialize variance forest state (if present)
@@ -401,8 +423,33 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
   }
 
   // Other internal model state
-  global_variance_ = config_.sigma2_global_init;
-  leaf_scale_ = config_.sigma2_mean_init;
+  if (continuation) {
+    // Warm-start the scalar variance state from the last retained sample.
+    // Within the sampler lifecycle both arrays hold STANDARDIZED values
+    // (postprocess_samples applies the y_std^2 factor to global variance only at
+    // the very end); the continuation binding supplies standardized history, so
+    // read the last value directly here.
+    if (sample_sigma2_global_ && !samples.global_error_variance_samples.empty()) {
+      global_variance_ = samples.global_error_variance_samples.back();
+    } else {
+      global_variance_ = config_.sigma2_global_init;
+    }
+    if (sample_sigma2_leaf_ && !samples.leaf_scale_samples.empty()) {
+      leaf_scale_ = samples.leaf_scale_samples.back();
+    } else {
+      leaf_scale_ = config_.sigma2_mean_init;
+    }
+    // Sync the leaf model's scale (tau) with the warm-started leaf_scale_. The leaf model
+    // was constructed with sigma2_mean_init above; without this the first continued
+    // iteration would sample the mean forest using the initial tau rather than the last
+    // retained leaf scale (which the one-shot sampler carries forward from the prior iteration).
+    if (has_mean_forest_) {
+      std::visit(ScaleUpdateVisitor{*this, leaf_scale_}, mean_leaf_model_);
+    }
+  } else {
+    global_variance_ = config_.sigma2_global_init;
+    leaf_scale_ = config_.sigma2_mean_init;
+  }
   // leaf_scale_multivariate_ = config_.sigma2_leaf_multivariate_init;
 
   initialized_ = true;

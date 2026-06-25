@@ -56,9 +56,14 @@ static inline void VarSplitRange(ForestTracker& tracker, ForestDataset& dataset,
   for (auto i = node_begin_iter; i != node_end_iter; i++) {
     auto idx = *i;
     feature_value = dataset.CovariateValue(idx, feature_split);
+    // Use two independent comparisons (not else-if) so that var_min/var_max are the
+    // true min/max regardless of iteration order. The else-if form made the result
+    // order-dependent, which breaks bit-identical continuation (the warm-start rebuilds
+    // the unsorted node tracker with a different within-node order than the live sampler).
     if (feature_value < var_min) {
       var_min = feature_value;
-    } else if (feature_value > var_max) {
+    }
+    if (feature_value > var_max) {
       var_max = feature_value;
     }
   }

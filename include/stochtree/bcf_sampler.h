@@ -17,7 +17,11 @@
 #include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
+#include <iomanip>
 #include <memory>
+#include <sstream>
+#include <string>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
@@ -25,7 +29,11 @@ namespace StochTree {
 
 class BCFSampler {
  public:
-  BCFSampler(BCFSamples& samples, BCFConfig& config, BCFData& data);
+  // If continuation is true, the sampler warm-starts the active mu and tau forests from
+  // the last retained samples already present in `samples` (rather than initializing them
+  // to root), and the existing forest containers are preserved so that new samples are
+  // appended to them.
+  BCFSampler(BCFSamples& samples, BCFConfig& config, BCFData& data, bool continuation = false);
 
   // Main entry point for running the BCF GFR sampler
   // If num_chains > 0, captures snapshots of the last num_chains GFR states for fork_chains()
@@ -40,9 +48,64 @@ class BCFSampler {
   // Post-process samples by extracting test set predictions and running any necessary transformations
   void postprocess_samples(BCFSamples& samples);
 
+  // Serialize the internal RNG state to a string. std::mt19937 round-trips losslessly through
+  // its stream operators, so this captures the exact position in the random stream -- used to
+  // persist RNG state across a sample() / continue_sampling() boundary for bit-identical results.
+  std::string GetRngState() const {
+    std::ostringstream oss;
+    oss << rng_;
+    return oss.str();
+  }
+
+  // Restore the internal RNG state from a string produced by GetRngState(). Resumes the random
+  // stream at exactly the captured position. Must be called after construction (InitializeState
+  // unconditionally re-seeds rng_) and before any sampling draws.
+  void SetRngState(const std::string& state) {
+    std::istringstream iss(state);
+    iss >> rng_;
+  }
+
+  // Both the mu (prognostic) and tau (treatment) leaf models cache a Marsaglia-polar spare value
+  // between draws. That cache is sampler-internal state (not part of the saved model), so a freshly
+  // constructed continuation sampler would start with empty caches while the original run ended
+  // with (possibly populated) ones -- breaking bit-identity. Encode/restore both as
+  // "<mu_has> <mu_value> <tau_has> <tau_value>". Only the Gaussian (identity-link) leaf models
+  // carry this sampler; other variants encode an empty cache.
+  std::string GetLeafNormalCache() {
+    std::ostringstream oss;
+    oss << (mu_leaf_model_.NormalSampler().Dist().HasCachedValue() ? 1 : 0) << ' '
+        << std::setprecision(17) << mu_leaf_model_.NormalSampler().Dist().CachedValue() << ' ';
+    bool tau_has = false;
+    double tau_val = 0.0;
+    std::visit([&](auto& model) {
+      using T = std::decay_t<decltype(model)>;
+      if constexpr (std::is_same_v<T, GaussianUnivariateRegressionLeafModel>) {
+        tau_has = model.NormalSampler().Dist().HasCachedValue();
+        tau_val = model.NormalSampler().Dist().CachedValue();
+      }
+    }, tau_leaf_model_);
+    oss << (tau_has ? 1 : 0) << ' ' << std::setprecision(17) << tau_val;
+    return oss.str();
+  }
+
+  void SetLeafNormalCache(const std::string& state) {
+    if (state.empty()) return;
+    std::istringstream iss(state);
+    int mu_has = 0, tau_has = 0;
+    double mu_val = 0.0, tau_val = 0.0;
+    iss >> mu_has >> mu_val >> tau_has >> tau_val;
+    mu_leaf_model_.NormalSampler().Dist().SetCachedState(mu_has != 0, mu_val);
+    std::visit([&](auto& model) {
+      using T = std::decay_t<decltype(model)>;
+      if constexpr (std::is_same_v<T, GaussianUnivariateRegressionLeafModel>) {
+        model.NormalSampler().Dist().SetCachedState(tau_has != 0, tau_val);
+      }
+    }, tau_leaf_model_);
+  }
+
  private:
   /*! Initialize state variables */
-  void InitializeState(BCFSamples& samples);
+  void InitializeState(BCFSamples& samples, bool continuation = false);
   bool initialized_ = false;
 
   /*! Internal function to restore sampler state based on a GFR snapshot */

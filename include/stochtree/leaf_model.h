@@ -519,6 +519,8 @@ class GaussianConstantLeafModel {
    * \brief Whether this model requires a basis vector for posterior inference and prediction
    */
   inline bool RequiresBasis() { return false; }
+  /*! \brief Access the leaf-parameter normal sampler (to persist/restore its cached state) */
+  UnivariateNormalSampler& NormalSampler() { return normal_sampler_; }
 
  private:
   double tau_;
@@ -674,6 +676,8 @@ class GaussianUnivariateRegressionLeafModel {
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
   void SetScale(double tau) { tau_ = tau; }
   inline bool RequiresBasis() { return true; }
+  /*! \brief Access the leaf-parameter normal sampler (to persist/restore its cached state) */
+  UnivariateNormalSampler& NormalSampler() { return normal_sampler_; }
 
  private:
   double tau_;

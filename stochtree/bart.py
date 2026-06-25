@@ -30,7 +30,7 @@ from .utils import (
     _posterior_predictive_heuristic_multiplier,
     _summarize_interval,
 )
-from stochtree_cpp import bart_sample_cpp, bart_predict_cpp
+from stochtree_cpp import bart_sample_cpp, bart_continue_sample_cpp, bart_predict_cpp
 
 
 def _migrate_bart_v0_to_v1(serializer: JSONSerializer, loaded_version: int) -> None:
@@ -1288,6 +1288,10 @@ class BARTModel:
         # Remove None values from config (alternative is to check for Nones on the C++ side when unpacking into non-optional types)
         bart_config = {k: v for k, v in bart_config.items() if v is not None}
 
+        # Cache the config so that continue_sampling() can warm-start with the
+        # exact same priors/structure without re-deriving them.
+        self._cached_bart_config = bart_config
+
         # Convert arrays to F-contiguous (column-major) before calling C++.
         # convert_numpy_to_bart_data stores raw pointers into these arrays; if
         # pybind11 has to make a copy (wrong dtype or wrong order) that copy is
@@ -1358,6 +1362,14 @@ class BARTModel:
         self.num_chains = num_chains
         self.sample_sigma2_global = sample_sigma2_global
         self.sample_sigma2_leaf = sample_sigma2_leaf
+
+        # Persist the final RNG state so continue_sampling() can resume the random
+        # stream for bit-identical continuation. Only populated for single-chain runs
+        # (multi-chain runs use one RNG per chain, so there is no single stream to resume).
+        self.rng_state = bart_results.get("rng_state", None)
+        # Persist the leaf normal sampler's cached spare value (Marsaglia-polar) so a
+        # continued chain reproduces the one-shot leaf draws exactly.
+        self.leaf_normal_cache = bart_results.get("leaf_normal_cache", None)
 
         # Unpack standardization params computed by C++ sampler
         self.y_bar = bart_results["y_bar"]
@@ -1450,9 +1462,9 @@ class BARTModel:
         self.sample_sigma2_global = sample_sigma2_global
         self.sample_sigma2_leaf = sample_sigma2_leaf
         if self.sample_sigma2_global:
-            self.global_var_samples = (
-                bart_results["global_var_samples"] * self.y_std * self.y_std
-            )
+            # C++ postprocess_samples already rescales global variance to the original
+            # outcome scale (x y_std^2); store as-is (matches the R binding).
+            self.global_var_samples = bart_results["global_var_samples"]
         if self.sample_sigma2_leaf:
             self.leaf_scale_samples = bart_results["leaf_scale_samples"]
         if link_is_cloglog:
@@ -1467,6 +1479,170 @@ class BARTModel:
         # Unpack other model metadata
         self.num_samples = bart_results["num_samples"]
         self.sampled = True
+
+        return self
+
+    def continue_sampling(
+        self,
+        X_train: Union[np.array, pd.DataFrame],
+        y_train: np.array,
+        num_mcmc: int = 100,
+        num_burnin: int = 0,
+        keep_every: int = 1,
+        leaf_basis_train: np.array = None,
+        random_seed: int = None,
+    ):
+        """Continue (warm-start) MCMC sampling from an already-fit BART model, appending
+        additional samples to the existing posterior draws.
+
+        The training data must be re-supplied (it is not retained on the model). The
+        warm-start initializes the sampler from the last retained sample so that the new
+        draws form a continuous chain with the existing ones.
+
+        .. note::
+            This is currently supported only for Gaussian (identity-link) models with a
+            mean forest and no variance forest or random effects.
+
+        Parameters
+        ----------
+        X_train : np.array or pd.DataFrame
+            Training covariates (re-supplied; must match the structure used to fit the model).
+        y_train : np.array
+            Training outcome (re-supplied).
+        num_mcmc : int, optional
+            Number of additional retained MCMC samples. Defaults to ``100``.
+        num_burnin : int, optional
+            Number of additional burn-in iterations to discard before retaining. Defaults to ``0``.
+        keep_every : int, optional
+            Thinning interval for the additional samples. Defaults to ``1``.
+        leaf_basis_train : np.array, optional
+            Training leaf basis (required if the model was fit with a leaf regression basis).
+        random_seed : int, optional
+            If supplied, re-seeds the sampler RNG for the continued draws. By default
+            (``None``), the RNG state from the prior run is resumed, so the continued chain
+            is bit-identical to a single run of the combined length.
+
+        Returns
+        -------
+        self
+        """
+        if not getattr(self, "sampled", False):
+            raise RuntimeError("Cannot continue sampling: this model has not been sampled yet")
+        if not self.include_mean_forest:
+            raise NotImplementedError("Continued sampling currently requires a mean forest")
+        if self.include_variance_forest:
+            raise NotImplementedError(
+                "Continued sampling is not yet supported for models with a variance forest"
+            )
+        if getattr(self, "has_rfx", False):
+            raise NotImplementedError(
+                "Continued sampling is not yet supported for models with random effects"
+            )
+        cfg = getattr(self, "_cached_bart_config", None)
+        if cfg is None:
+            raise RuntimeError(
+                "Cannot continue sampling: cached sampler configuration is unavailable "
+                "(continuation is not supported for deserialized models yet)"
+            )
+        if cfg.get("link_function", 0) != 0:
+            raise NotImplementedError(
+                "Continued sampling is not yet supported for probit or cloglog link functions"
+            )
+
+        # Preprocess the re-supplied covariates with the fitted preprocessor and validate structure
+        X_train_processed = self._covariate_preprocessor.transform(X_train).astype(np.float64)
+        if X_train_processed.shape[1] != self.num_covariates:
+            raise ValueError(
+                f"Re-supplied covariates have {X_train_processed.shape[1]} columns; "
+                f"model expects {self.num_covariates}"
+            )
+        y_train = np.asarray(y_train).astype(np.float64).reshape(-1)
+        if X_train_processed.shape[0] != y_train.shape[0]:
+            raise ValueError("X_train and y_train have differing numbers of observations")
+
+        if self.has_basis and leaf_basis_train is None:
+            raise ValueError(
+                "This model was fit with a leaf basis; leaf_basis_train must be supplied to continue sampling"
+            )
+        if self.has_basis:
+            leaf_basis_train = np.atleast_2d(leaf_basis_train)
+            if leaf_basis_train.shape[1] != self.num_basis:
+                raise ValueError(
+                    f"Re-supplied leaf basis has {leaf_basis_train.shape[1]} columns; "
+                    f"model expects {self.num_basis}"
+                )
+
+        X_train_cpp = np.asfortranarray(X_train_processed)
+        y_train_cpp = np.asfortranarray(y_train, dtype=np.float64)
+        basis_train_cpp = (
+            np.asfortranarray(leaf_basis_train.astype(np.float64)) if self.has_basis else None
+        )
+
+        # RNG continuation: by default resume the saved stream for bit-identical results.
+        # If the user supplies a new seed, override the cached config seed and tell the
+        # binding to keep the fresh seed instead of restoring the saved state.
+        override_seed = random_seed is not None
+        if override_seed:
+            cfg = dict(cfg)
+            cfg["random_seed"] = random_seed
+        rng_state_in = self.rng_state if (not override_seed and self.rng_state is not None) else ""
+        leaf_normal_cache_in = (
+            self.leaf_normal_cache
+            if (not override_seed and getattr(self, "leaf_normal_cache", None) is not None)
+            else ""
+        )
+
+        bart_results = bart_continue_sample_cpp(
+            X_train=X_train_cpp,
+            y_train=y_train_cpp,
+            X_test=None,
+            n_train=X_train_cpp.shape[0],
+            n_test=0,
+            p=X_train_cpp.shape[1],
+            basis_train=basis_train_cpp,
+            basis_test=None,
+            basis_dim=self.num_basis if self.has_basis else 0,
+            obs_weights_train=None,
+            obs_weights_test=None,
+            rfx_group_ids_train=None,
+            rfx_group_ids_test=None,
+            rfx_basis_train=None,
+            rfx_basis_test=None,
+            rfx_num_groups=0,
+            rfx_basis_dim=0,
+            num_burnin=num_burnin,
+            keep_every=keep_every,
+            num_mcmc=num_mcmc,
+            mean_forest_container=self.forest_container_mean.forest_container_cpp,
+            global_var_samples=self.global_var_samples if self.sample_sigma2_global else None,
+            leaf_scale_samples=self.leaf_scale_samples if self.sample_sigma2_leaf else None,
+            y_bar=float(self.y_bar),
+            y_std=float(self.y_std),
+            rng_state_in=rng_state_in,
+            override_seed=override_seed,
+            leaf_normal_cache_in=leaf_normal_cache_in,
+            config_input=cfg,
+        )
+
+        # Replace the forest container and extend parameter arrays with the (history + new) results
+        self.forest_container_mean.forest_container_cpp = bart_results["forest_container_mean"]
+        if self.sample_sigma2_global:
+            # C++ postprocess_samples already rescales to original outcome scale; store as-is.
+            self.global_var_samples = bart_results["global_var_samples"]
+        if self.sample_sigma2_leaf:
+            self.leaf_scale_samples = bart_results["leaf_scale_samples"]
+        self.num_samples = bart_results["num_samples"]
+        self.num_mcmc = (self.num_mcmc or 0) + num_mcmc
+        # Carry the new final RNG + leaf-cache state forward so further continuations stay bit-identical
+        self.rng_state = bart_results.get("rng_state", None)
+        self.leaf_normal_cache = bart_results.get("leaf_normal_cache", None)
+
+        # Recompute training predictions over the full (history + new) set of samples
+        self.y_hat_train = self.predict(
+            X_train,
+            leaf_basis=leaf_basis_train if self.has_basis else None,
+            terms="y_hat",
+        )
 
         return self
 

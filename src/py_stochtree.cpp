@@ -2584,6 +2584,131 @@ py::dict bart_sample_cpp(
   // Convert results to Python dictionary
   py::dict bart_results = convert_bart_results_to_dict(bart_results_raw, bart_config);
   add_config_to_bart_result_dict(bart_results, bart_config);
+  // Persist the final RNG state so continue_sampling() can resume the random stream
+  // for bit-identical continuation. Only meaningful for single-chain runs; multi-chain
+  // runs use one RNG per chain, so there is no single stream to resume.
+  if (num_chains <= 1) {
+    bart_results["rng_state"] = bart_sampler.GetRngState();
+    bart_results["leaf_normal_cache"] = bart_sampler.GetLeafNormalCache();
+  } else {
+    bart_results["rng_state"] = py::none();
+    bart_results["leaf_normal_cache"] = py::none();
+  }
+  return bart_results;
+}
+
+// Continue (warm-start) sampling from an already-fit BART model.
+//
+// Reconstruct-on-demand stopgap (RFC 0005 / #408): rather than transferring
+// ownership of the model's forest container, this DEEP-COPIES it into a fresh
+// BARTSamples so the caller's container remains the source of truth. The scalar
+// sample histories are pre-populated in STANDARDIZED space (forward sampling
+// keeps them standardized until postprocess_samples), then the sampler is
+// constructed in continuation mode (warm-starts the active forest from the last
+// retained sample and appends new draws to the copied container).
+//
+// Returns the same dict shape as bart_sample_cpp, with the forest container and
+// parameter arrays extended to (history + new) samples. Predictions in the
+// returned dict are recomputed by the Python wrapper post-hoc.
+py::dict bart_continue_sample_cpp(
+    py::object X_train,
+    py::object y_train,
+    py::object X_test,
+    int n_train,
+    int n_test,
+    int p,
+    py::object basis_train,
+    py::object basis_test,
+    int basis_dim,
+    py::object obs_weights_train,
+    py::object obs_weights_test,
+    py::object rfx_group_ids_train,
+    py::object rfx_group_ids_test,
+    py::object rfx_basis_train,
+    py::object rfx_basis_test,
+    int rfx_num_groups,
+    int rfx_basis_dim,
+    int num_burnin,
+    int keep_every,
+    int num_mcmc,
+    ForestContainerCpp& mean_forest_container,
+    py::object global_var_samples,
+    py::object leaf_scale_samples,
+    double y_bar,
+    double y_std,
+    std::string rng_state_in,
+    bool override_seed,
+    std::string leaf_normal_cache_in,
+    py::dict config_input) {
+  // Convert config dict to BARTConfig struct
+  StochTree::BARTConfig bart_config = convert_dict_to_bart_config(config_input);
+
+  // Unpack pointers to (re-supplied) input data to BARTData object
+  StochTree::BARTData bart_data = convert_numpy_to_bart_data(X_train, y_train, X_test, n_train, n_test, p, basis_train, basis_test, basis_dim, obs_weights_train, obs_weights_test, rfx_group_ids_train, rfx_group_ids_test, rfx_basis_train, rfx_basis_test, rfx_num_groups, rfx_basis_dim);
+
+  // Create samples object and deep-copy the model's mean forest container into it.
+  // The caller's container is only read (via GetPtr), never moved, so it stays valid.
+  StochTree::BARTSamples bart_results_raw = StochTree::BARTSamples();
+  StochTree::ForestContainer* src_mean = mean_forest_container.GetPtr();
+  int num_history = src_mean->NumSamples();
+  bart_results_raw.mean_forests = std::make_unique<StochTree::ForestContainer>(
+      bart_config.num_trees_mean, bart_config.leaf_dim_mean, bart_config.leaf_constant_mean, bart_config.exponentiated_leaf_mean);
+  for (int i = 0; i < num_history; i++) {
+    bart_results_raw.mean_forests->AddSample(*src_mean->GetEnsemble(i));
+  }
+
+  // History counts + standardization scalars
+  bart_results_raw.y_bar = y_bar;
+  bart_results_raw.y_std = y_std;
+  bart_results_raw.num_samples = num_history;
+
+  // Pre-populate scalar sample histories in standardized space so that
+  // postprocess_samples re-scales the whole (history + new) array consistently.
+  if (!global_var_samples.is_none()) {
+    auto arr = global_var_samples.cast<py::array_t<double>>();
+    auto r = arr.unchecked<1>();
+    double y_std2 = y_std * y_std;
+    bart_results_raw.global_error_variance_samples.reserve(static_cast<size_t>(r.shape(0)) + num_mcmc);
+    for (py::ssize_t i = 0; i < r.shape(0); i++) {
+      // Stored values are post-processed (x y_std^2); divide back out to standardized space.
+      bart_results_raw.global_error_variance_samples.push_back(r(i) / y_std2);
+    }
+  }
+  if (!leaf_scale_samples.is_none()) {
+    auto arr = leaf_scale_samples.cast<py::array_t<double>>();
+    auto r = arr.unchecked<1>();
+    bart_results_raw.leaf_scale_samples.reserve(static_cast<size_t>(r.shape(0)) + num_mcmc);
+    for (py::ssize_t i = 0; i < r.shape(0); i++) {
+      // leaf_scale samples are already standardized (not post-processed).
+      bart_results_raw.leaf_scale_samples.push_back(r(i));
+    }
+  }
+
+  // Initialize a BART sampler in continuation mode (warm-start from last sample)
+  StochTree::BARTSampler bart_sampler(bart_results_raw, bart_config, bart_data, /*continuation=*/true);
+
+  // Resume the RNG stream from where the prior run left off (bit-identical continuation),
+  // unless the user supplied a new seed (override_seed) -- in which case the fresh seed set
+  // by InitializeState stands. The warm-start init consumes no RNG draws, so the restored
+  // state is positioned exactly at the next draw.
+  if (!override_seed && !rng_state_in.empty()) {
+    bart_sampler.SetRngState(rng_state_in);
+  }
+  // Restore the leaf normal sampler's cached spare value (unless re-seeding from scratch).
+  if (!override_seed) {
+    bart_sampler.SetLeafNormalCache(leaf_normal_cache_in);
+  }
+
+  // Append new MCMC samples (continuation does not run GFR)
+  bart_sampler.run_mcmc(bart_results_raw, num_burnin, keep_every, num_mcmc);
+  bart_sampler.postprocess_samples(bart_results_raw);
+
+  // Convert results to Python dictionary
+  py::dict bart_results = convert_bart_results_to_dict(bart_results_raw, bart_config);
+  add_config_to_bart_result_dict(bart_results, bart_config);
+  // Carry the new final RNG + leaf-cache state forward so chained continuations stay bit-identical.
+  bart_results["rng_state"] = bart_sampler.GetRngState();
+  bart_results["leaf_normal_cache"] = bart_sampler.GetLeafNormalCache();
   return bart_results;
 }
 
@@ -3296,6 +3421,155 @@ py::dict bcf_sample_cpp(
   // Convert results to Python dictionary
   py::dict bcf_results = convert_bcf_results_to_dict(bcf_results_raw, bcf_config);
   add_config_to_bcf_result_dict(bcf_results, bcf_config);
+  // Persist the final RNG + leaf-cache state so continue_sampling() can resume the random stream
+  // for bit-identical continuation. Only meaningful for single-chain runs; multi-chain runs use
+  // one RNG per chain, so there is no single stream to resume.
+  if (num_chains <= 1) {
+    bcf_results["rng_state"] = bcf_sampler.GetRngState();
+    bcf_results["leaf_normal_cache"] = bcf_sampler.GetLeafNormalCache();
+  } else {
+    bcf_results["rng_state"] = py::none();
+    bcf_results["leaf_normal_cache"] = py::none();
+  }
+  return bcf_results;
+}
+
+// Continue (warm-start) sampling from an already-fit BCF model.
+//
+// Reconstruct-on-demand stopgap (RFC 0005 / #408), mirroring bart_continue_sample_cpp:
+// DEEP-COPIES the model's mu and tau forest containers into a fresh BCFSamples so the caller's
+// containers remain the source of truth, pre-populates the scalar sample histories in
+// STANDARDIZED space, constructs the sampler in continuation mode (warm-starts the active
+// forests from the last retained samples and appends new draws), then returns the same dict
+// shape as bcf_sample_cpp with the containers and parameter arrays extended.
+//
+// Supports identity-link, univariate-treatment Gaussian BCF without a variance forest, random
+// effects, or adaptive coding (the sampler hard-errors on those). Predictions in the returned
+// dict are recomputed by the Python wrapper post-hoc, so postprocess_samples is skipped here
+// (it would index the per-iteration prediction arrays, which only hold the new samples).
+py::dict bcf_continue_sample_cpp(
+    py::object X_train,
+    py::object Z_train,
+    py::object y_train,
+    int n_train,
+    int p,
+    int treatment_dim,
+    py::object obs_weights_train,
+    int num_burnin,
+    int keep_every,
+    int num_mcmc,
+    ForestContainerCpp& mu_forest_container,
+    ForestContainerCpp& tau_forest_container,
+    py::object global_var_samples,
+    py::object leaf_scale_mu_samples,
+    py::object leaf_scale_tau_samples,
+    py::object tau_0_samples,
+    double y_bar,
+    double y_std,
+    std::string rng_state_in,
+    bool override_seed,
+    std::string leaf_normal_cache_in,
+    py::dict config_input) {
+  // Convert config dict to BCFConfig struct
+  StochTree::BCFConfig bcf_config = convert_dict_to_bcf_config(config_input);
+
+  // Unpack pointers to (re-supplied) input data to BCFData object (no test data; the Python
+  // wrapper recomputes predictions via predict()).
+  StochTree::BCFData bcf_data = convert_numpy_to_bcf_data(
+      X_train, Z_train, y_train, /*X_test=*/py::none(), /*Z_test=*/py::none(),
+      n_train, /*n_test=*/0, p, treatment_dim, obs_weights_train, /*obs_weights_test=*/py::none(),
+      /*rfx_group_ids_train=*/py::none(), /*rfx_group_ids_test=*/py::none(),
+      /*rfx_basis_train=*/py::none(), /*rfx_basis_test=*/py::none(),
+      /*rfx_num_groups=*/0, /*rfx_basis_dim=*/0);
+
+  // Create samples object and deep-copy the model's mu/tau forest containers into it.
+  // The caller's containers are only read (via GetPtr), never moved, so they stay valid.
+  StochTree::BCFSamples bcf_results_raw = StochTree::BCFSamples();
+  StochTree::ForestContainer* src_mu = mu_forest_container.GetPtr();
+  StochTree::ForestContainer* src_tau = tau_forest_container.GetPtr();
+  int num_history = src_mu->NumSamples();
+  bcf_results_raw.mu_forests = std::make_unique<StochTree::ForestContainer>(
+      bcf_config.num_trees_mu, bcf_config.leaf_dim_mu, bcf_config.leaf_constant_mu, bcf_config.exponentiated_leaf_mu);
+  for (int i = 0; i < num_history; i++) {
+    bcf_results_raw.mu_forests->AddSample(*src_mu->GetEnsemble(i));
+  }
+  bcf_results_raw.tau_forests = std::make_unique<StochTree::ForestContainer>(
+      bcf_config.num_trees_tau, bcf_config.leaf_dim_tau, bcf_config.leaf_constant_tau, bcf_config.exponentiated_leaf_tau);
+  for (int i = 0; i < num_history; i++) {
+    bcf_results_raw.tau_forests->AddSample(*src_tau->GetEnsemble(i));
+  }
+
+  // History counts + standardization scalars
+  bcf_results_raw.y_bar = y_bar;
+  bcf_results_raw.y_std = y_std;
+  bcf_results_raw.num_samples = num_history;
+  bcf_results_raw.treatment_dim = treatment_dim;
+
+  // Pre-populate scalar sample histories in STANDARDIZED space. The model stores global error
+  // variance post-processed (x y_std^2) and tau_0 scaled by y_std; leaf scales are stored
+  // standardized. Un-postprocess so the warm-start reads the correct standardized values and
+  // forward sampling stays consistent.
+  double y_std2 = y_std * y_std;
+  if (!global_var_samples.is_none()) {
+    auto arr = global_var_samples.cast<py::array_t<double>>();
+    auto r = arr.unchecked<1>();
+    bcf_results_raw.global_error_variance_samples.reserve(static_cast<size_t>(r.shape(0)) + num_mcmc);
+    for (py::ssize_t i = 0; i < r.shape(0); i++) {
+      bcf_results_raw.global_error_variance_samples.push_back(r(i) / y_std2);
+    }
+  }
+  if (!leaf_scale_mu_samples.is_none()) {
+    auto arr = leaf_scale_mu_samples.cast<py::array_t<double>>();
+    auto r = arr.unchecked<1>();
+    bcf_results_raw.leaf_scale_mu_samples.reserve(static_cast<size_t>(r.shape(0)) + num_mcmc);
+    for (py::ssize_t i = 0; i < r.shape(0); i++) {
+      bcf_results_raw.leaf_scale_mu_samples.push_back(r(i));
+    }
+  }
+  if (!leaf_scale_tau_samples.is_none()) {
+    auto arr = leaf_scale_tau_samples.cast<py::array_t<double>>();
+    auto r = arr.unchecked<1>();
+    bcf_results_raw.leaf_scale_tau_samples.reserve(static_cast<size_t>(r.shape(0)) + num_mcmc);
+    for (py::ssize_t i = 0; i < r.shape(0); i++) {
+      bcf_results_raw.leaf_scale_tau_samples.push_back(r(i));
+    }
+  }
+  if (!tau_0_samples.is_none()) {
+    auto arr = tau_0_samples.cast<py::array_t<double>>();
+    auto r = arr.unchecked<1>();
+    bcf_results_raw.tau_0_samples.reserve(static_cast<size_t>(r.shape(0)) + num_mcmc);
+    for (py::ssize_t i = 0; i < r.shape(0); i++) {
+      // Model stores tau_0 scaled by y_std; divide back out to standardized space.
+      bcf_results_raw.tau_0_samples.push_back(r(i) / y_std);
+    }
+  }
+
+  // Initialize a BCF sampler in continuation mode (warm-start from last samples)
+  StochTree::BCFSampler bcf_sampler(bcf_results_raw, bcf_config, bcf_data, /*continuation=*/true);
+
+  // Resume the RNG stream and leaf-sampler caches unless the user re-seeded (override_seed).
+  if (!override_seed && !rng_state_in.empty()) {
+    bcf_sampler.SetRngState(rng_state_in);
+  }
+  if (!override_seed) {
+    bcf_sampler.SetLeafNormalCache(leaf_normal_cache_in);
+  }
+
+  // Append new MCMC samples (continuation does not run GFR)
+  bcf_sampler.run_mcmc(bcf_results_raw, num_burnin, keep_every, num_mcmc);
+
+  // Skip postprocess_samples (it would OOB-index the per-iteration prediction arrays, which
+  // hold only the new samples). The Python wrapper recomputes predictions from the extended
+  // forest containers. Manually rescale global error variance to the original outcome scale to
+  // match what postprocess_samples / convert_bcf_results_to_dict normally produce.
+  for (double& v : bcf_results_raw.global_error_variance_samples) v *= y_std2;
+
+  // Convert results to Python dictionary
+  py::dict bcf_results = convert_bcf_results_to_dict(bcf_results_raw, bcf_config);
+  add_config_to_bcf_result_dict(bcf_results, bcf_config);
+  // Carry the new final RNG + leaf-cache state forward so chained continuations stay bit-identical.
+  bcf_results["rng_state"] = bcf_sampler.GetRngState();
+  bcf_results["leaf_normal_cache"] = bcf_sampler.GetLeafNormalCache();
   return bcf_results;
 }
 
@@ -3580,6 +3854,37 @@ PYBIND11_MODULE(stochtree_cpp, m) {
         py::arg("num_chains"),
         py::arg("config_input"));
 
+  m.def("bart_continue_sample_cpp", &bart_continue_sample_cpp, "Continue (warm-start) BART sampling from an existing model in C++",
+        py::arg("X_train"),
+        py::arg("y_train"),
+        py::arg("X_test") = py::none(),
+        py::arg("n_train"),
+        py::arg("n_test"),
+        py::arg("p"),
+        py::arg("basis_train") = py::none(),
+        py::arg("basis_test") = py::none(),
+        py::arg("basis_dim"),
+        py::arg("obs_weights_train") = py::none(),
+        py::arg("obs_weights_test") = py::none(),
+        py::arg("rfx_group_ids_train") = py::none(),
+        py::arg("rfx_group_ids_test") = py::none(),
+        py::arg("rfx_basis_train") = py::none(),
+        py::arg("rfx_basis_test") = py::none(),
+        py::arg("rfx_num_groups"),
+        py::arg("rfx_basis_dim"),
+        py::arg("num_burnin"),
+        py::arg("keep_every"),
+        py::arg("num_mcmc"),
+        py::arg("mean_forest_container"),
+        py::arg("global_var_samples") = py::none(),
+        py::arg("leaf_scale_samples") = py::none(),
+        py::arg("y_bar"),
+        py::arg("y_std"),
+        py::arg("rng_state_in") = std::string(),
+        py::arg("override_seed") = false,
+        py::arg("leaf_normal_cache_in") = std::string(),
+        py::arg("config_input"));
+
   m.def("bcf_sample_cpp", &bcf_sample_cpp, "Run BCF sampler in C++ implementation",
         py::arg("X_train"),
         py::arg("Z_train"),
@@ -3604,6 +3909,30 @@ PYBIND11_MODULE(stochtree_cpp, m) {
         py::arg("num_mcmc"),
         py::arg("num_chains"),
         py::arg("adaptive_coding"),
+        py::arg("config_input"));
+
+  m.def("bcf_continue_sample_cpp", &bcf_continue_sample_cpp, "Continue (warm-start) BCF sampling from an existing model in C++",
+        py::arg("X_train"),
+        py::arg("Z_train"),
+        py::arg("y_train"),
+        py::arg("n_train"),
+        py::arg("p"),
+        py::arg("treatment_dim"),
+        py::arg("obs_weights_train") = py::none(),
+        py::arg("num_burnin"),
+        py::arg("keep_every"),
+        py::arg("num_mcmc"),
+        py::arg("mu_forest_container"),
+        py::arg("tau_forest_container"),
+        py::arg("global_var_samples") = py::none(),
+        py::arg("leaf_scale_mu_samples") = py::none(),
+        py::arg("leaf_scale_tau_samples") = py::none(),
+        py::arg("tau_0_samples") = py::none(),
+        py::arg("y_bar"),
+        py::arg("y_std"),
+        py::arg("rng_state_in") = std::string(),
+        py::arg("override_seed") = false,
+        py::arg("leaf_normal_cache_in") = std::string(),
         py::arg("config_input"));
 
   m.def("bart_predict_cpp", &bart_predict_cpp, "Run BART predictions in C++",

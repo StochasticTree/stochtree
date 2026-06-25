@@ -31,7 +31,7 @@ from .utils import (
     _posterior_predictive_heuristic_multiplier,
     _summarize_interval,
 )
-from stochtree_cpp import bcf_sample_cpp, bcf_predict_cpp
+from stochtree_cpp import bcf_sample_cpp, bcf_continue_sample_cpp, bcf_predict_cpp
 
 
 def _migrate_bcf_v0_to_v1(serializer: JSONSerializer, loaded_version: int) -> None:
@@ -1888,6 +1888,10 @@ class BCFModel:
         # Remove None values from config (alternative is to check for Nones on the C++ side when unpacking into non-optional types)
         bcf_config = {k: v for k, v in bcf_config.items() if v is not None}
 
+        # Cache the config so that continue_sampling() can warm-start with the same sampler
+        # configuration (the C++ BCFConfig is reconstructed from this dict at continue-time).
+        self._cached_bcf_config = bcf_config
+
         # Convert arrays to F-contiguous (column-major) before calling C++.
         # convert_numpy_to_bart_data stores raw pointers into these arrays; if
         # pybind11 has to make a copy (wrong dtype or order) that copy is destroyed
@@ -2090,9 +2094,215 @@ class BCFModel:
             self.b0_samples = bcf_results["b0_samples"]
             self.b1_samples = bcf_results["b1_samples"]
 
+        # Persist the final RNG + leaf-cache state so continue_sampling() can resume the random
+        # stream for bit-identical continuation (single-chain runs only; None otherwise).
+        self.rng_state = bcf_results.get("rng_state", None)
+        self.leaf_normal_cache = bcf_results.get("leaf_normal_cache", None)
+
         # Unpack other model metadata
         self.num_samples = bcf_results["num_samples"]
         self.sampled = True
+
+        return self
+
+    def continue_sampling(
+        self,
+        X_train: Union[np.array, pd.DataFrame],
+        Z_train: np.array,
+        y_train: np.array,
+        propensity_train: np.array = None,
+        num_mcmc: int = 100,
+        num_burnin: int = 0,
+        keep_every: int = 1,
+        observation_weights_train: Optional[np.ndarray] = None,
+        random_seed: int = None,
+    ):
+        """Continue (warm-start) MCMC sampling from an already-fit BCF model, appending
+        additional samples to the existing posterior draws.
+
+        The training data must be re-supplied (it is not retained on the model). The
+        warm-start initializes the sampler from the last retained sample so that the new
+        draws form a continuous chain with the existing ones.
+
+        .. note::
+            This is currently supported only for Gaussian (identity-link), univariate-treatment
+            models without a variance forest, random effects, or adaptive coding.
+
+        Parameters
+        ----------
+        X_train : np.array or pd.DataFrame
+            Training covariates (re-supplied; must match the structure used to fit the model).
+        Z_train : np.array
+            Training treatment assignments (re-supplied).
+        y_train : np.array
+            Training outcome (re-supplied).
+        propensity_train : np.array, optional
+            Training propensity scores. Required if the model was fit with a propensity covariate
+            and an internal propensity model is not available to re-derive them.
+        num_mcmc : int, optional
+            Number of additional retained MCMC samples. Defaults to ``100``.
+        num_burnin : int, optional
+            Number of additional burn-in iterations to discard before retaining. Defaults to ``0``.
+        keep_every : int, optional
+            Thinning interval for the additional samples. Defaults to ``1``.
+        observation_weights_train : np.array, optional
+            Optional training observation weights (must match those used to fit the model).
+        random_seed : int, optional
+            If supplied, re-seeds the sampler RNG for the continued draws. By default
+            (``None``), the RNG state from the prior run is resumed, so the continued chain
+            is bit-identical to a single run of the combined length.
+
+        Returns
+        -------
+        self
+        """
+        if not getattr(self, "sampled", False):
+            raise RuntimeError("Cannot continue sampling: this model has not been sampled yet")
+        if self.include_variance_forest:
+            raise NotImplementedError(
+                "Continued sampling is not yet supported for models with a variance forest"
+            )
+        if getattr(self, "has_rfx", False):
+            raise NotImplementedError(
+                "Continued sampling is not yet supported for models with random effects"
+            )
+        if self.multivariate_treatment:
+            raise NotImplementedError(
+                "Continued sampling is not yet supported for multivariate treatment effects"
+            )
+        if self.adaptive_coding:
+            raise NotImplementedError(
+                "Continued sampling is not yet supported for adaptive coding"
+            )
+        cfg = getattr(self, "_cached_bcf_config", None)
+        if cfg is None:
+            raise RuntimeError(
+                "Cannot continue sampling: cached sampler configuration is unavailable "
+                "(continuation is not supported for deserialized models yet)"
+            )
+        if cfg.get("link_function", 0) != 0:
+            raise NotImplementedError(
+                "Continued sampling is not yet supported for probit or cloglog link functions"
+            )
+
+        # Reconstruct the covariate matrix exactly as sample() did: preprocess, then append the
+        # propensity score column(s) if the model uses a propensity covariate.
+        X_train_processed = self._covariate_preprocessor.transform(X_train).astype(np.float64)
+        if getattr(self, "propensity_covariate", "none") != "none":
+            if propensity_train is None:
+                if getattr(self, "internal_propensity_model", False) and hasattr(
+                    self, "bart_propensity_model"
+                ):
+                    propensity_train = np.expand_dims(
+                        self.bart_propensity_model.predict(
+                            X=X_train_processed, terms="y_hat", type="mean"
+                        ),
+                        1,
+                    )
+                else:
+                    raise ValueError(
+                        "propensity_train must be supplied to continue sampling this model"
+                    )
+            else:
+                propensity_train = np.atleast_2d(propensity_train)
+                if propensity_train.shape[0] == 1 and propensity_train.shape[1] != 1:
+                    propensity_train = propensity_train.T
+            X_train_processed = np.c_[X_train_processed, propensity_train]
+
+        y_train = np.asarray(y_train).astype(np.float64).reshape(-1)
+        if X_train_processed.shape[0] != y_train.shape[0]:
+            raise ValueError("X_train and y_train have differing numbers of observations")
+        Z_train = np.atleast_2d(Z_train)
+        if Z_train.shape[0] == 1 and Z_train.shape[1] != X_train_processed.shape[0]:
+            Z_train = Z_train.T
+        if Z_train.shape[1] != self.treatment_dim:
+            raise ValueError(
+                f"Re-supplied treatment has {Z_train.shape[1]} columns; model expects {self.treatment_dim}"
+            )
+
+        X_train_cpp = np.asfortranarray(X_train_processed)
+        Z_train_cpp = np.asfortranarray(Z_train.astype(np.float64))
+        y_train_cpp = np.asfortranarray(y_train)
+
+        # RNG continuation: by default resume the saved stream for bit-identical results.
+        # If the user supplies a new seed, override the cached config seed and tell the
+        # binding to keep the fresh seed instead of restoring the saved state.
+        override_seed = random_seed is not None
+        if override_seed:
+            cfg = dict(cfg)
+            cfg["random_seed"] = random_seed
+        rng_state_in = (
+            self.rng_state
+            if (not override_seed and getattr(self, "rng_state", None) is not None)
+            else ""
+        )
+        leaf_normal_cache_in = (
+            self.leaf_normal_cache
+            if (not override_seed and getattr(self, "leaf_normal_cache", None) is not None)
+            else ""
+        )
+
+        # tau_0 samples are stored as (treatment_dim, num_samples) on the original scale; flatten
+        # column-major to match the C++ col-major layout (the binding divides out y_std).
+        tau_0_in = None
+        if self.sample_tau_0 and getattr(self, "tau_0_samples", None) is not None:
+            tau_0_in = np.asarray(self.tau_0_samples).flatten(order="F")
+
+        bcf_results = bcf_continue_sample_cpp(
+            X_train=X_train_cpp,
+            Z_train=Z_train_cpp,
+            y_train=y_train_cpp,
+            n_train=X_train_cpp.shape[0],
+            p=X_train_cpp.shape[1],
+            treatment_dim=self.treatment_dim,
+            obs_weights_train=observation_weights_train
+            if observation_weights_train is not None
+            else None,
+            num_burnin=num_burnin,
+            keep_every=keep_every,
+            num_mcmc=num_mcmc,
+            mu_forest_container=self.forest_container_mu.forest_container_cpp,
+            tau_forest_container=self.forest_container_tau.forest_container_cpp,
+            global_var_samples=self.global_var_samples if self.sample_sigma2_global else None,
+            leaf_scale_mu_samples=self.leaf_scale_mu_samples if self.sample_sigma2_leaf_mu else None,
+            leaf_scale_tau_samples=self.leaf_scale_tau_samples if self.sample_sigma2_leaf_tau else None,
+            tau_0_samples=tau_0_in,
+            y_bar=float(self.y_bar),
+            y_std=float(self.y_std),
+            rng_state_in=rng_state_in,
+            override_seed=override_seed,
+            leaf_normal_cache_in=leaf_normal_cache_in,
+            config_input=cfg,
+        )
+
+        # Replace the forest containers and extend parameter arrays with the (history + new) results.
+        self.forest_container_mu.forest_container_cpp = bcf_results["forest_container_mu"]
+        self.forest_container_tau.forest_container_cpp = bcf_results["forest_container_tau"]
+        if self.sample_sigma2_global:
+            # C++ continuation binding already rescales global variance to the original scale.
+            self.global_var_samples = bcf_results["global_var_samples"]
+        if self.sample_sigma2_leaf_mu:
+            self.leaf_scale_mu_samples = bcf_results["leaf_scale_mu_samples"]
+        if self.sample_sigma2_leaf_tau:
+            self.leaf_scale_tau_samples = bcf_results["leaf_scale_tau_samples"]
+        self.num_samples = bcf_results["num_samples"]
+        if self.sample_tau_0 and bcf_results["tau_0_samples"] is not None:
+            self.tau_0_samples = bcf_results["tau_0_samples"].reshape(
+                self.treatment_dim, self.num_samples, order="F"
+            ) * self.y_std
+        self.num_mcmc = (self.num_mcmc or 0) + num_mcmc
+        # Carry the new final RNG + leaf-cache state forward so further continuations stay bit-identical.
+        self.rng_state = bcf_results.get("rng_state", None)
+        self.leaf_normal_cache = bcf_results.get("leaf_normal_cache", None)
+
+        # Recompute training predictions over the full (history + new) set of samples.
+        preds = self.predict(
+            X_train, Z_train, propensity=propensity_train, type="posterior",
+            terms=["y_hat", "mu", "tau"],
+        )
+        self.y_hat_train = preds["y_hat"]
+        self.mu_hat_train = preds["mu_hat"]
+        self.tau_hat_train = preds["tau_hat"]
 
         return self
 
