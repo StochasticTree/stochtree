@@ -31,7 +31,7 @@ from .utils import (
     _posterior_predictive_heuristic_multiplier,
     _summarize_interval,
 )
-from stochtree_cpp import bcf_sample_cpp, bcf_continue_sample_cpp, bcf_predict_cpp
+from stochtree_cpp import bcf_sample_cpp, bcf_continue_sample_cpp, bcf_predict_cpp, BCFSamplesCpp
 
 
 def _migrate_bcf_v0_to_v1(serializer: JSONSerializer, loaded_version: int) -> None:
@@ -97,6 +97,81 @@ class BCFModel:
     def __init__(self) -> None:
         # Internal flag for whether the sample() method has been run
         self.sampled = False
+        # Single source of truth for the sampled forests + parameter traces (BCFSamplesCpp).
+        # forest_container_mu/tau/variance, global_var_samples, leaf_scale_mu/tau_samples, and
+        # num_samples are properties backed by this; _fc_*_cache hold the materialized forest views.
+        # tau_0_samples / b0_samples / b1_samples remain separate attributes (specialized shape/scale;
+        # the wrapper guards/omits them for now).
+        self._samples = None
+        self._fc_mu_cache = None
+        self._fc_tau_cache = None
+        self._fc_variance_cache = None
+
+    def _set_samples(self, samples) -> None:
+        """Install a new BCFSamplesCpp as the single source of truth and invalidate the
+        materialized forest-container caches."""
+        self._samples = samples
+        self._fc_mu_cache = None
+        self._fc_tau_cache = None
+        self._fc_variance_cache = None
+
+    @property
+    def forest_container_mu(self):
+        if self._samples is None or not self._samples.has_mu_forest():
+            return None
+        if self._fc_mu_cache is None:
+            cpp = self._samples.materialize_mu_forest()
+            fc = ForestContainer(cpp.NumTrees(), 1, True, False)
+            fc.forest_container_cpp = cpp
+            self._fc_mu_cache = fc
+        return self._fc_mu_cache
+
+    @property
+    def forest_container_tau(self):
+        if self._samples is None or not self._samples.has_tau_forest():
+            return None
+        if self._fc_tau_cache is None:
+            cpp = self._samples.materialize_tau_forest()
+            fc = ForestContainer(cpp.NumTrees(), self.treatment_dim, False, False)
+            fc.forest_container_cpp = cpp
+            self._fc_tau_cache = fc
+        return self._fc_tau_cache
+
+    @property
+    def forest_container_variance(self):
+        if self._samples is None or not self._samples.has_variance_forest():
+            return None
+        if self._fc_variance_cache is None:
+            cpp = self._samples.materialize_variance_forest()
+            fc = ForestContainer(cpp.NumTrees(), 1, True, True)
+            fc.forest_container_cpp = cpp
+            self._fc_variance_cache = fc
+        return self._fc_variance_cache
+
+    @property
+    def global_var_samples(self):
+        if self._samples is None:
+            return None
+        arr = self._samples.global_var_samples()
+        return arr if arr.size else None
+
+    @property
+    def leaf_scale_mu_samples(self):
+        if self._samples is None:
+            return None
+        arr = self._samples.leaf_scale_mu_samples()
+        return arr if arr.size else None
+
+    @property
+    def leaf_scale_tau_samples(self):
+        if self._samples is None:
+            return None
+        arr = self._samples.leaf_scale_tau_samples()
+        return arr if arr.size else None
+
+    @property
+    def num_samples(self):
+        return self._samples.num_samples() if self._samples is not None else None
 
     def sample(
         self,
@@ -1979,11 +2054,7 @@ class BCFModel:
             else None
         )
 
-        # Unpack mu forest results
-        self.forest_container_mu = ForestContainer(num_trees_mu, 1, True, False)
-        self.forest_container_mu.forest_container_cpp = bcf_results[
-            "forest_container_mu"
-        ]
+        # Unpack mu forest predictions (forest owned by self._samples, assembled below)
         mu_forest_preds_train = bcf_results[
             "mu_forest_predictions_train"
         ].reshape(self.n_train, bcf_results["num_samples"], order="F")
@@ -1994,11 +2065,7 @@ class BCFModel:
             ].reshape(self.n_test, bcf_results["num_samples"], order="F")
             self.mu_hat_test = mu_forest_preds_test * self.y_std + self.y_bar
 
-        # Unpack tau forest results
-        self.forest_container_tau = ForestContainer(num_trees_tau, self.treatment_dim, False, False)
-        self.forest_container_tau.forest_container_cpp = bcf_results[
-            "forest_container_tau"
-        ]
+        # Unpack tau forest predictions (forest owned by self._samples, assembled below)
         if self.multivariate_treatment:
             tau_forest_preds_train = bcf_results[
                 "tau_forest_predictions_train"
@@ -2056,14 +2123,8 @@ class BCFModel:
                 )
                 self.y_hat_test = self.y_hat_test + rfx_preds_test
 
-        # Unpack variance forest results
+        # Unpack variance forest predictions (forest owned by self._samples, assembled below)
         if self.include_variance_forest:
-            self.forest_container_variance = ForestContainer(
-                num_trees_variance, 1, True, True
-            )
-            self.forest_container_variance.forest_container_cpp = bcf_results[
-                "forest_container_variance"
-            ]
             variance_forest_preds_train = bcf_results[
                 "variance_forest_predictions_train"
             ].reshape(self.n_train, bcf_results["num_samples"], order="F")
@@ -2074,16 +2135,12 @@ class BCFModel:
                 ].reshape(self.n_test, bcf_results["num_samples"], order="F")
                 self.sigma2_x_test = variance_forest_preds_test
 
-        # Unpack parameter samples
+        # Parameter sampling flags (global var + leaf scales are owned by self._samples, built below)
         self.sample_sigma2_global = sample_sigma2_global
         self.sample_sigma2_leaf_mu = sample_sigma2_leaf_mu
         self.sample_sigma2_leaf_tau = sample_sigma2_leaf_tau
-        if self.sample_sigma2_global:
-            self.global_var_samples = bcf_results["global_var_samples"]
-        if self.sample_sigma2_leaf_mu:
-            self.leaf_scale_mu_samples = bcf_results["leaf_scale_mu_samples"]
-        if self.sample_sigma2_leaf_tau:
-            self.leaf_scale_tau_samples = bcf_results["leaf_scale_tau_samples"]
+        # tau_0 / b0 / b1 stay separate attributes (specialized shape/scale; not routed through the
+        # samples wrapper yet).
         if self.sample_tau_0:
             tau_0_raw = bcf_results["tau_0_samples"]
             if tau_0_raw is not None:
@@ -2099,8 +2156,25 @@ class BCFModel:
         self.rng_state = bcf_results.get("rng_state", None)
         self.leaf_normal_cache = bcf_results.get("leaf_normal_cache", None)
 
-        # Unpack other model metadata
-        self.num_samples = bcf_results["num_samples"]
+        # Assemble the single source of truth: forests + global var + leaf scales in one BCFSamplesCpp.
+        # forest_container_*/global_var_samples/leaf_scale_*_samples/num_samples are properties off it.
+        self._set_samples(
+            BCFSamplesCpp.from_components(
+                bcf_results["forest_container_mu"],
+                bcf_results["forest_container_tau"],
+                bcf_results["forest_container_variance"] if self.include_variance_forest else None,
+                bcf_results["global_var_samples"] if self.sample_sigma2_global else None,
+                bcf_results["leaf_scale_mu_samples"] if self.sample_sigma2_leaf_mu else None,
+                bcf_results["leaf_scale_tau_samples"] if self.sample_sigma2_leaf_tau else None,
+                None,  # tau_0 stays a separate attribute
+                None,  # b0 stays a separate attribute
+                None,  # b1 stays a separate attribute
+                float(self.y_bar),
+                float(self.y_std),
+                int(bcf_results["num_samples"]),
+                int(self.treatment_dim),
+            )
+        )
         self.sampled = True
 
         return self
@@ -2275,17 +2349,25 @@ class BCFModel:
             config_input=cfg,
         )
 
-        # Replace the forest containers and extend parameter arrays with the (history + new) results.
-        self.forest_container_mu.forest_container_cpp = bcf_results["forest_container_mu"]
-        self.forest_container_tau.forest_container_cpp = bcf_results["forest_container_tau"]
-        if self.sample_sigma2_global:
-            # C++ continuation binding already rescales global variance to the original scale.
-            self.global_var_samples = bcf_results["global_var_samples"]
-        if self.sample_sigma2_leaf_mu:
-            self.leaf_scale_mu_samples = bcf_results["leaf_scale_mu_samples"]
-        if self.sample_sigma2_leaf_tau:
-            self.leaf_scale_tau_samples = bcf_results["leaf_scale_tau_samples"]
-        self.num_samples = bcf_results["num_samples"]
+        # Rebuild the single source of truth from the (history + new) continuation results.
+        # Continuation supports no variance forest, so variance is None.
+        self._set_samples(
+            BCFSamplesCpp.from_components(
+                bcf_results["forest_container_mu"],
+                bcf_results["forest_container_tau"],
+                None,
+                bcf_results["global_var_samples"] if self.sample_sigma2_global else None,
+                bcf_results["leaf_scale_mu_samples"] if self.sample_sigma2_leaf_mu else None,
+                bcf_results["leaf_scale_tau_samples"] if self.sample_sigma2_leaf_tau else None,
+                None,  # tau_0 stays a separate attribute
+                None,  # b0
+                None,  # b1
+                float(self.y_bar),
+                float(self.y_std),
+                int(bcf_results["num_samples"]),
+                int(self.treatment_dim),
+            )
+        )
         if self.sample_tau_0 and bcf_results["tau_0_samples"] is not None:
             self.tau_0_samples = bcf_results["tau_0_samples"].reshape(
                 self.treatment_dim, self.num_samples, order="F"
@@ -3261,18 +3343,20 @@ class BCFModel:
                 f"Field 'multivariate_treatment' not found in BCF JSON "
                 f"(inferred version: {_ver}). Defaulting to False."
             )
-        # v1 forests are stored under self-describing named keys.
-        self.forest_container_mu = ForestContainer(0, 0, False, False)
-        self.forest_container_mu.forest_container_cpp.LoadFromJson(
+        # v1 forests are stored under self-describing named keys. Load into temporary containers,
+        # then deep-copy into the single owned samples object below.
+        mu_forest_loaded = ForestContainer(0, 0, False, False)
+        mu_forest_loaded.forest_container_cpp.LoadFromJson(
             bcf_json.json_cpp, "prognostic_forest"
         )
-        self.forest_container_tau = ForestContainer(0, 0, False, False)
-        self.forest_container_tau.forest_container_cpp.LoadFromJson(
+        tau_forest_loaded = ForestContainer(0, 0, False, False)
+        tau_forest_loaded.forest_container_cpp.LoadFromJson(
             bcf_json.json_cpp, "treatment_forest"
         )
+        variance_forest_loaded = None
         if self.include_variance_forest:
-            self.forest_container_variance = ForestContainer(0, 0, False, False)
-            self.forest_container_variance.forest_container_cpp.LoadFromJson(
+            variance_forest_loaded = ForestContainer(0, 0, False, False)
+            variance_forest_loaded.forest_container_cpp.LoadFromJson(
                 bcf_json.json_cpp, "variance_forest"
             )
 
@@ -3308,7 +3392,7 @@ class BCFModel:
                 f"Field 'keep_every' not found in BCF JSON "
                 f"(inferred version: {_ver}). Defaulting to 1."
             )
-        self.num_samples = int(bcf_json.get_scalar("num_samples"))
+        num_samples_loaded = int(bcf_json.get_scalar("num_samples"))
         self.adaptive_coding = bcf_json.get_boolean("adaptive_coding")
         if "binary_treatment" in _raw:
             self.binary_treatment = bcf_json.get_boolean("binary_treatment")
@@ -3388,19 +3472,23 @@ class BCFModel:
                     f"(inferred version: {_ver}) but has_rfx=True."
                 )
 
-        # Unpack parameter samples
-        if self.sample_sigma2_global:
-            self.global_var_samples = bcf_json.get_numeric_vector(
-                "sigma2_global_samples", "parameters"
-            )
-        if self.sample_sigma2_leaf_mu:
-            self.leaf_scale_mu_samples = bcf_json.get_numeric_vector(
-                "sigma2_leaf_mu_samples", "parameters"
-            )
-        if self.sample_sigma2_leaf_tau:
-            self.leaf_scale_tau_samples = bcf_json.get_numeric_vector(
-                "sigma2_leaf_tau_samples", "parameters"
-            )
+        # Unpack parameter samples (global var + leaf scales owned by self._samples, built below)
+        global_var_loaded = (
+            bcf_json.get_numeric_vector("sigma2_global_samples", "parameters")
+            if self.sample_sigma2_global
+            else None
+        )
+        leaf_scale_mu_loaded = (
+            bcf_json.get_numeric_vector("sigma2_leaf_mu_samples", "parameters")
+            if self.sample_sigma2_leaf_mu
+            else None
+        )
+        leaf_scale_tau_loaded = (
+            bcf_json.get_numeric_vector("sigma2_leaf_tau_samples", "parameters")
+            if self.sample_sigma2_leaf_tau
+            else None
+        )
+        # b0/b1/tau_0 stay separate attributes.
         if self.adaptive_coding:
             self.b1_samples = bcf_json.get_numeric_vector("b1_samples", "parameters")
             self.b0_samples = bcf_json.get_numeric_vector("b0_samples", "parameters")
@@ -3408,6 +3496,25 @@ class BCFModel:
             tau_0_dim = int(bcf_json.get_scalar("tau_0_dim"))
             tau_0_vec = bcf_json.get_numeric_vector("tau_0_samples", "parameters")
             self.tau_0_samples = tau_0_vec.reshape(tau_0_dim, -1)
+
+        # Assemble the single source of truth (forests + global var + leaf scales).
+        self._set_samples(
+            BCFSamplesCpp.from_components(
+                mu_forest_loaded.forest_container_cpp,
+                tau_forest_loaded.forest_container_cpp,
+                variance_forest_loaded.forest_container_cpp if self.include_variance_forest else None,
+                global_var_loaded,
+                leaf_scale_mu_loaded,
+                leaf_scale_tau_loaded,
+                None,
+                None,
+                None,
+                float(self.y_bar),
+                float(self.y_std),
+                int(num_samples_loaded),
+                int(self.treatment_dim),
+            )
+        )
 
         # Unpack internal propensity model
         if self.internal_propensity_model:
@@ -3461,41 +3568,43 @@ class BCFModel:
         _raw_default = json.loads(json_string_list[0])
         _ver = _infer_stochtree_version(json_string_list[0])
 
-        # Unpack forests (v1 named keys)
+        # Unpack forests (v1 named keys) into temporary containers (append across chains), then
+        # deep-copy the combined result into the single owned samples object below.
         # Prognostic (mu) forest
-        self.forest_container_mu = ForestContainer(0, 0, False, False)
+        mu_forest_loaded = ForestContainer(0, 0, False, False)
         for i in range(len(json_object_list)):
             if i == 0:
-                self.forest_container_mu.forest_container_cpp.LoadFromJson(
+                mu_forest_loaded.forest_container_cpp.LoadFromJson(
                     json_object_list[i].json_cpp, "prognostic_forest"
                 )
             else:
-                self.forest_container_mu.forest_container_cpp.AppendFromJson(
+                mu_forest_loaded.forest_container_cpp.AppendFromJson(
                     json_object_list[i].json_cpp, "prognostic_forest"
                 )
         # Treatment (tau) forest
-        self.forest_container_tau = ForestContainer(0, 0, False, False)
+        tau_forest_loaded = ForestContainer(0, 0, False, False)
         for i in range(len(json_object_list)):
             if i == 0:
-                self.forest_container_tau.forest_container_cpp.LoadFromJson(
+                tau_forest_loaded.forest_container_cpp.LoadFromJson(
                     json_object_list[i].json_cpp, "treatment_forest"
                 )
             else:
-                self.forest_container_tau.forest_container_cpp.AppendFromJson(
+                tau_forest_loaded.forest_container_cpp.AppendFromJson(
                     json_object_list[i].json_cpp, "treatment_forest"
                 )
         self.include_variance_forest = json_object_default.get_boolean(
             "include_variance_forest"
         )
+        variance_forest_loaded = None
         if self.include_variance_forest:
-            self.forest_container_variance = ForestContainer(0, 0, False, False)
+            variance_forest_loaded = ForestContainer(0, 0, False, False)
             for i in range(len(json_object_list)):
                 if i == 0:
-                    self.forest_container_variance.forest_container_cpp.LoadFromJson(
+                    variance_forest_loaded.forest_container_cpp.LoadFromJson(
                         json_object_list[i].json_cpp, "variance_forest"
                     )
                 else:
-                    self.forest_container_variance.forest_container_cpp.AppendFromJson(
+                    variance_forest_loaded.forest_container_cpp.AppendFromJson(
                         json_object_list[i].json_cpp, "variance_forest"
                     )
 
@@ -3645,58 +3754,43 @@ class BCFModel:
                     f"(inferred version: {_ver}) but has_rfx=True."
                 )
 
-        # Unpack number of samples
+        # Combined number of samples across chains (owned by self._samples, built below)
+        num_samples_loaded = 0
         for i in range(len(json_object_list)):
-            if i == 0:
-                self.num_samples = json_object_list[i].get_integer("num_samples")
-            else:
-                self.num_samples += json_object_list[i].get_integer("num_samples")
+            num_samples_loaded += json_object_list[i].get_integer("num_samples")
 
-        # Unpack parameter samples
+        # Unpack parameter samples (concatenated across chains; owned by self._samples below)
+        global_var_loaded = None
         if self.sample_sigma2_global:
             for i in range(len(json_object_list)):
-                if i == 0:
-                    self.global_var_samples = json_object_list[i].get_numeric_vector(
-                        "sigma2_global_samples", "parameters"
-                    )
-                else:
-                    global_var_samples = json_object_list[i].get_numeric_vector(
-                        "sigma2_global_samples", "parameters"
-                    )
-                    self.global_var_samples = np.concatenate((
-                        self.global_var_samples,
-                        global_var_samples,
-                    ))
+                gv_i = json_object_list[i].get_numeric_vector(
+                    "sigma2_global_samples", "parameters"
+                )
+                global_var_loaded = (
+                    gv_i if i == 0 else np.concatenate((global_var_loaded, gv_i))
+                )
 
+        leaf_scale_mu_loaded = None
         if self.sample_sigma2_leaf_mu:
             for i in range(len(json_object_list)):
-                if i == 0:
-                    self.leaf_scale_mu_samples = json_object_list[i].get_numeric_vector(
-                        "sigma2_leaf_mu_samples", "parameters"
-                    )
-                else:
-                    leaf_scale_mu_samples = json_object_list[i].get_numeric_vector(
-                        "sigma2_leaf_mu_samples", "parameters"
-                    )
-                    self.leaf_scale_mu_samples = np.concatenate((
-                        self.leaf_scale_mu_samples,
-                        leaf_scale_mu_samples,
-                    ))
+                ls_i = json_object_list[i].get_numeric_vector(
+                    "sigma2_leaf_mu_samples", "parameters"
+                )
+                leaf_scale_mu_loaded = (
+                    ls_i if i == 0 else np.concatenate((leaf_scale_mu_loaded, ls_i))
+                )
 
+        # NOTE: fixes a pre-existing bug where the concatenated leaf-tau scale was assigned to the
+        # boolean flag self.sample_sigma2_leaf_tau instead of the samples array.
+        leaf_scale_tau_loaded = None
         if self.sample_sigma2_leaf_tau:
             for i in range(len(json_object_list)):
-                if i == 0:
-                    self.sample_sigma2_leaf_tau = json_object_list[
-                        i
-                    ].get_numeric_vector("sigma2_leaf_tau_samples", "parameters")
-                else:
-                    sample_sigma2_leaf_tau = json_object_list[i].get_numeric_vector(
-                        "sigma2_leaf_tau_samples", "parameters"
-                    )
-                    self.sample_sigma2_leaf_tau = np.concatenate((
-                        self.sample_sigma2_leaf_tau,
-                        sample_sigma2_leaf_tau,
-                    ))
+                ls_i = json_object_list[i].get_numeric_vector(
+                    "sigma2_leaf_tau_samples", "parameters"
+                )
+                leaf_scale_tau_loaded = (
+                    ls_i if i == 0 else np.concatenate((leaf_scale_tau_loaded, ls_i))
+                )
 
         if self.sample_tau_0:
             tau_0_dim = int(json_object_default.get_scalar("tau_0_dim"))
@@ -3709,6 +3803,25 @@ class BCFModel:
                     self.tau_0_samples = tau_0_mat_i
                 else:
                     self.tau_0_samples = np.hstack((self.tau_0_samples, tau_0_mat_i))
+
+        # Assemble the single source of truth from the combined (across-chain) parts.
+        self._set_samples(
+            BCFSamplesCpp.from_components(
+                mu_forest_loaded.forest_container_cpp,
+                tau_forest_loaded.forest_container_cpp,
+                variance_forest_loaded.forest_container_cpp if self.include_variance_forest else None,
+                global_var_loaded,
+                leaf_scale_mu_loaded,
+                leaf_scale_tau_loaded,
+                None,
+                None,
+                None,
+                float(self.y_bar),
+                float(self.y_std),
+                int(num_samples_loaded),
+                int(self.treatment_dim),
+            )
+        )
 
         # Unpack internal propensity model
         if self.internal_propensity_model:
