@@ -2204,8 +2204,135 @@ class JsonCpp {
     return json_->at("random_effects");
   }
 
+  // Direct access to the underlying nlohmann object so the samples wrappers can read/write the
+  // samples-owned subtree in place (BARTSamplesCpp::LoadFromJson / AddToJson).
+  nlohmann::json& GetJson() { return *json_; }
+
  private:
   std::unique_ptr<nlohmann::json> json_;
+};
+
+// Shared helpers for the single-owner samples wrappers (BART + BCF): marshal a C++ vector to a numpy
+// array, and materialize a standalone deep copy of a forest container (via to_json/from_json) wrapped
+// in ForestContainerCpp for the deprecated direct forest accessor (returns nullptr -> None if absent).
+inline py::array_t<double> samples_vec_to_numpy(const std::vector<double>& v) {
+  py::array_t<double> arr(static_cast<py::ssize_t>(v.size()));
+  std::copy(v.begin(), v.end(), arr.mutable_data());
+  return arr;
+}
+
+inline std::unique_ptr<ForestContainerCpp> materialize_forest_container(
+    const std::unique_ptr<StochTree::ForestContainer>& src) {
+  if (src == nullptr) return nullptr;
+  auto copy = std::make_unique<StochTree::ForestContainer>(0, 0, false, false);
+  copy->from_json(src->to_json());
+  // Read dims before moving the unique_ptr (argument evaluation order is unspecified).
+  int num_trees = copy->NumTrees();
+  int output_dim = copy->OutputDimension();
+  bool leaf_constant = copy->IsLeafConstant();
+  bool exponentiated = copy->IsExponentiated();
+  return std::make_unique<ForestContainerCpp>(std::move(copy), num_trees, output_dim, leaf_constant, exponentiated);
+}
+
+// Thin owning wrapper around a single StochTree::BARTSamples, held as ONE external pointer in the
+// Python model (single-owner design). It owns the unique_ptr and forwards to the core methods,
+// doing only Python type marshalling: parameter traces -> numpy, and a materialize-on-demand deep
+// copy of a forest container wrapped in ForestContainerCpp for the (deprecated) direct forest
+// accessor. Serialization/merge logic lives in core BARTSamples; this class adds no model logic.
+class BARTSamplesCpp {
+ public:
+  BARTSamplesCpp() { samples_ = std::make_unique<StochTree::BARTSamples>(); }
+  BARTSamplesCpp(std::unique_ptr<StochTree::BARTSamples> samples) { samples_ = std::move(samples); }
+  ~BARTSamplesCpp() {}
+
+  StochTree::BARTSamples* GetPtr() { return samples_.get(); }
+
+  // Populate the samples-owned subtree from a parsed JSON object held by a JsonCpp (envelope already
+  // resolved/migrated by the per-language caller). Inverse: AddToJson merges the subtree back in.
+  void LoadFromJson(JsonCpp& json) { samples_->FromJson(json.GetJson()); }
+  void AddToJson(JsonCpp& json) { json.GetJson().update(samples_->ToJson()); }
+
+  // Convenience string forms (used for isolated testing; the real save/load path uses JsonCpp).
+  static std::unique_ptr<BARTSamplesCpp> FromJsonString(std::string json_string) {
+    auto wrapper = std::make_unique<BARTSamplesCpp>();
+    nlohmann::json obj = nlohmann::json::parse(json_string);
+    wrapper->samples_->FromJson(obj);
+    return wrapper;
+  }
+  std::string ToJsonString() { return samples_->ToJson().dump(); }
+
+  // Append another chain's draws (multi-chain combine); forwards to core BARTSamples::Merge.
+  void Merge(BARTSamplesCpp& other) { samples_->Merge(*other.samples_); }
+
+  int NumSamples() { return samples_->num_samples; }
+  double YBar() { return samples_->y_bar; }
+  double YStd() { return samples_->y_std; }
+  int NumTrain() { return samples_->num_train; }
+  int NumTest() { return samples_->num_test; }
+
+  py::array_t<double> GlobalVarSamples() { return samples_vec_to_numpy(samples_->global_error_variance_samples); }
+  py::array_t<double> LeafScaleSamples() { return samples_vec_to_numpy(samples_->leaf_scale_samples); }
+
+  bool HasMeanForest() { return samples_->mean_forests != nullptr; }
+  bool HasVarianceForest() { return samples_->variance_forests != nullptr; }
+
+  // Materialize a standalone deep copy of a forest container, wrapped in ForestContainerCpp, for the
+  // (deprecated) direct forest accessor. Returns None when the forest is absent.
+  std::unique_ptr<ForestContainerCpp> MaterializeMeanForest() { return materialize_forest_container(samples_->mean_forests); }
+  std::unique_ptr<ForestContainerCpp> MaterializeVarianceForest() { return materialize_forest_container(samples_->variance_forests); }
+
+ private:
+  std::unique_ptr<StochTree::BARTSamples> samples_;
+};
+
+// Thin owning wrapper around a single StochTree::BCFSamples (BCF mirror of BARTSamplesCpp). Owns the
+// unique_ptr and forwards to core; adds only Python marshalling. BCF carries three forests
+// (prognostic/treatment/variance), extra parameter traces (leaf_scale_mu/tau, tau_0, b0/b1), and a
+// treatment_dim scalar.
+class BCFSamplesCpp {
+ public:
+  BCFSamplesCpp() { samples_ = std::make_unique<StochTree::BCFSamples>(); }
+  BCFSamplesCpp(std::unique_ptr<StochTree::BCFSamples> samples) { samples_ = std::move(samples); }
+  ~BCFSamplesCpp() {}
+
+  StochTree::BCFSamples* GetPtr() { return samples_.get(); }
+
+  void LoadFromJson(JsonCpp& json) { samples_->FromJson(json.GetJson()); }
+  void AddToJson(JsonCpp& json) { json.GetJson().update(samples_->ToJson()); }
+  static std::unique_ptr<BCFSamplesCpp> FromJsonString(std::string json_string) {
+    auto wrapper = std::make_unique<BCFSamplesCpp>();
+    nlohmann::json obj = nlohmann::json::parse(json_string);
+    wrapper->samples_->FromJson(obj);
+    return wrapper;
+  }
+  std::string ToJsonString() { return samples_->ToJson().dump(); }
+
+  void Merge(BCFSamplesCpp& other) { samples_->Merge(*other.samples_); }
+
+  int NumSamples() { return samples_->num_samples; }
+  double YBar() { return samples_->y_bar; }
+  double YStd() { return samples_->y_std; }
+  int NumTrain() { return samples_->num_train; }
+  int NumTest() { return samples_->num_test; }
+  int TreatmentDim() { return samples_->treatment_dim; }
+
+  py::array_t<double> GlobalVarSamples() { return samples_vec_to_numpy(samples_->global_error_variance_samples); }
+  py::array_t<double> LeafScaleMuSamples() { return samples_vec_to_numpy(samples_->leaf_scale_mu_samples); }
+  py::array_t<double> LeafScaleTauSamples() { return samples_vec_to_numpy(samples_->leaf_scale_tau_samples); }
+  py::array_t<double> Tau0Samples() { return samples_vec_to_numpy(samples_->tau_0_samples); }
+  py::array_t<double> B0Samples() { return samples_vec_to_numpy(samples_->b0_samples); }
+  py::array_t<double> B1Samples() { return samples_vec_to_numpy(samples_->b1_samples); }
+
+  bool HasMuForest() { return samples_->mu_forests != nullptr; }
+  bool HasTauForest() { return samples_->tau_forests != nullptr; }
+  bool HasVarianceForest() { return samples_->variance_forests != nullptr; }
+
+  std::unique_ptr<ForestContainerCpp> MaterializeMuForest() { return materialize_forest_container(samples_->mu_forests); }
+  std::unique_ptr<ForestContainerCpp> MaterializeTauForest() { return materialize_forest_container(samples_->tau_forests); }
+  std::unique_ptr<ForestContainerCpp> MaterializeVarianceForest() { return materialize_forest_container(samples_->variance_forests); }
+
+ private:
+  std::unique_ptr<StochTree::BCFSamples> samples_;
 };
 
 template <typename T>
@@ -4053,6 +4180,51 @@ PYBIND11_MODULE(stochtree_cpp, m) {
 
   py::class_<RngCpp>(m, "RngCpp")
       .def(py::init<int>());
+
+  py::class_<BARTSamplesCpp>(m, "BARTSamplesCpp")
+      .def(py::init<>())
+      .def_static("from_json_string", &BARTSamplesCpp::FromJsonString)
+      .def("to_json_string", &BARTSamplesCpp::ToJsonString)
+      .def("load_from_json", &BARTSamplesCpp::LoadFromJson)
+      .def("add_to_json", &BARTSamplesCpp::AddToJson)
+      .def("merge", &BARTSamplesCpp::Merge)
+      .def("num_samples", &BARTSamplesCpp::NumSamples)
+      .def("y_bar", &BARTSamplesCpp::YBar)
+      .def("y_std", &BARTSamplesCpp::YStd)
+      .def("num_train", &BARTSamplesCpp::NumTrain)
+      .def("num_test", &BARTSamplesCpp::NumTest)
+      .def("global_var_samples", &BARTSamplesCpp::GlobalVarSamples)
+      .def("leaf_scale_samples", &BARTSamplesCpp::LeafScaleSamples)
+      .def("has_mean_forest", &BARTSamplesCpp::HasMeanForest)
+      .def("has_variance_forest", &BARTSamplesCpp::HasVarianceForest)
+      .def("materialize_mean_forest", &BARTSamplesCpp::MaterializeMeanForest)
+      .def("materialize_variance_forest", &BARTSamplesCpp::MaterializeVarianceForest);
+
+  py::class_<BCFSamplesCpp>(m, "BCFSamplesCpp")
+      .def(py::init<>())
+      .def_static("from_json_string", &BCFSamplesCpp::FromJsonString)
+      .def("to_json_string", &BCFSamplesCpp::ToJsonString)
+      .def("load_from_json", &BCFSamplesCpp::LoadFromJson)
+      .def("add_to_json", &BCFSamplesCpp::AddToJson)
+      .def("merge", &BCFSamplesCpp::Merge)
+      .def("num_samples", &BCFSamplesCpp::NumSamples)
+      .def("y_bar", &BCFSamplesCpp::YBar)
+      .def("y_std", &BCFSamplesCpp::YStd)
+      .def("num_train", &BCFSamplesCpp::NumTrain)
+      .def("num_test", &BCFSamplesCpp::NumTest)
+      .def("treatment_dim", &BCFSamplesCpp::TreatmentDim)
+      .def("global_var_samples", &BCFSamplesCpp::GlobalVarSamples)
+      .def("leaf_scale_mu_samples", &BCFSamplesCpp::LeafScaleMuSamples)
+      .def("leaf_scale_tau_samples", &BCFSamplesCpp::LeafScaleTauSamples)
+      .def("tau_0_samples", &BCFSamplesCpp::Tau0Samples)
+      .def("b0_samples", &BCFSamplesCpp::B0Samples)
+      .def("b1_samples", &BCFSamplesCpp::B1Samples)
+      .def("has_mu_forest", &BCFSamplesCpp::HasMuForest)
+      .def("has_tau_forest", &BCFSamplesCpp::HasTauForest)
+      .def("has_variance_forest", &BCFSamplesCpp::HasVarianceForest)
+      .def("materialize_mu_forest", &BCFSamplesCpp::MaterializeMuForest)
+      .def("materialize_tau_forest", &BCFSamplesCpp::MaterializeTauForest)
+      .def("materialize_variance_forest", &BCFSamplesCpp::MaterializeVarianceForest);
 
   py::class_<ForestContainerCpp>(m, "ForestContainerCpp")
       .def(py::init<int, int, bool, bool>())
