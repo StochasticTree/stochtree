@@ -7,8 +7,6 @@
 #include <stochtree/data.h>
 #include <stochtree/log.h>
 #include <stochtree/tree.h>
-#include <iostream>
-#include <memory>
 
 TEST(Tree, UnivariateTreeConstruction) {
   StochTree::Tree tree;
@@ -33,10 +31,10 @@ TEST(Tree, UnivariateTreeCopyConstruction) {
   StochTree::Tree tree_2;
   StochTree::TreeSplit split;
   tree_1.Init(1);
-  
+
   // Check max depth
   ASSERT_EQ(tree_1.MaxLeafDepth(), 0);
-  
+
   // Perform two splits
   split = StochTree::TreeSplit(0.5);
   tree_1.ExpandNode(0, 0, split, 0., 0.);
@@ -46,7 +44,7 @@ TEST(Tree, UnivariateTreeCopyConstruction) {
   ASSERT_EQ(tree_1.MaxLeafDepth(), 2);
   ASSERT_EQ(tree_1.NumValidNodes(), 5);
   ASSERT_EQ(tree_1.NumLeafParents(), 1);
-  
+
   // Check leaves
   std::vector<int32_t> leaves = tree_1.GetLeaves();
   for (int i = 0; i < leaves.size(); i++) {
@@ -57,7 +55,7 @@ TEST(Tree, UnivariateTreeCopyConstruction) {
   for (int i = 0; i < leaf_parents.size(); i++) {
     ASSERT_TRUE(tree_1.IsLeafParent(leaf_parents[i]));
   }
-  
+
   // Perform another split
   split = StochTree::TreeSplit(0.6);
   tree_1.ExpandNode(3, 2, split, 0., 0.);
@@ -65,7 +63,7 @@ TEST(Tree, UnivariateTreeCopyConstruction) {
   ASSERT_EQ(tree_1.NumValidNodes(), 7);
   ASSERT_EQ(tree_1.NumLeaves(), 4);
   ASSERT_EQ(tree_1.NumLeafParents(), 1);
-  
+
   // Check leaves
   leaves = tree_1.GetLeaves();
   for (int i = 0; i < leaves.size(); i++) {
@@ -83,7 +81,7 @@ TEST(Tree, UnivariateTreeCopyConstruction) {
   ASSERT_EQ(tree_1.NumValidNodes(), 5);
   ASSERT_EQ(tree_1.NumLeaves(), 3);
   ASSERT_EQ(tree_1.NumLeafParents(), 1);
-  
+
   // Check leaves
   leaves = tree_1.GetLeaves();
   for (int i = 0; i < leaves.size(); i++) {
@@ -106,12 +104,12 @@ TEST(Tree, UnivariateTreeCategoricalSplitConstruction) {
   StochTree::Tree tree;
   tree.Init(1);
   ASSERT_EQ(tree.LeafValue(0), 0.);
-  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{1,4,6}, 0., 0.);
+  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{1, 4, 6}, 0., 0.);
   ASSERT_EQ(tree.NumNodes(), 3);
   ASSERT_EQ(tree.NodeType(0), StochTree::TreeNodeType::kCategoricalSplitNode);
   tree.CollapseToLeaf(0, 0.);
   ASSERT_EQ(tree.NumValidNodes(), 1);
-  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{2,3,5}, 0., 0.);
+  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{2, 3, 5}, 0., 0.);
   ASSERT_EQ(tree.NodeType(0), StochTree::TreeNodeType::kCategoricalSplitNode);
   ASSERT_EQ(tree.NumValidNodes(), 3);
   ASSERT_EQ(tree.NumLeaves(), 2);
@@ -148,12 +146,12 @@ TEST(Tree, MultivariateTreeCategoricalSplitConstruction) {
   std::vector<double> leaf_values(tree_dim, 0.);
   tree.Init(tree_dim);
   ASSERT_EQ(tree.LeafVector(0), leaf_values);
-  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{1,4,6}, leaf_values, leaf_values);
+  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{1, 4, 6}, leaf_values, leaf_values);
   ASSERT_EQ(tree.NumNodes(), 3);
   ASSERT_EQ(tree.NodeType(0), StochTree::TreeNodeType::kCategoricalSplitNode);
   tree.CollapseToLeaf(0, leaf_values);
   ASSERT_EQ(tree.NumValidNodes(), 1);
-  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{2,3,5}, leaf_values, leaf_values);
+  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{2, 3, 5}, leaf_values, leaf_values);
   ASSERT_EQ(tree.NodeType(0), StochTree::TreeNodeType::kCategoricalSplitNode);
   ASSERT_EQ(tree.NumValidNodes(), 3);
   ASSERT_EQ(tree.NumLeaves(), 2);
@@ -167,7 +165,7 @@ TEST(Tree, SparseLeafRepresentation) {
   StochTree::Tree tree;
   tree.Init(1);
   tree.ExpandNode(0, 0, 0.5, 0., 0.);
-  
+
   // Load test data
   StochTree::TestUtils::TestDataset test_dataset;
   test_dataset = StochTree::TestUtils::LoadSmallDatasetUnivariateBasis();
@@ -180,6 +178,6 @@ TEST(Tree, SparseLeafRepresentation) {
   // Predict leaf indices of each observation in `dataset`
   std::vector<int32_t> leaf_index_preds(n);
   tree.PredictLeafIndexInplace(&dataset, leaf_index_preds, 0, 0);
-  std::vector<int32_t> leaf_index_expected{1,1,0,1,1,1,1,1,0,0};
+  std::vector<int32_t> leaf_index_expected{1, 1, 0, 1, 1, 1, 1, 1, 0, 0};
   ASSERT_EQ(leaf_index_expected, leaf_index_preds);
 }

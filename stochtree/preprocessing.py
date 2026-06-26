@@ -635,6 +635,27 @@ class CovariatePreprocessor:
             "original_feature_indices", self._original_feature_indices
         )
 
+        # Cross-platform portability (RFC 0005): a model is portable across R /
+        # Python iff every covariate is numeric (no categorical encoding). The
+        # cross-platform loader peeks at this flag (a plain JSON parse) without
+        # reconstructing the native preprocessor.
+        portable = (self._num_ordinal_features == 0) and (
+            self._num_onehot_features == 0
+        )
+        preprocessor_json.add_boolean("cross_platform_portable", portable)
+        if not portable:
+            # *_feature_index are indexed by original column; -1 means "not
+            # categorical", so a non-negative entry marks an offending column.
+            # Stored as a human-readable string for the cross-platform refusal
+            # message (the gate only branches on the boolean above).
+            offending = sorted(
+                {int(i) for i, v in enumerate(self._ordinal_feature_index) if v != -1}
+                | {int(i) for i, v in enumerate(self._onehot_feature_index) if v != -1}
+            )
+            preprocessor_json.add_string(
+                "non_portable_columns", ", ".join(str(i) for i in offending)
+            )
+
         return preprocessor_json.return_json_string()
 
     def from_json(self, json_string: str) -> None:

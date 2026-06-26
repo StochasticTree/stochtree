@@ -1,24 +1,24 @@
 /*!
  * Copyright (c) 2024 stochtree authors.
- * 
+ *
  * General-purpose data structures used for keeping track of categories in a training dataset.
- * 
- * SampleCategoryMapper is a simplified version of SampleNodeMapper, which is not tree-specific 
- * as it tracks categories loaded into a training dataset, and we do not expect to modify it during 
+ *
+ * SampleCategoryMapper is a simplified version of SampleNodeMapper, which is not tree-specific
+ * as it tracks categories loaded into a training dataset, and we do not expect to modify it during
  * training.
- * 
+ *
  * SampleCategoryMapper is used in two places:
  *   1. Group random effects: mapping observations to group IDs for the purpose of computing random effects
  *   2. Heteroskedasticity based on fixed categories (as opposed to partitions as in HBART by Pratola et al 2018)
- *         - One example of this would be binary treatment causal inference with separate outcome variances 
+ *         - One example of this would be binary treatment causal inference with separate outcome variances
  *           for the treated and control groups (as in Krantsevich et al 2023)
- * 
- * CategorySampleTracker is a simplified version of FeatureUnsortedPartition, which as above does 
+ *
+ * CategorySampleTracker is a simplified version of FeatureUnsortedPartition, which as above does
  * not vary based on tree / partition and is not expected to change during training.
- * 
- * SampleNodeMapper is inspired by the design of the DataPartition class in LightGBM, 
+ *
+ * SampleNodeMapper is inspired by the design of the DataPartition class in LightGBM,
  * released under the MIT license with the following copyright:
- * 
+ *
  * Copyright (c) 2016 Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License. See LICENSE file in the project root for license information.
  */
@@ -40,12 +40,20 @@ namespace StochTree {
  */
 class SampleCategoryMapper {
  public:
-  SampleCategoryMapper(std::vector<int32_t>& group_indices) {
+  SampleCategoryMapper(std::vector<int>& group_indices) {
     num_observations_ = group_indices.size();
     observation_indices_ = group_indices;
   }
-  
-  SampleCategoryMapper(SampleCategoryMapper& other){
+
+  SampleCategoryMapper(int* group_indices, int num_observations) {
+    num_observations_ = num_observations;
+    observation_indices_.resize(num_observations_);
+    for (int i = 0; i < num_observations_; i++) {
+      observation_indices_[i] = group_indices[i];
+    }
+  }
+
+  SampleCategoryMapper(SampleCategoryMapper& other) {
     num_observations_ = other.NumObservations();
     observation_indices_.resize(num_observations_);
     for (int i = 0; i < num_observations_; i++) {
@@ -62,8 +70,8 @@ class SampleCategoryMapper {
     CHECK_LT(sample_id, num_observations_);
     observation_indices_[sample_id] = category_id;
   }
-  
-  inline int NumObservations() {return num_observations_;}
+
+  inline int NumObservations() { return num_observations_; }
 
  private:
   std::vector<int> observation_indices_;
@@ -75,21 +83,21 @@ class SampleCategoryMapper {
  */
 class CategorySampleTracker {
  public:
-  CategorySampleTracker(const std::vector<int32_t>& group_indices) {
+  CategorySampleTracker(const std::vector<int>& group_indices) {
     int n = group_indices.size();
     indices_ = std::vector<data_size_t>(n);
     std::iota(indices_.begin(), indices_.end(), 0);
 
-    auto comp_op = [&](size_t const &l, size_t const &r) { return std::less<data_size_t>{}(group_indices[l], group_indices[r]); };
+    auto comp_op = [&](size_t const& l, size_t const& r) { return std::less<data_size_t>{}(group_indices[l], group_indices[r]); };
     std::stable_sort(indices_.begin(), indices_.end(), comp_op);
 
     category_count_ = 0;
     int observation_count = 0;
     for (int i = 0; i < n; i++) {
       bool start_cond = i == 0;
-      bool end_cond = i == n-1;
+      bool end_cond = i == n - 1;
       bool new_group_cond{false};
-      if (i > 0) new_group_cond = group_indices[indices_[i]] != group_indices[indices_[i-1]];
+      if (i > 0) new_group_cond = group_indices[indices_[i]] != group_indices[indices_[i - 1]];
       if (start_cond || new_group_cond) {
         category_id_map_.insert({group_indices[indices_[i]], category_count_});
         unique_category_ids_.push_back(group_indices[indices_[i]]);
@@ -103,7 +111,44 @@ class CategorySampleTracker {
         observation_count = 1;
         category_count_++;
       } else if (end_cond) {
-        category_length_.push_back(observation_count+1);
+        category_length_.push_back(observation_count + 1);
+      } else {
+        observation_count++;
+      }
+      // Add the index to the category's node index vector in either case
+      node_index_vector_[category_count_ - 1].emplace_back(indices_[i]);
+    }
+  }
+
+  CategorySampleTracker(int* group_indices, int num_observations) {
+    int n = num_observations;
+    indices_ = std::vector<data_size_t>(n);
+    std::iota(indices_.begin(), indices_.end(), 0);
+
+    auto comp_op = [&](size_t const& l, size_t const& r) { return std::less<data_size_t>{}(group_indices[l], group_indices[r]); };
+    std::stable_sort(indices_.begin(), indices_.end(), comp_op);
+
+    category_count_ = 0;
+    int observation_count = 0;
+    for (int i = 0; i < n; i++) {
+      bool start_cond = i == 0;
+      bool end_cond = i == n - 1;
+      bool new_group_cond{false};
+      if (i > 0) new_group_cond = group_indices[indices_[i]] != group_indices[indices_[i - 1]];
+      if (start_cond || new_group_cond) {
+        category_id_map_.insert({group_indices[indices_[i]], category_count_});
+        unique_category_ids_.push_back(group_indices[indices_[i]]);
+        node_index_vector_.emplace_back();
+        if (i == 0) {
+          category_begin_.push_back(i);
+        } else {
+          category_begin_.push_back(i);
+          category_length_.push_back(observation_count);
+        }
+        observation_count = 1;
+        category_count_++;
+      } else if (end_cond) {
+        category_length_.push_back(observation_count + 1);
       } else {
         observation_count++;
       }
@@ -113,16 +158,16 @@ class CategorySampleTracker {
   }
 
   /*! \brief Zero-indexed numeric index that category_id is remapped to internally */
-  inline int32_t CategoryNumber(int category_id) {
+  inline int CategoryNumber(int category_id) {
     return category_id_map_[category_id];
   }
 
   /*! \brief First index of data points contained in node_id */
-  inline data_size_t CategoryBegin(int category_id) {return category_begin_[category_id_map_[category_id]];}
+  inline data_size_t CategoryBegin(int category_id) { return category_begin_[category_id_map_[category_id]]; }
 
   /*! \brief One past the last index of data points contained in node_id */
   inline data_size_t CategoryEnd(int category_id) {
-    int32_t id = category_id_map_[category_id];
+    int id = category_id_map_[category_id];
     return category_begin_[id] + category_length_[id];
   }
 
@@ -132,37 +177,37 @@ class CategorySampleTracker {
   }
 
   /*! \brief Number of total categories stored */
-  inline data_size_t NumCategories() {return category_count_;}
+  inline data_size_t NumCategories() { return category_count_; }
 
   /*! \brief Data indices */
   std::vector<data_size_t> indices_;
 
   /*! \brief Data indices for a given node */
   std::vector<data_size_t>& NodeIndices(int category_id) {
-    int32_t id = category_id_map_[category_id];
+    int id = category_id_map_[category_id];
     return node_index_vector_[id];
   }
-  
+
   /*! \brief Data indices for a given node */
   std::vector<data_size_t>& NodeIndicesInternalIndex(int internal_category_id) {
     return node_index_vector_[internal_category_id];
   }
 
   /*! \brief Returns label index map */
-  std::map<int32_t, int32_t>& GetLabelMap() {return category_id_map_;}
+  std::map<int, int>& GetLabelMap() { return category_id_map_; }
 
-  std::vector<int32_t>& GetUniqueGroupIds() {return unique_category_ids_;}
+  std::vector<int>& GetUniqueGroupIds() { return unique_category_ids_; }
 
  private:
   // Vectors tracking indices in each node
   std::vector<data_size_t> category_begin_;
   std::vector<data_size_t> category_length_;
-  std::map<int32_t, int32_t> category_id_map_;
-  std::vector<int32_t> unique_category_ids_;
+  std::map<int, int> category_id_map_;
+  std::vector<int> unique_category_ids_;
   std::vector<std::vector<data_size_t>> node_index_vector_;
-  int32_t category_count_;
+  int category_count_;
 };
 
-} // namespace StochTree
+}  // namespace StochTree
 
-#endif // STOCHTREE_CATEGORY_TRACKER_H_
+#endif  // STOCHTREE_CATEGORY_TRACKER_H_

@@ -1,10 +1,10 @@
 /*!
  * Copyright (c) 2024 stochtree authors. All rights reserved.
  * Licensed under the MIT License. See LICENSE file in the project root for license information.
- * 
- * Inspired by the design of the Learner, GBTreeModel, and GBTree classes in xgboost, 
+ *
+ * Inspired by the design of the Learner, GBTreeModel, and GBTree classes in xgboost,
  * released under the Apache license with the following copyright:
- * 
+ *
  * Copyright 2015-2023 by XGBoost Contributors
  */
 #ifndef STOCHTREE_ENSEMBLE_H_
@@ -32,7 +32,7 @@ class TreeEnsemble {
  public:
   /*!
    * \brief Initialize a new TreeEnsemble
-   * 
+   *
    * \param num_trees Number of trees in a forest
    * \param output_dimension Dimension of the leaf node parameter
    * \param is_leaf_constant Whether or not the leaves of each tree are treated as "constant." If true, then predicting from an ensemble is simply a matter or determining which leaf node an observation falls into. If false, prediction will multiply a leaf node's parameter(s) for a given observation by a basis vector.
@@ -51,10 +51,10 @@ class TreeEnsemble {
     is_leaf_constant_ = is_leaf_constant;
     is_exponentiated_ = is_exponentiated;
   }
-  
+
   /*!
    * \brief Initialize an ensemble based on the state of an existing ensemble
-   * 
+   *
    * \param ensemble `TreeEnsemble` used to initialize the current ensemble
    */
   TreeEnsemble(TreeEnsemble& ensemble) {
@@ -74,12 +74,12 @@ class TreeEnsemble {
       this->CloneFromExistingTree(j, tree);
     }
   }
-  
+
   ~TreeEnsemble() {}
 
   /*!
    * \brief Combine two forests into a single forest by merging their trees
-   * 
+   *
    * \param ensemble Reference to another `TreeEnsemble` that will be merged into the current ensemble
    */
   void MergeForest(TreeEnsemble& ensemble) {
@@ -103,7 +103,7 @@ class TreeEnsemble {
 
   /*!
    * \brief Add a constant value to every leaf of every tree in an ensemble. If leaves are multi-dimensional, `constant_value` will be added to every dimension of the leaves.
-   * 
+   *
    * \param constant_value Value that will be added to every leaf of every tree
    */
   void AddValueToLeaves(double constant_value) {
@@ -115,7 +115,7 @@ class TreeEnsemble {
 
   /*!
    * \brief Multiply every leaf of every tree by a constant value. If leaves are multi-dimensional, `constant_multiple` will be multiplied through every dimension of the leaves.
-   * 
+   *
    * \param constant_multiple Value that will be multiplied by every leaf of every tree
    */
   void MultiplyLeavesByValue(double constant_multiple) {
@@ -127,9 +127,9 @@ class TreeEnsemble {
 
   /*!
    * \brief Return a pointer to a tree in the forest
-   * 
+   *
    * \param i Index (0-based) of a tree to be queried
-   * \return Tree* 
+   * \return Tree*
    */
   inline Tree* GetTree(int i) {
     return trees_[i].get();
@@ -147,7 +147,7 @@ class TreeEnsemble {
   /*!
    * \brief Reset a single tree in an ensemble
    * \todo Consider refactoring this and `ResetInitTree`
-   * 
+   *
    * \param i Index (0-based) of the tree to be reset
    */
   inline void ResetTree(int i) {
@@ -157,7 +157,7 @@ class TreeEnsemble {
   /*!
    * \brief Reset a single tree in an ensemble
    * \todo Consider refactoring this and `ResetTree`
-   * 
+   *
    * \param i Index (0-based) of the tree to be reset
    */
   inline void ResetInitTree(int i) {
@@ -167,7 +167,7 @@ class TreeEnsemble {
 
   /*!
    * \brief Clone a single tree in an ensemble from an existing tree, overwriting current tree
-   * 
+   *
    * \param i Index of the tree to be overwritten
    * \param tree Pointer to tree used to clone tree `i`
    */
@@ -177,7 +177,7 @@ class TreeEnsemble {
 
   /*!
    * \brief Reset an ensemble to clone another ensemble
-   * 
+   *
    * \param ensemble Reference to an existing `TreeEnsemble`
    */
   inline void ReconstituteFromForest(TreeEnsemble& ensemble) {
@@ -207,19 +207,19 @@ class TreeEnsemble {
     return output;
   }
 
-  std::vector<double> PredictRaw(ForestDataset& dataset) {
+  std::vector<double> PredictRaw(ForestDataset& dataset, bool row_major = true) {
     data_size_t n = dataset.NumObservations();
     data_size_t total_output_size = n * output_dimension_;
     std::vector<double> output(total_output_size);
-    PredictRawInplace(dataset, output, 0);
+    PredictRawInplace(dataset, output, 0, trees_.size(), 0, row_major);
     return output;
   }
-  
-  inline void PredictInplace(ForestDataset& dataset, std::vector<double> &output, data_size_t offset = 0) {
+
+  inline void PredictInplace(ForestDataset& dataset, std::vector<double>& output, data_size_t offset = 0) {
     PredictInplace(dataset, output, 0, trees_.size(), offset);
   }
 
-  inline void PredictInplace(ForestDataset& dataset, std::vector<double> &output, 
+  inline void PredictInplace(ForestDataset& dataset, std::vector<double>& output,
                              int tree_begin, int tree_end, data_size_t offset = 0) {
     if (is_leaf_constant_) {
       PredictInplace(dataset.GetCovariates(), output, tree_begin, tree_end, offset);
@@ -229,11 +229,11 @@ class TreeEnsemble {
     }
   }
 
-  inline void PredictInplace(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, std::vector<double> &output, data_size_t offset = 0) {
+  inline void PredictInplace(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, std::vector<double>& output, data_size_t offset = 0) {
     PredictInplace(covariates, basis, output, 0, trees_.size(), offset);
   }
 
-  inline void PredictInplace(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, std::vector<double> &output, 
+  inline void PredictInplace(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, std::vector<double>& output,
                              int tree_begin, int tree_end, data_size_t offset = 0) {
     double pred;
     CHECK_EQ(covariates.rows(), basis.rows());
@@ -247,22 +247,24 @@ class TreeEnsemble {
     for (data_size_t i = 0; i < n; i++) {
       pred = 0.0;
       for (size_t j = tree_begin; j < tree_end; j++) {
-        auto &tree = *trees_[j];
+        auto& tree = *trees_[j];
         std::int32_t nidx = EvaluateTree(tree, covariates, i);
         for (int32_t k = 0; k < output_dimension_; k++) {
           pred += tree.LeafValue(nidx, k) * basis(i, k);
         }
       }
-      if (is_exponentiated_) output[i + offset] = std::exp(pred);
-      else output[i + offset] = pred;
+      if (is_exponentiated_)
+        output[i + offset] = std::exp(pred);
+      else
+        output[i + offset] = pred;
     }
   }
 
-  inline void PredictInplace(Eigen::MatrixXd& covariates, std::vector<double> &output, data_size_t offset = 0) {
+  inline void PredictInplace(Eigen::MatrixXd& covariates, std::vector<double>& output, data_size_t offset = 0) {
     PredictInplace(covariates, output, 0, trees_.size(), offset);
   }
 
-  inline void PredictInplace(Eigen::MatrixXd& covariates, std::vector<double> &output, int tree_begin, int tree_end, data_size_t offset = 0) {
+  inline void PredictInplace(Eigen::MatrixXd& covariates, std::vector<double>& output, int tree_begin, int tree_end, data_size_t offset = 0) {
     double pred;
     data_size_t n = covariates.rows();
     data_size_t total_output_size = n;
@@ -272,21 +274,23 @@ class TreeEnsemble {
     for (data_size_t i = 0; i < n; i++) {
       pred = 0.0;
       for (size_t j = tree_begin; j < tree_end; j++) {
-        auto &tree = *trees_[j];
+        auto& tree = *trees_[j];
         std::int32_t nidx = EvaluateTree(tree, covariates, i);
         pred += tree.LeafValue(nidx, 0);
       }
-      if (is_exponentiated_) output[i + offset] = std::exp(pred);
-      else output[i + offset] = pred;
+      if (is_exponentiated_)
+        output[i + offset] = std::exp(pred);
+      else
+        output[i + offset] = pred;
     }
   }
 
-  inline void PredictRawInplace(ForestDataset& dataset, std::vector<double> &output, data_size_t offset = 0) {
-    PredictRawInplace(dataset, output, 0, trees_.size(), offset);
+  inline void PredictRawInplace(ForestDataset& dataset, std::vector<double>& output, data_size_t offset = 0, bool row_major = true) {
+    PredictRawInplace(dataset, output, 0, trees_.size(), offset, row_major);
   }
 
-  inline void PredictRawInplace(ForestDataset& dataset, std::vector<double> &output, 
-                             int tree_begin, int tree_end, data_size_t offset = 0) {
+  inline void PredictRawInplace(ForestDataset& dataset, std::vector<double>& output,
+                                int tree_begin, int tree_end, data_size_t offset = 0, bool row_major = true) {
     double pred;
     Eigen::MatrixXd covariates = dataset.GetCovariates();
     CHECK_EQ(output_dimension_, trees_[0]->OutputDimension());
@@ -299,11 +303,15 @@ class TreeEnsemble {
       for (int32_t k = 0; k < output_dimension_; k++) {
         pred = 0.0;
         for (size_t j = tree_begin; j < tree_end; j++) {
-          auto &tree = *trees_[j];
+          auto& tree = *trees_[j];
           int32_t nidx = EvaluateTree(tree, covariates, i);
           pred += tree.LeafValue(nidx, k);
         }
-        output[i*output_dimension_ + k + offset] = pred;
+        if (row_major) {
+          output[i * output_dimension_ + k + offset] = pred;
+        } else {
+          output[k * n + i + offset] = pred;
+        }
       }
     }
   }
@@ -380,30 +388,30 @@ class TreeEnsemble {
   }
 
   /*!
-   * \brief Obtain a 0-based "maximum" leaf index for an ensemble, which is equivalent to the sum of the 
+   * \brief Obtain a 0-based "maximum" leaf index for an ensemble, which is equivalent to the sum of the
    *        number of leaves in each tree. This is used in conjunction with `PredictLeafIndicesInplace`,
    *        which returns an observation-specific leaf index for every observation-tree pair.
    */
   int GetMaxLeafIndex() {
     int max_leaf = 0;
     for (int j = 0; j < num_trees_; j++) {
-      auto &tree = *trees_[j];
+      auto& tree = *trees_[j];
       max_leaf += tree.NumLeaves();
     }
     return max_leaf;
   }
 
   /*!
-   * \brief Obtain a 0-based leaf index for every tree in an ensemble and for each 
-   *        observation in a ForestDataset. Internally, trees are stored as essentially 
-   *        vectors of node information, and the leaves_ vector gives us node IDs for every 
-   *        leaf in the tree. Here, we would like to know, for every observation in a dataset, 
-   *        which leaf number it is mapped to. Since the leaf numbers themselves 
-   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`. 
-   *        We compute this at the tree-level and coordinate this computation at the 
+   * \brief Obtain a 0-based leaf index for every tree in an ensemble and for each
+   *        observation in a ForestDataset. Internally, trees are stored as essentially
+   *        vectors of node information, and the leaves_ vector gives us node IDs for every
+   *        leaf in the tree. Here, we would like to know, for every observation in a dataset,
+   *        which leaf number it is mapped to. Since the leaf numbers themselves
+   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`.
+   *        We compute this at the tree-level and coordinate this computation at the
    *        ensemble level.
    *
-   *        Note: this assumes the creation of a vector of column indices of size 
+   *        Note: this assumes the creation of a vector of column indices of size
    *        `dataset.NumObservations()` x `ensemble.NumTrees()`
    * \param ForestDataset Dataset with which to predict leaf indices from the tree
    * \param output Vector of length num_trees*n which stores the leaf node prediction
@@ -415,16 +423,16 @@ class TreeEnsemble {
   }
 
   /*!
-   * \brief Obtain a 0-based leaf index for every tree in an ensemble and for each 
-   *        observation in a ForestDataset. Internally, trees are stored as essentially 
-   *        vectors of node information, and the leaves_ vector gives us node IDs for every 
-   *        leaf in the tree. Here, we would like to know, for every observation in a dataset, 
-   *        which leaf number it is mapped to. Since the leaf numbers themselves 
-   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`. 
-   *        We compute this at the tree-level and coordinate this computation at the 
+   * \brief Obtain a 0-based leaf index for every tree in an ensemble and for each
+   *        observation in a ForestDataset. Internally, trees are stored as essentially
+   *        vectors of node information, and the leaves_ vector gives us node IDs for every
+   *        leaf in the tree. Here, we would like to know, for every observation in a dataset,
+   *        which leaf number it is mapped to. Since the leaf numbers themselves
+   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`.
+   *        We compute this at the tree-level and coordinate this computation at the
    *        ensemble level.
    *
-   *        Note: this assumes the creation of a vector of column indices of size 
+   *        Note: this assumes the creation of a vector of column indices of size
    *        `dataset.NumObservations()` x `ensemble.NumTrees()`
    * \param covariates Matrix of covariates
    * \param output Vector of length num_trees*n which stores the leaf node prediction
@@ -432,11 +440,11 @@ class TreeEnsemble {
    * \param n Size of dataset
    */
   void PredictLeafIndicesInplace(Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates, std::vector<int32_t>& output, int num_trees, data_size_t n) {
-    CHECK_GE(output.size(), num_trees*n);
+    CHECK_GE(output.size(), num_trees * n);
     int offset = 0;
     int max_leaf = 0;
     for (int j = 0; j < num_trees; j++) {
-      auto &tree = *trees_[j];
+      auto& tree = *trees_[j];
       int num_leaves = tree.NumLeaves();
       tree.PredictLeafIndexInplace(covariates, output, offset, max_leaf);
       offset += n;
@@ -445,13 +453,13 @@ class TreeEnsemble {
   }
 
   /*!
-   * \brief Obtain a 0-based leaf index for every tree in an ensemble and for each 
-   *        observation in a ForestDataset. Internally, trees are stored as essentially 
-   *        vectors of node information, and the leaves_ vector gives us node IDs for every 
-   *        leaf in the tree. Here, we would like to know, for every observation in a dataset, 
-   *        which leaf number it is mapped to. Since the leaf numbers themselves 
-   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`. 
-   *        We compute this at the tree-level and coordinate this computation at the 
+   * \brief Obtain a 0-based leaf index for every tree in an ensemble and for each
+   *        observation in a ForestDataset. Internally, trees are stored as essentially
+   *        vectors of node information, and the leaves_ vector gives us node IDs for every
+   *        leaf in the tree. Here, we would like to know, for every observation in a dataset,
+   *        which leaf number it is mapped to. Since the leaf numbers themselves
+   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`.
+   *        We compute this at the tree-level and coordinate this computation at the
    *        ensemble level.
    *
    *        Note: this assumes the creation of a matrix of column indices with `num_trees*n` rows
@@ -462,14 +470,14 @@ class TreeEnsemble {
    * \param num_trees Number of trees in an ensemble
    * \param n Size of dataset
    */
-  void PredictLeafIndicesInplace(Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates, 
-                                 Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& output, 
+  void PredictLeafIndicesInplace(Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates,
+                                 Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& output,
                                  int column_ind, int num_trees, data_size_t n) {
-    CHECK_GE(output.size(), num_trees*n);
+    CHECK_GE(output.size(), num_trees * n);
     int offset = 0;
     int max_leaf = 0;
     for (int j = 0; j < num_trees; j++) {
-      auto &tree = *trees_[j];
+      auto& tree = *trees_[j];
       int num_leaves = tree.NumLeaves();
       tree.PredictLeafIndexInplace(covariates, output, column_ind, offset, max_leaf);
       offset += n;
@@ -478,16 +486,16 @@ class TreeEnsemble {
   }
 
   /*!
-   * \brief Obtain a 0-based leaf index for every tree in an ensemble and for each 
-   *        observation in a ForestDataset. Internally, trees are stored as essentially 
-   *        vectors of node information, and the leaves_ vector gives us node IDs for every 
-   *        leaf in the tree. Here, we would like to know, for every observation in a dataset, 
-   *        which leaf number it is mapped to. Since the leaf numbers themselves 
-   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`. 
-   *        We compute this at the tree-level and coordinate this computation at the 
+   * \brief Obtain a 0-based leaf index for every tree in an ensemble and for each
+   *        observation in a ForestDataset. Internally, trees are stored as essentially
+   *        vectors of node information, and the leaves_ vector gives us node IDs for every
+   *        leaf in the tree. Here, we would like to know, for every observation in a dataset,
+   *        which leaf number it is mapped to. Since the leaf numbers themselves
+   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`.
+   *        We compute this at the tree-level and coordinate this computation at the
    *        ensemble level.
    *
-   *        Note: this assumes the creation of a vector of column indices of size 
+   *        Note: this assumes the creation of a vector of column indices of size
    *        `dataset.NumObservations()` x `ensemble.NumTrees()`
    * \param ForestDataset Dataset with which to predict leaf indices from the tree
    * \param output Vector of length num_trees*n which stores the leaf node prediction
@@ -495,11 +503,11 @@ class TreeEnsemble {
    * \param n Size of dataset
    */
   void PredictLeafIndicesInplace(Eigen::MatrixXd& covariates, std::vector<int32_t>& output, int num_trees, data_size_t n) {
-    CHECK_GE(output.size(), num_trees*n);
+    CHECK_GE(output.size(), num_trees * n);
     int offset = 0;
     int max_leaf = 0;
     for (int j = 0; j < num_trees; j++) {
-      auto &tree = *trees_[j];
+      auto& tree = *trees_[j];
       int num_leaves = tree.NumLeaves();
       tree.PredictLeafIndexInplace(covariates, output, offset, max_leaf);
       offset += n;
@@ -514,7 +522,7 @@ class TreeEnsemble {
   std::vector<int32_t> PredictLeafIndices(ForestDataset* dataset) {
     int num_trees = num_trees_;
     data_size_t n = dataset->NumObservations();
-    std::vector<int32_t> output(n*num_trees);
+    std::vector<int32_t> output(n * num_trees);
     PredictLeafIndicesInplace(dataset, output, num_trees, n);
     return output;
   }
@@ -532,10 +540,10 @@ class TreeEnsemble {
       tree_label = "tree_" + std::to_string(i);
       result_obj.emplace(tree_label, trees_[i]->to_json());
     }
-    
+
     return result_obj;
   }
-  
+
   /*! \brief Load from JSON */
   void from_json(const json& ensemble_json) {
     this->num_trees_ = ensemble_json.at("num_trees");
@@ -561,8 +569,8 @@ class TreeEnsemble {
   bool is_exponentiated_;
 };
 
-/*! \} */ // end of forest_group
+/*! \} */  // end of forest_group
 
-} // namespace StochTree
+}  // namespace StochTree
 
-#endif // STOCHTREE_ENSEMBLE_H_
+#endif  // STOCHTREE_ENSEMBLE_H_

@@ -39,7 +39,7 @@ test_that("BART: uniform weights produce identical predictions to no weights", {
   set.seed(1)
   m2 <- bart(
     X_train = d$X_train, y_train = d$y_train, X_test = d$X_test,
-    observation_weights = rep(1.0, d$n_train),
+    observation_weights_train = rep(1.0, d$n_train),
     num_gfr = 0, num_burnin = 0, num_mcmc = num_mcmc,
     general_params = list(random_seed = 1L)
   )
@@ -57,7 +57,7 @@ test_that("BART: non-uniform weights run and produce correct output shape", {
   expect_no_error(
     m <- bart(
       X_train = d$X_train, y_train = d$y_train, X_test = d$X_test,
-      observation_weights = weights,
+      observation_weights_train = weights,
       num_gfr = 0, num_burnin = 0, num_mcmc = num_mcmc
     )
   )
@@ -73,40 +73,40 @@ test_that("BART: all-zero weights (prior mode) run with num_gfr = 0", {
   expect_no_error(
     m <- bart(
       X_train = d$X_train, y_train = d$y_train,
-      observation_weights = rep(0.0, d$n_train),
+      observation_weights_train = rep(0.0, d$n_train),
       num_gfr = 0, num_burnin = 0, num_mcmc = num_mcmc
     )
   )
   expect_equal(dim(m$y_hat_train), c(d$n_train, num_mcmc))
 })
 
-test_that("BART: non-numeric observation_weights raises error", {
+test_that("BART: non-numeric observation_weights_train raises error", {
   skip_on_cran()
   d <- make_bart_data()
   expect_error(
     bart(
       X_train = d$X_train, y_train = d$y_train,
-      observation_weights = as.character(rep(1, d$n_train)),
+      observation_weights_train = as.character(rep(1, d$n_train)),
       num_gfr = 0, num_burnin = 0, num_mcmc = 5
     ),
     "numeric"
   )
 })
 
-test_that("BART: wrong-length observation_weights raises error", {
+test_that("BART: wrong-length observation_weights_train raises error", {
   skip_on_cran()
   d <- make_bart_data()
   expect_error(
     bart(
       X_train = d$X_train, y_train = d$y_train,
-      observation_weights = rep(1.0, d$n_train + 1),
+      observation_weights_train = rep(1.0, d$n_train + 1),
       num_gfr = 0, num_burnin = 0, num_mcmc = 5
     ),
     "nrow"
   )
 })
 
-test_that("BART: negative observation_weights raises error", {
+test_that("BART: negative observation_weights_train raises error", {
   skip_on_cran()
   d <- make_bart_data()
   weights <- rep(1.0, d$n_train)
@@ -114,7 +114,7 @@ test_that("BART: negative observation_weights raises error", {
   expect_error(
     bart(
       X_train = d$X_train, y_train = d$y_train,
-      observation_weights = weights,
+      observation_weights_train = weights,
       num_gfr = 0, num_burnin = 0, num_mcmc = 5
     ),
     "negative"
@@ -127,21 +127,21 @@ test_that("BART: all-zero weights with num_gfr > 0 raises error", {
   expect_error(
     bart(
       X_train = d$X_train, y_train = d$y_train,
-      observation_weights = rep(0.0, d$n_train),
+      observation_weights_train = rep(0.0, d$n_train),
       num_gfr = 5, num_burnin = 0, num_mcmc = 10
     ),
     "num_gfr"
   )
 })
 
-test_that("BART: observation_weights with cloglog outcome raises error", {
+test_that("BART: observation_weights_train with cloglog outcome raises error", {
   skip_on_cran()
   d <- make_bart_data()
   y_ord <- sample(1:3, d$n_train, replace = TRUE)
   expect_error(
     bart(
       X_train = d$X_train, y_train = y_ord,
-      observation_weights = rep(1.0, d$n_train),
+      observation_weights_train = rep(1.0, d$n_train),
       num_gfr = 0, num_burnin = 0, num_mcmc = 5,
       general_params = list(outcome_model = OutcomeModel(outcome = "ordinal", link = "cloglog"))
     ),
@@ -149,17 +149,17 @@ test_that("BART: observation_weights with cloglog outcome raises error", {
   )
 })
 
-test_that("BART: observation_weights with variance forest raises warning", {
+test_that("BART: observation_weights_train with variance forest raises error", {
   skip_on_cran()
   d <- make_bart_data()
-  expect_warning(
+  expect_error(
     bart(
       X_train = d$X_train, y_train = d$y_train,
-      observation_weights = rep(1.0, d$n_train),
+      observation_weights_train = rep(1.0, d$n_train),
       num_gfr = 0, num_burnin = 0, num_mcmc = 5,
       variance_forest_params = list(num_trees = 5)
     ),
-    "variance forest"
+    "not compatible with a variance forest"
   )
 })
 
@@ -182,7 +182,7 @@ test_that("BCF: uniform weights produce identical predictions to no weights", {
     X_train = d$X_train, Z_train = d$Z_train, y_train = d$y_train,
     propensity_train = d$pi_train, X_test = d$X_test,
     Z_test = d$Z_test, propensity_test = d$pi_test,
-    observation_weights = rep(1.0, d$n_train),
+    observation_weights_train = rep(1.0, d$n_train),
     num_gfr = 0, num_burnin = 0, num_mcmc = num_mcmc,
     general_params = list(random_seed = 1L)
   )
@@ -202,7 +202,7 @@ test_that("BCF: non-uniform weights run and produce correct output shape", {
       X_train = d$X_train, Z_train = d$Z_train, y_train = d$y_train,
       propensity_train = d$pi_train, X_test = d$X_test,
       Z_test = d$Z_test, propensity_test = d$pi_test,
-      observation_weights = weights,
+      observation_weights_train = weights,
       num_gfr = 0, num_burnin = 0, num_mcmc = num_mcmc
     )
   )
@@ -212,7 +212,7 @@ test_that("BCF: non-uniform weights run and produce correct output shape", {
   expect_equal(dim(m$tau_hat_test), c(d$n_test, num_mcmc))
 })
 
-test_that("BCF: negative observation_weights raises error", {
+test_that("BCF: negative observation_weights_train raises error", {
   skip_on_cran()
   d <- make_bcf_data()
   weights <- rep(1.0, d$n_train)
@@ -221,7 +221,7 @@ test_that("BCF: negative observation_weights raises error", {
     bcf(
       X_train = d$X_train, Z_train = d$Z_train, y_train = d$y_train,
       propensity_train = d$pi_train,
-      observation_weights = weights,
+      observation_weights_train = weights,
       num_gfr = 0, num_burnin = 0, num_mcmc = 5
     ),
     "negative"
@@ -235,14 +235,14 @@ test_that("BCF: all-zero weights with num_gfr > 0 raises error", {
     bcf(
       X_train = d$X_train, Z_train = d$Z_train, y_train = d$y_train,
       propensity_train = d$pi_train,
-      observation_weights = rep(0.0, d$n_train),
+      observation_weights_train = rep(0.0, d$n_train),
       num_gfr = 5, num_burnin = 0, num_mcmc = 10
     ),
     "num_gfr"
   )
 })
 
-test_that("BCF: observation_weights with cloglog outcome raises error", {
+test_that("BCF: observation_weights_train with cloglog outcome raises error", {
   skip_on_cran()
   d <- make_bcf_data()
   y_bin <- rbinom(d$n_train, 1, 0.5)
@@ -250,10 +250,35 @@ test_that("BCF: observation_weights with cloglog outcome raises error", {
     bcf(
       X_train = d$X_train, Z_train = d$Z_train, y_train = y_bin,
       propensity_train = d$pi_train,
-      observation_weights = rep(1.0, d$n_train),
+      observation_weights_train = rep(1.0, d$n_train),
       num_gfr = 0, num_burnin = 0, num_mcmc = 5,
       general_params = list(outcome_model = OutcomeModel(outcome = "binary", link = "cloglog"))
     ),
     "cloglog"
   )
+})
+
+test_that("BART: deprecated observation_weights alias still works and warns", {
+  skip_on_cran()
+  d <- make_bart_data()
+  weights <- runif(d$n_train, 0.5, 2.0)
+  set.seed(1)
+  m_new <- bart(
+    X_train = d$X_train, y_train = d$y_train, X_test = d$X_test,
+    observation_weights_train = weights,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10,
+    general_params = list(random_seed = 1L)
+  )
+  set.seed(1)
+  expect_warning(
+    m_old <- bart(
+      X_train = d$X_train, y_train = d$y_train, X_test = d$X_test,
+      observation_weights = weights,
+      num_gfr = 0, num_burnin = 0, num_mcmc = 10,
+      general_params = list(random_seed = 1L)
+    ),
+    "deprecated"
+  )
+  # Deprecated alias must produce the same result as the new parameter.
+  expect_equal(m_new$y_hat_test, m_old$y_hat_test)
 })

@@ -1,3 +1,4 @@
+import json
 import warnings
 
 import numpy as np
@@ -5,6 +6,126 @@ from stochtree_cpp import JsonCpp
 
 from .forest import ForestContainer
 from .random_effects import RandomEffectsContainer
+
+# -----------------------------------------------------------------------------
+# Serialized model envelope schema version (RFC 0005).
+#
+# Integer identifying the *structure* of the serialized BART/BCF JSON envelope.
+# Bumped ONLY on a breaking change (rename / remove / re-type a field, change a
+# field's meaning, or change a structural convention). Additive, safely-defaulted
+# fields do NOT bump it -- they are handled by "augmentation" on read (see the
+# defaults registry below and the ``get_*_or_default`` helpers on JSONSerializer).
+#
+# Kept in sync with the R ``STOCHTREE_SCHEMA_VERSION`` (R/serialization.R). The two
+# are independent constants by design (each language owns its serde); their
+# agreement is enforced by the cross-platform golden fixtures, not by sharing a value.
+SCHEMA_VERSION = 1
+
+# -----------------------------------------------------------------------------
+# Augmentation defaults registry (schema_version = 1)
+#
+# Every OPTIONAL envelope field that may be ABSENT from a model written by an
+# earlier release at the SAME schema_version must be read with a default that
+# reproduces that model's pre-field behavior. This list is the single source of
+# truth for "which fields need defaulting"; read those fields via
+# ``get_scalar_or_default`` / ``get_boolean_or_default`` / ``get_string_or_default``
+# (never a bare required getter).
+#
+#   field                        default        (behavior when absent)
+#   "outcome"                    "continuous"
+#   "link"                       "identity"
+#   "multivariate_treatment"     False
+#   "internal_propensity_model"  False
+#   "has_rfx_basis"              False
+#   ... (add a row whenever you add an additive field)
+#
+# If a new field has NO behavior-preserving default, it is NOT additive: bump
+# SCHEMA_VERSION and add a migration step instead.
+# -----------------------------------------------------------------------------
+
+
+def resolve_schema_version(serializer: "JSONSerializer", migrate=None) -> int:
+    """Read the envelope ``schema_version`` and enforce the RFC 0005 reader rules.
+
+    Returns the loaded version (``0`` for a legacy / absent stamp). Behavior vs the
+    current ``SCHEMA_VERSION``:
+
+    - ``loaded > current`` -> hard error (model written by a newer stochtree).
+    - ``loaded == current`` -> parse directly (caller proceeds).
+    - ``0 < loaded < current`` -> caller runs the migration ladder (no rungs exist yet
+      at ``SCHEMA_VERSION == 1``; this is the hook for future ``migrate_vN_to_vN+1``).
+    - ``loaded == 0`` -> legacy model; handled by field-presence default-filling on parse.
+    """
+    loaded = serializer.get_integer_or_default("schema_version", 0)
+    if loaded > SCHEMA_VERSION:
+        raise ValueError(
+            f"This model was serialized with schema_version={loaded}, but this "
+            f"installation of stochtree supports up to schema_version={SCHEMA_VERSION}. "
+            "Please upgrade stochtree to load it."
+        )
+    if loaded < SCHEMA_VERSION and migrate is not None:
+        # Dispatch owns the migration: upgrade the JSON in place to the current
+        # schema before the (v1-only) parser runs.
+        migrate(serializer, loaded)
+    return loaded
+
+
+def infer_platform_v0(serializer: "JSONSerializer", default: str) -> str:
+    """Infer the writer platform of a legacy (v0) envelope from structural
+    fingerprints. R wrote ``preprocessor_metadata`` and a top-level
+    ``rfx_unique_group_ids``; Python wrote ``covariate_preprocessor``. Called
+    before the v0->v1 renames, so the legacy keys are still present. Falls back
+    to ``default`` (the loading platform) when no fingerprint is decisive."""
+    if serializer.contains("covariate_preprocessor"):
+        return "python"
+    if serializer.contains("preprocessor_metadata") or serializer.contains(
+        "rfx_unique_group_ids"
+    ):
+        return "R"
+    return default
+
+
+def enforce_cross_platform_gate(
+    serializer: "JSONSerializer", loader_platform: str
+) -> bool:
+    """Return ``True`` iff this is a cross-platform load (writer ``platform`` !=
+    loader). For a cross-platform load, verify the model is portable (all-numeric
+    covariates) and rfx-compatible (integer group ids); otherwise raise a clear,
+    actionable error. Same-platform loads return ``False`` and ignore the flags.
+
+    The portability flag is peeked from the ``covariate_preprocessor`` JSON via a
+    plain parse -- the foreign native preprocessor is never reconstructed. An
+    absent portability flag is treated as non-portable (e.g. legacy v0 models),
+    so a cross-platform load of such a model is refused rather than mis-handled.
+    """
+    writer_platform = serializer.get_string_or_default("platform", loader_platform)
+    if writer_platform == loader_platform:
+        return False
+    portable = False
+    non_portable_columns = ""
+    if serializer.contains("covariate_preprocessor"):
+        prep = json.loads(serializer.get_string("covariate_preprocessor"))
+        portable = bool(prep.get("cross_platform_portable", False))
+        non_portable_columns = prep.get("non_portable_columns", "")
+    compatible = serializer.get_boolean_or_default(
+        "cross_platform_compatible", True, subfolder_name="random_effects"
+    )
+    if not portable:
+        raise ValueError(
+            f"Cannot load a model written on platform '{writer_platform}' from "
+            f"'{loader_platform}': it was fit with non-numeric covariates "
+            f"(columns: {non_portable_columns or 'unknown'}), which are not "
+            f"cross-platform portable. Load it on '{writer_platform}', or "
+            "refit / re-save with all-numeric covariates."
+        )
+    if not compatible:
+        raise ValueError(
+            f"Cannot load a model written on platform '{writer_platform}' from "
+            f"'{loader_platform}': it has string-labeled random effects, which are "
+            "not cross-platform compatible (only integer-valued group ids are). "
+            f"Load it on '{writer_platform}'."
+        )
+    return True
 
 
 class JSONSerializer:
@@ -41,17 +162,25 @@ class JSONSerializer:
         """
         self.json_cpp.LoadFromString(json_string)
 
-    def add_forest(self, forest_samples: ForestContainer) -> None:
+    def add_forest(
+        self, forest_samples: ForestContainer, forest_label: str = ""
+    ) -> str:
         """Adds a container of forest samples to a json object
 
         Parameters
         ----------
         forest_samples : ForestContainer
             Samples of a tree ensemble
+        forest_label : str, optional
+            Key under the ``forests`` subfolder to store this container. Defaults
+            to an auto-numbered ``forest_<n>`` label when empty.
         """
-        forest_label = self.json_cpp.AddForest(forest_samples.forest_container_cpp)
+        forest_label = self.json_cpp.AddForest(
+            forest_samples.forest_container_cpp, forest_label
+        )
         self.num_forests += 1
         self.forest_labels.append(forest_label)
+        return forest_label
 
     def add_random_effects(self, rfx_container: RandomEffectsContainer) -> None:
         """Adds a container of random effect samples to a json object
@@ -299,6 +428,52 @@ class JSONSerializer:
             return self.json_cpp.ExtractString(field_name)
         else:
             return self.json_cpp.ExtractStringSubfolder(subfolder_name, field_name)
+
+    def contains(self, field_name: str, subfolder_name: str = None) -> bool:
+        """Whether the json object contains ``field_name`` (optionally under ``subfolder_name``)."""
+        if subfolder_name is None:
+            return self.json_cpp.ContainsField(field_name)
+        return self.json_cpp.ContainsFieldSubfolder(subfolder_name, field_name)
+
+    def get_scalar_or_default(self, field_name, default, subfolder_name=None):
+        """Read a numeric field, returning ``default`` if absent (augmentation; see RFC 0005)."""
+        if self.contains(field_name, subfolder_name):
+            return self.get_scalar(field_name, subfolder_name)
+        return default
+
+    def get_integer_or_default(self, field_name, default, subfolder_name=None):
+        """Read an integer field, returning ``default`` if absent."""
+        if self.contains(field_name, subfolder_name):
+            return self.get_integer(field_name, subfolder_name)
+        return default
+
+    def get_boolean_or_default(self, field_name, default, subfolder_name=None):
+        """Read a boolean field, returning ``default`` if absent."""
+        if self.contains(field_name, subfolder_name):
+            return self.get_boolean(field_name, subfolder_name)
+        return default
+
+    def get_string_or_default(self, field_name, default, subfolder_name=None):
+        """Read a string field, returning ``default`` if absent."""
+        if self.contains(field_name, subfolder_name):
+            return self.get_string(field_name, subfolder_name)
+        return default
+
+    def rename_field(self, old_name, new_name, subfolder_name=None):
+        """Rename ``old_name`` to ``new_name`` (optionally under ``subfolder_name``).
+
+        No-op if ``old_name`` is absent. Used by JSON schema migrations (RFC 0005)."""
+        if subfolder_name is None:
+            self.json_cpp.RenameField(old_name, new_name)
+        else:
+            self.json_cpp.RenameFieldSubfolder(subfolder_name, old_name, new_name)
+
+    def erase_field(self, field_name, subfolder_name=None):
+        """Erase ``field_name`` (optionally under ``subfolder_name``). No-op if absent."""
+        if subfolder_name is None:
+            self.json_cpp.EraseField(field_name)
+        else:
+            self.json_cpp.EraseFieldSubfolder(subfolder_name, field_name)
 
     def get_numeric_vector(
         self, field_name: str, subfolder_name: str = None
