@@ -85,6 +85,30 @@ class TestBARTSamplesCpp:
         assert a.materialize_mean_forest().NumSamples() == n_a + n_b
         np.testing.assert_allclose(a.global_var_samples(), np.concatenate([gv_a, gv_b]))
 
+    def test_from_components(self):
+        # Assemble the wrapper from a fitted model's existing forest container + parameter arrays
+        # (the construction path the model re-point will use), and check it matches the model.
+        model = self._fit()
+        samples = BARTSamplesCpp.from_components(
+            model.forest_container_mean.forest_container_cpp,
+            None,  # no variance forest
+            model.global_var_samples if model.sample_sigma2_global else None,
+            model.leaf_scale_samples if model.sample_sigma2_leaf else None,
+            float(model.y_bar),
+            float(model.y_std),
+            int(model.num_samples),
+        )
+        assert samples.num_samples() == model.num_samples
+        assert np.isclose(samples.y_bar(), model.y_bar)
+        if model.sample_sigma2_global:
+            np.testing.assert_allclose(samples.global_var_samples(), model.global_var_samples)
+        # Deep-copied forest matches the source byte-for-byte
+        assert (
+            samples.materialize_mean_forest().DumpJsonString()
+            == model.forest_container_mean.forest_container_cpp.DumpJsonString()
+        )
+        assert not samples.has_variance_forest()
+
 
 class TestBCFSamplesCpp:
     """Isolated tests for the single-owner wrapper around StochTree::BCFSamples."""
@@ -146,3 +170,33 @@ class TestBCFSamplesCpp:
         assert a.num_samples() == n_a + n_b
         assert a.materialize_mu_forest().NumSamples() == n_a + n_b
         assert a.materialize_tau_forest().NumSamples() == n_a + n_b
+
+    def test_from_components(self):
+        model = self._fit()
+        samples = BCFSamplesCpp.from_components(
+            model.forest_container_mu.forest_container_cpp,
+            model.forest_container_tau.forest_container_cpp,
+            None,  # no variance forest
+            model.global_var_samples if model.sample_sigma2_global else None,
+            model.leaf_scale_mu_samples if model.sample_sigma2_leaf_mu else None,
+            model.leaf_scale_tau_samples if model.sample_sigma2_leaf_tau else None,
+            getattr(model, "tau_0_samples", None),
+            model.b0_samples if model.adaptive_coding else None,
+            model.b1_samples if model.adaptive_coding else None,
+            float(model.y_bar),
+            float(model.y_std),
+            int(model.num_samples),
+            int(model.treatment_dim),
+        )
+        assert samples.num_samples() == model.num_samples
+        assert samples.treatment_dim() == model.treatment_dim
+        if model.sample_sigma2_global:
+            np.testing.assert_allclose(samples.global_var_samples(), model.global_var_samples)
+        assert (
+            samples.materialize_mu_forest().DumpJsonString()
+            == model.forest_container_mu.forest_container_cpp.DumpJsonString()
+        )
+        assert (
+            samples.materialize_tau_forest().DumpJsonString()
+            == model.forest_container_tau.forest_container_cpp.DumpJsonString()
+        )
