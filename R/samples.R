@@ -102,6 +102,13 @@ BARTSamples <- R6::R6Class(
       fc
     },
 
+    #' @description Borrowed (non-owning) external pointer to the mean forest container, for
+    #' read-through prediction. Must not outlive this object.
+    mean_forest_ptr = function() bart_samples_mean_forest_ptr_cpp(self$samples_ptr),
+
+    #' @description Borrowed (non-owning) external pointer to the variance forest container.
+    variance_forest_ptr = function() bart_samples_variance_forest_ptr_cpp(self$samples_ptr),
+
     #' @description Append another chain's draws onto this one (multi-chain combine).
     #' @param other Another `BARTSamples` with matching structure/standardization.
     merge = function(other) {
@@ -251,6 +258,15 @@ BCFSamples <- R6::R6Class(
       )
       fc
     },
+
+    #' @description Borrowed (non-owning) external pointer to the prognostic forest container.
+    mu_forest_ptr = function() bcf_samples_mu_forest_ptr_cpp(self$samples_ptr),
+
+    #' @description Borrowed (non-owning) external pointer to the treatment forest container.
+    tau_forest_ptr = function() bcf_samples_tau_forest_ptr_cpp(self$samples_ptr),
+
+    #' @description Borrowed (non-owning) external pointer to the variance forest container.
+    variance_forest_ptr = function() bcf_samples_variance_forest_ptr_cpp(self$samples_ptr),
 
     #' @description Append another chain's draws onto this one (multi-chain combine).
     #' @param other Another `BCFSamples` with matching structure/standardization.

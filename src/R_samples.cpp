@@ -106,6 +106,21 @@ cpp11::external_pointer<StochTree::ForestContainer> bart_samples_materialize_var
   return cpp11::external_pointer<StochTree::ForestContainer>(copy.release());
 }
 
+// Borrowed (non-owning) pointers to the samples-owned forest containers, for read-through predict.
+// The returned external_pointer does NOT own or finalize the container -- it aliases the one owned
+// by `samples`, so it must not outlive it (predict uses it transiently within a single call).
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::ForestContainer> bart_samples_mean_forest_ptr_cpp(cpp11::external_pointer<StochTree::BARTSamples> samples) {
+  return cpp11::external_pointer<StochTree::ForestContainer>(
+      samples->mean_forests.get(), /*use_deleter=*/false, /*finalize_on_exit=*/false);
+}
+
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::ForestContainer> bart_samples_variance_forest_ptr_cpp(cpp11::external_pointer<StochTree::BARTSamples> samples) {
+  return cpp11::external_pointer<StochTree::ForestContainer>(
+      samples->variance_forests.get(), /*use_deleter=*/false, /*finalize_on_exit=*/false);
+}
+
 [[cpp11::register]]
 void bart_samples_merge_cpp(cpp11::external_pointer<StochTree::BARTSamples> samples,
                             cpp11::external_pointer<StochTree::BARTSamples> other) {
@@ -231,6 +246,25 @@ cpp11::external_pointer<StochTree::ForestContainer> bcf_samples_materialize_tau_
 cpp11::external_pointer<StochTree::ForestContainer> bcf_samples_materialize_variance_forest_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
   auto copy = clone_forest_container(samples->variance_forests.get());
   return cpp11::external_pointer<StochTree::ForestContainer>(copy.release());
+}
+
+// Borrowed (non-owning) pointers to the samples-owned forest containers, for read-through predict.
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::ForestContainer> bcf_samples_mu_forest_ptr_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  return cpp11::external_pointer<StochTree::ForestContainer>(
+      samples->mu_forests.get(), /*use_deleter=*/false, /*finalize_on_exit=*/false);
+}
+
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::ForestContainer> bcf_samples_tau_forest_ptr_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  return cpp11::external_pointer<StochTree::ForestContainer>(
+      samples->tau_forests.get(), /*use_deleter=*/false, /*finalize_on_exit=*/false);
+}
+
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::ForestContainer> bcf_samples_variance_forest_ptr_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  return cpp11::external_pointer<StochTree::ForestContainer>(
+      samples->variance_forests.get(), /*use_deleter=*/false, /*finalize_on_exit=*/false);
 }
 
 [[cpp11::register]]

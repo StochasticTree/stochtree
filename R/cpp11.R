@@ -352,6 +352,14 @@ bart_samples_materialize_variance_forest_cpp <- function(samples) {
   .Call(`_stochtree_bart_samples_materialize_variance_forest_cpp`, samples)
 }
 
+bart_samples_mean_forest_ptr_cpp <- function(samples) {
+  .Call(`_stochtree_bart_samples_mean_forest_ptr_cpp`, samples)
+}
+
+bart_samples_variance_forest_ptr_cpp <- function(samples) {
+  .Call(`_stochtree_bart_samples_variance_forest_ptr_cpp`, samples)
+}
+
 bart_samples_merge_cpp <- function(samples, other) {
   invisible(.Call(`_stochtree_bart_samples_merge_cpp`, samples, other))
 }
@@ -422,6 +430,18 @@ bcf_samples_materialize_tau_forest_cpp <- function(samples) {
 
 bcf_samples_materialize_variance_forest_cpp <- function(samples) {
   .Call(`_stochtree_bcf_samples_materialize_variance_forest_cpp`, samples)
+}
+
+bcf_samples_mu_forest_ptr_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_mu_forest_ptr_cpp`, samples)
+}
+
+bcf_samples_tau_forest_ptr_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_tau_forest_ptr_cpp`, samples)
+}
+
+bcf_samples_variance_forest_ptr_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_variance_forest_ptr_cpp`, samples)
 }
 
 bcf_samples_merge_cpp <- function(samples, other) {
