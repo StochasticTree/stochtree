@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 #include <stochtree/container.h>
+#include <stochtree/log.h>
 #include <stochtree/meta.h>
 #include <stochtree/random_effects.h>
 
@@ -206,6 +207,120 @@ struct BCFSamples {
   int treatment_dim = 0;
   double y_bar = 0.0;
   double y_std = 0.0;
+
+  // Serialize the samples-owned subtree (forests + parameter traces + intrinsic scalars) into a JSON
+  // object. BCF mirror of BARTSamples::ToJson -- see that method for the design notes (shared C++
+  // source of truth, byte-identical key layout, presence inferred from structure, nlohmann sorts
+  // keys so insertion order is irrelevant). Forests use the BCF named keys; the extra BCF parameter
+  // traces (leaf_scale_mu/tau, tau_0, b0/b1) go under the same "parameters" subfolder.
+  // NOTE: parameter traces are serialized verbatim (identity). The tau_0 user-facing scaling
+  // (x y_std) and its multivariate (treatment_dim>1) ravel-order are reconciled at the postprocess /
+  // wiring boundary per the locked scale decision, not here. Random effects are not yet routed
+  // through this path (guarded to avoid silent drops).
+  nlohmann::json ToJson() const {
+    if (rfx_container != nullptr || rfx_label_mapper != nullptr) {
+      Log::Fatal("BCFSamples::ToJson does not yet support random effects");
+    }
+    nlohmann::json obj;
+    // Forests, under the BCF self-describing named keys, with the num_forests counter
+    nlohmann::json forests = nlohmann::json::object();
+    int num_forests = 0;
+    if (mu_forests != nullptr) {
+      forests.emplace("prognostic_forest", mu_forests->to_json());
+      num_forests++;
+    }
+    if (tau_forests != nullptr) {
+      forests.emplace("treatment_forest", tau_forests->to_json());
+      num_forests++;
+    }
+    if (variance_forests != nullptr) {
+      forests.emplace("variance_forest", variance_forests->to_json());
+      num_forests++;
+    }
+    obj.emplace("forests", forests);
+    obj.emplace("num_forests", num_forests);
+    // Parameter traces, under the "parameters" subfolder (presence inferred from non-empty vectors)
+    nlohmann::json parameters = nlohmann::json::object();
+    if (!global_error_variance_samples.empty()) {
+      parameters.emplace("sigma2_global_samples", global_error_variance_samples);
+    }
+    if (!leaf_scale_mu_samples.empty()) {
+      parameters.emplace("sigma2_leaf_mu_samples", leaf_scale_mu_samples);
+    }
+    if (!leaf_scale_tau_samples.empty()) {
+      parameters.emplace("sigma2_leaf_tau_samples", leaf_scale_tau_samples);
+    }
+    if (!b0_samples.empty()) {
+      parameters.emplace("b0_samples", b0_samples);
+    }
+    if (!b1_samples.empty()) {
+      parameters.emplace("b1_samples", b1_samples);
+    }
+    if (!tau_0_samples.empty()) {
+      parameters.emplace("tau_0_samples", tau_0_samples);
+    }
+    if (!parameters.empty()) {
+      obj.emplace("parameters", parameters);
+    }
+    // Intrinsic scalars (stored in user-facing scale, matching the existing wire format)
+    obj.emplace("outcome_mean", y_bar);
+    obj.emplace("outcome_scale", y_std);
+    obj.emplace("num_samples", num_samples);
+    obj.emplace("treatment_dim", treatment_dim);
+    // tau_0_dim mirrors the existing wire format (equals treatment_dim; only present with tau_0)
+    if (!tau_0_samples.empty()) {
+      obj.emplace("tau_0_dim", treatment_dim);
+    }
+    return obj;
+  }
+
+  // Populate this BCFSamples from the samples-owned subtree of a parsed JSON object. Inverse of
+  // ToJson(); presence inferred from structure rather than envelope booleans. See ToJson() re: scope.
+  void FromJson(const nlohmann::json& obj) {
+    if (obj.contains("num_random_effects") && obj.at("num_random_effects").get<int>() > 0) {
+      Log::Fatal("BCFSamples::FromJson does not yet support random effects");
+    }
+    if (obj.contains("forests")) {
+      const nlohmann::json& forests = obj.at("forests");
+      if (forests.contains("prognostic_forest")) {
+        mu_forests = std::make_unique<ForestContainer>(0, 0, false, false);
+        mu_forests->from_json(forests.at("prognostic_forest"));
+      }
+      if (forests.contains("treatment_forest")) {
+        tau_forests = std::make_unique<ForestContainer>(0, 0, false, false);
+        tau_forests->from_json(forests.at("treatment_forest"));
+      }
+      if (forests.contains("variance_forest")) {
+        variance_forests = std::make_unique<ForestContainer>(0, 0, false, false);
+        variance_forests->from_json(forests.at("variance_forest"));
+      }
+    }
+    if (obj.contains("parameters")) {
+      const nlohmann::json& parameters = obj.at("parameters");
+      if (parameters.contains("sigma2_global_samples")) {
+        global_error_variance_samples = parameters.at("sigma2_global_samples").get<std::vector<double>>();
+      }
+      if (parameters.contains("sigma2_leaf_mu_samples")) {
+        leaf_scale_mu_samples = parameters.at("sigma2_leaf_mu_samples").get<std::vector<double>>();
+      }
+      if (parameters.contains("sigma2_leaf_tau_samples")) {
+        leaf_scale_tau_samples = parameters.at("sigma2_leaf_tau_samples").get<std::vector<double>>();
+      }
+      if (parameters.contains("b0_samples")) {
+        b0_samples = parameters.at("b0_samples").get<std::vector<double>>();
+      }
+      if (parameters.contains("b1_samples")) {
+        b1_samples = parameters.at("b1_samples").get<std::vector<double>>();
+      }
+      if (parameters.contains("tau_0_samples")) {
+        tau_0_samples = parameters.at("tau_0_samples").get<std::vector<double>>();
+      }
+    }
+    if (obj.contains("outcome_mean")) y_bar = obj.at("outcome_mean").get<double>();
+    if (obj.contains("outcome_scale")) y_std = obj.at("outcome_scale").get<double>();
+    if (obj.contains("num_samples")) num_samples = obj.at("num_samples").get<int>();
+    if (obj.contains("treatment_dim")) treatment_dim = obj.at("treatment_dim").get<int>();
+  }
 };
 
 }  // namespace StochTree

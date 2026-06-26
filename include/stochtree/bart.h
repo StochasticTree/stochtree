@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 #include <stochtree/container.h>
+#include <stochtree/log.h>
 #include <stochtree/meta.h>
 #include <stochtree/random_effects.h>
 
@@ -165,6 +166,86 @@ struct BARTSamples {
   int num_test = 0;
   double y_bar = 0.0;
   double y_std = 0.0;
+
+  // Serialize the samples-owned subtree (forests + parameter traces + intrinsic scalars) into a
+  // JSON object. This is the shared C++ source of truth for BART (de)serialization; the per-language
+  // layer writes the surrounding envelope (model_params, covariate preprocessor, schema_version) into
+  // the same object. Key layout matches the existing R/Python output exactly so the wire format is
+  // unchanged (forests under named keys, parameter traces under a "parameters" subfolder, intrinsic
+  // scalars top-level). nlohmann dumps keys sorted, so insertion order is irrelevant to the bytes.
+  // NOTE: random effects and cloglog cutpoint samples are not yet routed through this path; callers
+  // with those still use the per-language serializer. Guarded to avoid silently dropping them.
+  nlohmann::json ToJson() const {
+    if (rfx_container != nullptr || rfx_label_mapper != nullptr) {
+      Log::Fatal("BARTSamples::ToJson does not yet support random effects");
+    }
+    if (!cloglog_cutpoint_samples.empty()) {
+      Log::Fatal("BARTSamples::ToJson does not yet support cloglog cutpoint samples");
+    }
+    nlohmann::json obj;
+    // Forests, under self-describing named keys, with the num_forests counter
+    nlohmann::json forests = nlohmann::json::object();
+    int num_forests = 0;
+    if (mean_forests != nullptr) {
+      forests.emplace("mean_forest", mean_forests->to_json());
+      num_forests++;
+    }
+    if (variance_forests != nullptr) {
+      forests.emplace("variance_forest", variance_forests->to_json());
+      num_forests++;
+    }
+    obj.emplace("forests", forests);
+    obj.emplace("num_forests", num_forests);
+    // Parameter traces, under the "parameters" subfolder (presence inferred from non-empty vectors)
+    nlohmann::json parameters = nlohmann::json::object();
+    if (!global_error_variance_samples.empty()) {
+      parameters.emplace("sigma2_global_samples", global_error_variance_samples);
+    }
+    if (!leaf_scale_samples.empty()) {
+      parameters.emplace("sigma2_leaf_samples", leaf_scale_samples);
+    }
+    if (!parameters.empty()) {
+      obj.emplace("parameters", parameters);
+    }
+    // Intrinsic scalars (stored in user-facing scale, matching the existing wire format)
+    obj.emplace("outcome_mean", y_bar);
+    obj.emplace("outcome_scale", y_std);
+    obj.emplace("num_samples", num_samples);
+    return obj;
+  }
+
+  // Populate this BARTSamples from the samples-owned subtree of a parsed JSON object. Presence is
+  // inferred from the JSON structure (does "forests" contain "mean_forest"? does "parameters"
+  // contain "sigma2_global_samples"?) rather than from the envelope's boolean flags, so the samples
+  // (de)serialization is self-contained. Inverse of ToJson(); see its note re: rfx/cloglog scope.
+  void FromJson(const nlohmann::json& obj) {
+    if (obj.contains("num_random_effects") && obj.at("num_random_effects").get<int>() > 0) {
+      Log::Fatal("BARTSamples::FromJson does not yet support random effects");
+    }
+    if (obj.contains("forests")) {
+      const nlohmann::json& forests = obj.at("forests");
+      if (forests.contains("mean_forest")) {
+        mean_forests = std::make_unique<ForestContainer>(0, 0, false, false);
+        mean_forests->from_json(forests.at("mean_forest"));
+      }
+      if (forests.contains("variance_forest")) {
+        variance_forests = std::make_unique<ForestContainer>(0, 0, false, false);
+        variance_forests->from_json(forests.at("variance_forest"));
+      }
+    }
+    if (obj.contains("parameters")) {
+      const nlohmann::json& parameters = obj.at("parameters");
+      if (parameters.contains("sigma2_global_samples")) {
+        global_error_variance_samples = parameters.at("sigma2_global_samples").get<std::vector<double>>();
+      }
+      if (parameters.contains("sigma2_leaf_samples")) {
+        leaf_scale_samples = parameters.at("sigma2_leaf_samples").get<std::vector<double>>();
+      }
+    }
+    if (obj.contains("outcome_mean")) y_bar = obj.at("outcome_mean").get<double>();
+    if (obj.contains("outcome_scale")) y_std = obj.at("outcome_scale").get<double>();
+    if (obj.contains("num_samples")) num_samples = obj.at("num_samples").get<int>();
+  }
 };
 
 }  // namespace StochTree
