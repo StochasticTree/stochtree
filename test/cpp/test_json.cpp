@@ -218,6 +218,77 @@ TEST(Json, BCFSamplesRoundTrip) {
   EXPECT_EQ(obj.at("num_forests").get<int>(), 2);
 }
 
+TEST(Json, BARTSamplesMerge) {
+  // Two single-draw chains with matching structure/standardization.
+  auto make_chain = [](double mu_leaf, double global_var, double leaf_scale) {
+    StochTree::BARTSamples s;
+    s.mean_forests = std::make_unique<StochTree::ForestContainer>(1, 1, true, false);
+    StochTree::TreeEnsemble e(1, 1, true);
+    e.SetLeafValue(mu_leaf);
+    s.mean_forests->AddSample(e);
+    s.global_error_variance_samples = {global_var};
+    s.leaf_scale_samples = {leaf_scale};
+    s.num_samples = 1;
+    s.y_bar = 1.0;
+    s.y_std = 2.0;
+    return s;
+  };
+  StochTree::BARTSamples a = make_chain(0.5, 1.1, 0.3);
+  StochTree::BARTSamples b = make_chain(-0.25, 2.2, 0.4);
+
+  a.Merge(b);
+
+  // Draw counts add; draw order is preserved (a's draw, then b's)
+  EXPECT_EQ(a.num_samples, 2);
+  ASSERT_NE(a.mean_forests, nullptr);
+  EXPECT_EQ(a.mean_forests->NumSamples(), 2);
+  // Merged forest's second sample is a deep copy of b's first sample
+  EXPECT_EQ(a.mean_forests->GetEnsemble(1)->to_json(), b.mean_forests->GetEnsemble(0)->to_json());
+  ASSERT_EQ(a.global_error_variance_samples.size(), 2u);
+  EXPECT_DOUBLE_EQ(a.global_error_variance_samples[0], 1.1);
+  EXPECT_DOUBLE_EQ(a.global_error_variance_samples[1], 2.2);
+  ASSERT_EQ(a.leaf_scale_samples.size(), 2u);
+  EXPECT_DOUBLE_EQ(a.leaf_scale_samples[0], 0.3);
+  EXPECT_DOUBLE_EQ(a.leaf_scale_samples[1], 0.4);
+}
+
+TEST(Json, BCFSamplesMerge) {
+  auto make_chain = [](double mu_leaf, double tau_leaf, double gv, double tau0) {
+    StochTree::BCFSamples s;
+    s.mu_forests = std::make_unique<StochTree::ForestContainer>(1, 1, true, false);
+    s.tau_forests = std::make_unique<StochTree::ForestContainer>(1, 1, false, false);
+    StochTree::TreeEnsemble mu(1, 1, true);
+    mu.SetLeafValue(mu_leaf);
+    s.mu_forests->AddSample(mu);
+    StochTree::TreeEnsemble tau(1, 1, false);
+    tau.SetLeafValue(tau_leaf);
+    s.tau_forests->AddSample(tau);
+    s.global_error_variance_samples = {gv};
+    s.tau_0_samples = {tau0};
+    s.num_samples = 1;
+    s.treatment_dim = 1;
+    s.y_bar = 1.0;
+    s.y_std = 2.0;
+    return s;
+  };
+  StochTree::BCFSamples a = make_chain(0.5, 1.0, 1.1, 0.1);
+  StochTree::BCFSamples b = make_chain(-0.25, 0.8, 2.2, 0.2);
+
+  a.Merge(b);
+
+  EXPECT_EQ(a.num_samples, 2);
+  ASSERT_NE(a.mu_forests, nullptr);
+  ASSERT_NE(a.tau_forests, nullptr);
+  EXPECT_EQ(a.mu_forests->NumSamples(), 2);
+  EXPECT_EQ(a.tau_forests->NumSamples(), 2);
+  EXPECT_EQ(a.tau_forests->GetEnsemble(1)->to_json(), b.tau_forests->GetEnsemble(0)->to_json());
+  ASSERT_EQ(a.global_error_variance_samples.size(), 2u);
+  EXPECT_DOUBLE_EQ(a.global_error_variance_samples[1], 2.2);
+  ASSERT_EQ(a.tau_0_samples.size(), 2u);
+  EXPECT_DOUBLE_EQ(a.tau_0_samples[0], 0.1);
+  EXPECT_DOUBLE_EQ(a.tau_0_samples[1], 0.2);
+}
+
 TEST(Json, TreeMultivariateLeafCategoricalSplit) {
   // Initialize tree
   StochTree::Tree tree;

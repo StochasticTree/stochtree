@@ -8,6 +8,7 @@
 
 #include <stochtree/data.h>
 #include <stochtree/ensemble.h>
+#include <stochtree/log.h>
 #include <nlohmann/json.hpp>
 #include <stochtree/tree.h>
 
@@ -219,6 +220,23 @@ class ForestContainer {
   bool is_leaf_constant_;
   bool initialized_{false};
 };
+
+/*!
+ * \brief Append every retained forest sample from `src` onto the end of `dst` (deep copy).
+ * Used by BARTSamples::Merge / BCFSamples::Merge to combine independently-sampled chains. The forest
+ * must be present in both samples objects or neither; `name` labels the forest in the mismatch error.
+ */
+inline void AppendForestContainerSamples(std::unique_ptr<ForestContainer>& dst,
+                                         const std::unique_ptr<ForestContainer>& src,
+                                         const char* name) {
+  if (src == nullptr && dst == nullptr) return;
+  if (src == nullptr || dst == nullptr) {
+    Log::Fatal("Cannot merge samples: %s forest present in one chain but not the other", name);
+  }
+  for (int i = 0; i < src->NumSamples(); i++) {
+    dst->AddSample(*src->GetEnsemble(i));
+  }
+}
 }  // namespace StochTree
 
 #endif  // STOCHTREE_CONTAINER_H_

@@ -321,6 +321,35 @@ struct BCFSamples {
     if (obj.contains("num_samples")) num_samples = obj.at("num_samples").get<int>();
     if (obj.contains("treatment_dim")) treatment_dim = obj.at("treatment_dim").get<int>();
   }
+
+  // Append another chain's draws onto this one (multi-chain combine). BCF mirror of
+  // BARTSamples::Merge -- `this` must already be populated, `other` must match model structure
+  // (same forests present, same standardization, same treatment_dim). Forests are deep-copied
+  // sample-by-sample and parameter traces concatenated, preserving draw order.
+  void Merge(const BCFSamples& other) {
+    if (rfx_container != nullptr || other.rfx_container != nullptr) {
+      Log::Fatal("BCFSamples::Merge does not yet support random effects");
+    }
+    if (y_bar != other.y_bar || y_std != other.y_std) {
+      Log::Fatal("Cannot merge BCFSamples with different outcome standardization");
+    }
+    if (treatment_dim != other.treatment_dim) {
+      Log::Fatal("Cannot merge BCFSamples with different treatment_dim");
+    }
+    AppendForestContainerSamples(mu_forests, other.mu_forests, "prognostic");
+    AppendForestContainerSamples(tau_forests, other.tau_forests, "treatment");
+    AppendForestContainerSamples(variance_forests, other.variance_forests, "variance");
+    auto append = [](std::vector<double>& dst, const std::vector<double>& src) {
+      dst.insert(dst.end(), src.begin(), src.end());
+    };
+    append(global_error_variance_samples, other.global_error_variance_samples);
+    append(leaf_scale_mu_samples, other.leaf_scale_mu_samples);
+    append(leaf_scale_tau_samples, other.leaf_scale_tau_samples);
+    append(tau_0_samples, other.tau_0_samples);
+    append(b0_samples, other.b0_samples);
+    append(b1_samples, other.b1_samples);
+    num_samples += other.num_samples;
+  }
 };
 
 }  // namespace StochTree

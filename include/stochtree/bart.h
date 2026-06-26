@@ -246,6 +246,29 @@ struct BARTSamples {
     if (obj.contains("outcome_scale")) y_std = obj.at("outcome_scale").get<double>();
     if (obj.contains("num_samples")) num_samples = obj.at("num_samples").get<int>();
   }
+
+  // Append another chain's draws onto this one (multi-chain combine). `this` must already be
+  // populated (e.g. via FromJson on the first chain); `other` must have matching model structure
+  // (same forests present, same outcome standardization). Forests are deep-copied sample-by-sample
+  // and parameter traces concatenated, so draw order is preserved (this's draws, then other's).
+  void Merge(const BARTSamples& other) {
+    if (!cloglog_cutpoint_samples.empty() || !other.cloglog_cutpoint_samples.empty()) {
+      Log::Fatal("BARTSamples::Merge does not yet support cloglog cutpoint samples");
+    }
+    if (rfx_container != nullptr || other.rfx_container != nullptr) {
+      Log::Fatal("BARTSamples::Merge does not yet support random effects");
+    }
+    if (y_bar != other.y_bar || y_std != other.y_std) {
+      Log::Fatal("Cannot merge BARTSamples with different outcome standardization");
+    }
+    AppendForestContainerSamples(mean_forests, other.mean_forests, "mean");
+    AppendForestContainerSamples(variance_forests, other.variance_forests, "variance");
+    global_error_variance_samples.insert(global_error_variance_samples.end(),
+        other.global_error_variance_samples.begin(), other.global_error_variance_samples.end());
+    leaf_scale_samples.insert(leaf_scale_samples.end(),
+        other.leaf_scale_samples.begin(), other.leaf_scale_samples.end());
+    num_samples += other.num_samples;
+  }
 };
 
 }  // namespace StochTree
