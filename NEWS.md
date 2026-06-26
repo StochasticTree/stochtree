@@ -1,4 +1,4 @@
-# stochtree 0.4.5.9000
+# stochtree 0.4.5
 
 ## Bug Fixes
 
