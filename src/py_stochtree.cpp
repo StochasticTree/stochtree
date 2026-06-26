@@ -2279,12 +2279,15 @@ class BARTSamplesCpp {
   // the current sampler outputs without restructuring the binding; variance_forest/global_var/
   // leaf_scale are optional (pass None when absent).
   static std::unique_ptr<BARTSamplesCpp> FromComponents(
-      ForestContainerCpp& mean_forest, py::object variance_forest,
+      py::object mean_forest, py::object variance_forest,
       py::object global_var_samples, py::object leaf_scale_samples,
       double y_bar, double y_std, int num_samples) {
     auto wrapper = std::make_unique<BARTSamplesCpp>();
     StochTree::BARTSamples* s = wrapper->samples_.get();
-    s->mean_forests = copy_forest_container(mean_forest.GetPtr());
+    // BART supports mean-only, variance-only, or both -- both forests are optional.
+    if (!mean_forest.is_none()) {
+      s->mean_forests = copy_forest_container(mean_forest.cast<ForestContainerCpp*>()->GetPtr());
+    }
     if (!variance_forest.is_none()) {
       s->variance_forests = copy_forest_container(variance_forest.cast<ForestContainerCpp*>()->GetPtr());
     }

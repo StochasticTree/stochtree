@@ -30,7 +30,7 @@ from .utils import (
     _posterior_predictive_heuristic_multiplier,
     _summarize_interval,
 )
-from stochtree_cpp import bart_sample_cpp, bart_continue_sample_cpp, bart_predict_cpp
+from stochtree_cpp import bart_sample_cpp, bart_continue_sample_cpp, bart_predict_cpp, BARTSamplesCpp
 
 
 def _migrate_bart_v0_to_v1(serializer: JSONSerializer, loaded_version: int) -> None:
@@ -94,6 +94,66 @@ class BARTModel:
     def __init__(self) -> None:
         # Internal flag for whether the sample() method has been run
         self.sampled = False
+        # Single source of truth for the sampled forests + parameter traces (BARTSamplesCpp).
+        # The public forest_container_* / global_var_samples / leaf_scale_samples / num_samples
+        # attributes are properties backed by this object; _fc_*_cache hold the materialized
+        # (deep-copied) ForestContainer views for the deprecated direct forest accessor.
+        self._samples = None
+        self._fc_mean_cache = None
+        self._fc_variance_cache = None
+
+    def _set_samples(self, samples) -> None:
+        """Install a new BARTSamplesCpp as the single source of truth and invalidate the
+        materialized forest-container caches so the next access re-derives them."""
+        self._samples = samples
+        self._fc_mean_cache = None
+        self._fc_variance_cache = None
+
+    @property
+    def forest_container_mean(self):
+        if self._samples is None or not self._samples.has_mean_forest():
+            return None
+        if self._fc_mean_cache is None:
+            cpp = self._samples.materialize_mean_forest()
+            # Construct the wrapper with the model's known leaf metadata (mirrors how sample() built
+            # it) so the Python-side metadata / __str__ are correct; then point it at the deep copy.
+            output_dim = self.num_basis if self.has_basis else 1
+            leaf_constant = not self.has_basis
+            fc = ForestContainer(cpp.NumTrees(), output_dim, leaf_constant, False)
+            fc.forest_container_cpp = cpp
+            self._fc_mean_cache = fc
+        return self._fc_mean_cache
+
+    @property
+    def forest_container_variance(self):
+        if self._samples is None or not self._samples.has_variance_forest():
+            return None
+        if self._fc_variance_cache is None:
+            cpp = self._samples.materialize_variance_forest()
+            # Variance forest: univariate, constant leaf, exponentiated (matches sample()).
+            fc = ForestContainer(cpp.NumTrees(), 1, True, True)
+            fc.forest_container_cpp = cpp
+            self._fc_variance_cache = fc
+        return self._fc_variance_cache
+
+    @property
+    def global_var_samples(self):
+        # None when unsampled or not sampled in this model (preserves getattr(..., None) semantics).
+        if self._samples is None:
+            return None
+        arr = self._samples.global_var_samples()
+        return arr if arr.size else None
+
+    @property
+    def leaf_scale_samples(self):
+        if self._samples is None:
+            return None
+        arr = self._samples.leaf_scale_samples()
+        return arr if arr.size else None
+
+    @property
+    def num_samples(self):
+        return self._samples.num_samples() if self._samples is not None else None
 
     def sample(
         self,
@@ -1392,16 +1452,9 @@ class BARTModel:
             else None
         )
 
-        # Unpack mean forest results
+        # Unpack mean forest predictions. The forests themselves are owned by self._samples
+        # (assembled below); predictions are transient per-data outputs.
         if self.include_mean_forest:
-            self.forest_container_mean = (
-                ForestContainer(num_trees_mean, 1, True, False)
-                if not self.has_basis
-                else ForestContainer(num_trees_mean, self.num_basis, False, False)
-            )
-            self.forest_container_mean.forest_container_cpp = bart_results[
-                "forest_container_mean"
-            ]
             mean_forest_preds_train = bart_results[
                 "mean_forest_predictions_train"
             ].reshape(self.n_train, bart_results["num_samples"], order="F")
@@ -1442,14 +1495,8 @@ class BARTModel:
                     else rfx_preds_test
                 )
 
-        # Unpack variance forest results
+        # Unpack variance forest predictions (forest owned by self._samples, assembled below)
         if self.include_variance_forest:
-            self.forest_container_variance = ForestContainer(
-                num_trees_variance, 1, True, True
-            )
-            self.forest_container_variance.forest_container_cpp = bart_results[
-                "forest_container_variance"
-            ]
             self.sigma2_x_train = bart_results[
                 "variance_forest_predictions_train"
             ].reshape(self.n_train, bart_results["num_samples"], order="F")
@@ -1458,15 +1505,11 @@ class BARTModel:
                     "variance_forest_predictions_test"
                 ].reshape(self.n_test, bart_results["num_samples"], order="F")
 
-        # Unpack parameter samples
+        # Parameter sampling flags (the param traces themselves are owned by self._samples).
         self.sample_sigma2_global = sample_sigma2_global
         self.sample_sigma2_leaf = sample_sigma2_leaf
-        if self.sample_sigma2_global:
-            # C++ postprocess_samples already rescales global variance to the original
-            # outcome scale (x y_std^2); store as-is (matches the R binding).
-            self.global_var_samples = bart_results["global_var_samples"]
-        if self.sample_sigma2_leaf:
-            self.leaf_scale_samples = bart_results["leaf_scale_samples"]
+        # cloglog cutpoints are not routed through the samples wrapper yet (guarded there); keep
+        # them as a separate attribute.
         if link_is_cloglog:
             self.cloglog_num_categories = cloglog_num_categories
             if not outcome_is_binary:
@@ -1476,8 +1519,19 @@ class BARTModel:
                     cloglog_num_categories - 1, bart_results["num_samples"], order="F"
                 )
 
-        # Unpack other model metadata
-        self.num_samples = bart_results["num_samples"]
+        # Assemble the single source of truth: forests + parameter traces in one BARTSamplesCpp.
+        # forest_container_*/global_var_samples/leaf_scale_samples/num_samples are properties off it.
+        self._set_samples(
+            BARTSamplesCpp.from_components(
+                bart_results["forest_container_mean"] if self.include_mean_forest else None,
+                bart_results["forest_container_variance"] if self.include_variance_forest else None,
+                bart_results["global_var_samples"] if self.sample_sigma2_global else None,
+                bart_results["leaf_scale_samples"] if self.sample_sigma2_leaf else None,
+                float(self.y_bar),
+                float(self.y_std),
+                int(bart_results["num_samples"]),
+            )
+        )
         self.sampled = True
 
         return self
@@ -1624,14 +1678,19 @@ class BARTModel:
             config_input=cfg,
         )
 
-        # Replace the forest container and extend parameter arrays with the (history + new) results
-        self.forest_container_mean.forest_container_cpp = bart_results["forest_container_mean"]
-        if self.sample_sigma2_global:
-            # C++ postprocess_samples already rescales to original outcome scale; store as-is.
-            self.global_var_samples = bart_results["global_var_samples"]
-        if self.sample_sigma2_leaf:
-            self.leaf_scale_samples = bart_results["leaf_scale_samples"]
-        self.num_samples = bart_results["num_samples"]
+        # Rebuild the single source of truth from the (history + new) continuation results.
+        # Continuation supports a mean forest only (no variance forest), so variance is None.
+        self._set_samples(
+            BARTSamplesCpp.from_components(
+                bart_results["forest_container_mean"],
+                None,
+                bart_results["global_var_samples"] if self.sample_sigma2_global else None,
+                bart_results["leaf_scale_samples"] if self.sample_sigma2_leaf else None,
+                float(self.y_bar),
+                float(self.y_std),
+                int(bart_results["num_samples"]),
+            )
+        )
         self.num_mcmc = (self.num_mcmc or 0) + num_mcmc
         # Carry the new final RNG + leaf-cache state forward so further continuations stay bit-identical
         self.rng_state = bart_results.get("rng_state", None)
@@ -2623,15 +2682,18 @@ class BARTModel:
                 f"Re-save your model to suppress this warning."
             )
 
-        # v1 forests are stored under self-describing named keys.
+        # v1 forests are stored under self-describing named keys. Load into temporary
+        # ForestContainer objects, then deep-copy into the single owned samples object below.
+        mean_forest_loaded = None
+        variance_forest_loaded = None
         if self.include_mean_forest:
-            self.forest_container_mean = ForestContainer(0, 0, False, False)
-            self.forest_container_mean.forest_container_cpp.LoadFromJson(
+            mean_forest_loaded = ForestContainer(0, 0, False, False)
+            mean_forest_loaded.forest_container_cpp.LoadFromJson(
                 bart_json.json_cpp, "mean_forest"
             )
         if self.include_variance_forest:
-            self.forest_container_variance = ForestContainer(0, 0, False, False)
-            self.forest_container_variance.forest_container_cpp.LoadFromJson(
+            variance_forest_loaded = ForestContainer(0, 0, False, False)
+            variance_forest_loaded.forest_container_cpp.LoadFromJson(
                 bart_json.json_cpp, "variance_forest"
             )
 
@@ -2650,7 +2712,7 @@ class BARTModel:
         self.num_gfr = bart_json.get_integer("num_gfr")
         self.num_burnin = bart_json.get_integer("num_burnin")
         self.num_mcmc = bart_json.get_integer("num_mcmc")
-        self.num_samples = bart_json.get_integer("num_samples")
+        num_samples_loaded = bart_json.get_integer("num_samples")
         self.num_basis = bart_json.get_integer("num_basis")
         self.has_basis = bart_json.get_boolean("requires_basis")
 
@@ -2707,29 +2769,45 @@ class BARTModel:
                     f"Re-save your model to suppress this warning."
                 )
 
-        # Unpack parameter samples
-        if self.sample_sigma2_global:
-            self.global_var_samples = bart_json.get_numeric_vector(
-                "sigma2_global_samples", "parameters"
-            )
-        if self.sample_sigma2_leaf:
-            self.leaf_scale_samples = bart_json.get_numeric_vector(
-                "sigma2_leaf_samples", "parameters"
-            )
+        # Unpack parameter samples (owned by self._samples, built below)
+        global_var_loaded = (
+            bart_json.get_numeric_vector("sigma2_global_samples", "parameters")
+            if self.sample_sigma2_global
+            else None
+        )
+        leaf_scale_loaded = (
+            bart_json.get_numeric_vector("sigma2_leaf_samples", "parameters")
+            if self.sample_sigma2_leaf
+            else None
+        )
 
-        # Unpack cloglog parameters (num_categories always, cutpoints only for ordinal)
+        # Unpack cloglog parameters (num_categories always, cutpoints only for ordinal); these stay
+        # a separate attribute (not routed through the samples wrapper yet).
         if self.outcome_model.link == "cloglog":
             self.cloglog_num_categories = bart_json.get_integer(
                 "cloglog_num_categories"
             )
             if self.outcome_model.outcome == "ordinal":
                 self.cloglog_cutpoint_samples = np.full(
-                    (self.cloglog_num_categories - 1, self.num_samples), np.nan
+                    (self.cloglog_num_categories - 1, num_samples_loaded), np.nan
                 )
                 for i in range(self.cloglog_num_categories - 1):
                     self.cloglog_cutpoint_samples[i, :] = bart_json.get_numeric_vector(
                         f"cloglog_cutpoint_samples_{i + 1}", "parameters"
                     )
+
+        # Assemble the single source of truth (forests + parameter traces) from the loaded parts.
+        self._set_samples(
+            BARTSamplesCpp.from_components(
+                mean_forest_loaded.forest_container_cpp if self.include_mean_forest else None,
+                variance_forest_loaded.forest_container_cpp if self.include_variance_forest else None,
+                global_var_loaded,
+                leaf_scale_loaded,
+                float(self.y_bar),
+                float(self.y_std),
+                int(num_samples_loaded),
+            )
+        )
 
         # Unpack covariate preprocessor
         if cross_platform:
@@ -2786,26 +2864,30 @@ class BARTModel:
         self.include_variance_forest = json_object_default.get_boolean(
             "include_variance_forest"
         )
+        # Load each chain's forests into temporary containers (append across chains), then deep-copy
+        # the combined result into the single owned samples object below.
+        mean_forest_loaded = None
+        variance_forest_loaded = None
         if self.include_mean_forest:
-            self.forest_container_mean = ForestContainer(0, 0, False, False)
+            mean_forest_loaded = ForestContainer(0, 0, False, False)
             for i in range(len(json_object_list)):
                 if i == 0:
-                    self.forest_container_mean.forest_container_cpp.LoadFromJson(
+                    mean_forest_loaded.forest_container_cpp.LoadFromJson(
                         json_object_list[i].json_cpp, "mean_forest"
                     )
                 else:
-                    self.forest_container_mean.forest_container_cpp.AppendFromJson(
+                    mean_forest_loaded.forest_container_cpp.AppendFromJson(
                         json_object_list[i].json_cpp, "mean_forest"
                     )
         if self.include_variance_forest:
-            self.forest_container_variance = ForestContainer(0, 0, False, False)
+            variance_forest_loaded = ForestContainer(0, 0, False, False)
             for i in range(len(json_object_list)):
                 if i == 0:
-                    self.forest_container_variance.forest_container_cpp.LoadFromJson(
+                    variance_forest_loaded.forest_container_cpp.LoadFromJson(
                         json_object_list[i].json_cpp, "variance_forest"
                     )
                 else:
-                    self.forest_container_variance.forest_container_cpp.AppendFromJson(
+                    variance_forest_loaded.forest_container_cpp.AppendFromJson(
                         json_object_list[i].json_cpp, "variance_forest"
                     )
 
@@ -2904,43 +2986,31 @@ class BARTModel:
                     f"Re-save your model to suppress this warning."
                 )
 
-        # Unpack number of samples
+        # Combined number of samples across chains (owned by self._samples, built below)
+        num_samples_loaded = 0
         for i in range(len(json_object_list)):
-            if i == 0:
-                self.num_samples = json_object_list[i].get_integer("num_samples")
-            else:
-                self.num_samples += json_object_list[i].get_integer("num_samples")
+            num_samples_loaded += json_object_list[i].get_integer("num_samples")
 
-        # Unpack parameter samples
+        # Unpack parameter samples (concatenated across chains; owned by self._samples below)
+        global_var_loaded = None
         if self.sample_sigma2_global:
             for i in range(len(json_object_list)):
-                if i == 0:
-                    self.global_var_samples = json_object_list[i].get_numeric_vector(
-                        "sigma2_global_samples", "parameters"
-                    )
-                else:
-                    global_var_samples = json_object_list[i].get_numeric_vector(
-                        "sigma2_global_samples", "parameters"
-                    )
-                    self.global_var_samples = np.concatenate((
-                        self.global_var_samples,
-                        global_var_samples,
-                    ))
+                gv_i = json_object_list[i].get_numeric_vector(
+                    "sigma2_global_samples", "parameters"
+                )
+                global_var_loaded = (
+                    gv_i if i == 0 else np.concatenate((global_var_loaded, gv_i))
+                )
 
+        leaf_scale_loaded = None
         if self.sample_sigma2_leaf:
             for i in range(len(json_object_list)):
-                if i == 0:
-                    self.leaf_scale_samples = json_object_list[i].get_numeric_vector(
-                        "sigma2_leaf_samples", "parameters"
-                    )
-                else:
-                    leaf_scale_samples = json_object_list[i].get_numeric_vector(
-                        "sigma2_leaf_samples", "parameters"
-                    )
-                    self.leaf_scale_samples = np.concatenate((
-                        self.leaf_scale_samples,
-                        leaf_scale_samples,
-                    ))
+                ls_i = json_object_list[i].get_numeric_vector(
+                    "sigma2_leaf_samples", "parameters"
+                )
+                leaf_scale_loaded = (
+                    ls_i if i == 0 else np.concatenate((leaf_scale_loaded, ls_i))
+                )
 
         # Unpack cloglog parameters (num_categories always, cutpoints only for ordinal)
         if self.outcome_model.link == "cloglog":
@@ -2963,6 +3033,19 @@ class BARTModel:
                         self.cloglog_cutpoint_samples = np.concatenate(
                             (self.cloglog_cutpoint_samples, cutpoints_i), axis=1
                         )
+
+        # Assemble the single source of truth from the combined (across-chain) parts.
+        self._set_samples(
+            BARTSamplesCpp.from_components(
+                mean_forest_loaded.forest_container_cpp if self.include_mean_forest else None,
+                variance_forest_loaded.forest_container_cpp if self.include_variance_forest else None,
+                global_var_loaded,
+                leaf_scale_loaded,
+                float(self.y_bar),
+                float(self.y_std),
+                int(num_samples_loaded),
+            )
+        )
 
         # Unpack covariate preprocessor
         if cross_platform:
