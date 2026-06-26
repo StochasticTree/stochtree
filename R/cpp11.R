@@ -312,6 +312,122 @@ root_reset_rfx_tracker_cpp <- function(tracker, dataset, residual, rfx_model) {
   invisible(.Call(`_stochtree_root_reset_rfx_tracker_cpp`, tracker, dataset, residual, rfx_model))
 }
 
+bart_samples_from_components_cpp <- function(mean_forest, variance_forest, global_var_samples, leaf_scale_samples, y_bar, y_std, num_samples) {
+  .Call(`_stochtree_bart_samples_from_components_cpp`, mean_forest, variance_forest, global_var_samples, leaf_scale_samples, y_bar, y_std, num_samples)
+}
+
+bart_samples_num_samples_cpp <- function(samples) {
+  .Call(`_stochtree_bart_samples_num_samples_cpp`, samples)
+}
+
+bart_samples_y_bar_cpp <- function(samples) {
+  .Call(`_stochtree_bart_samples_y_bar_cpp`, samples)
+}
+
+bart_samples_y_std_cpp <- function(samples) {
+  .Call(`_stochtree_bart_samples_y_std_cpp`, samples)
+}
+
+bart_samples_has_mean_forest_cpp <- function(samples) {
+  .Call(`_stochtree_bart_samples_has_mean_forest_cpp`, samples)
+}
+
+bart_samples_has_variance_forest_cpp <- function(samples) {
+  .Call(`_stochtree_bart_samples_has_variance_forest_cpp`, samples)
+}
+
+bart_samples_global_var_samples_cpp <- function(samples) {
+  .Call(`_stochtree_bart_samples_global_var_samples_cpp`, samples)
+}
+
+bart_samples_leaf_scale_samples_cpp <- function(samples) {
+  .Call(`_stochtree_bart_samples_leaf_scale_samples_cpp`, samples)
+}
+
+bart_samples_materialize_mean_forest_cpp <- function(samples) {
+  .Call(`_stochtree_bart_samples_materialize_mean_forest_cpp`, samples)
+}
+
+bart_samples_materialize_variance_forest_cpp <- function(samples) {
+  .Call(`_stochtree_bart_samples_materialize_variance_forest_cpp`, samples)
+}
+
+bart_samples_merge_cpp <- function(samples, other) {
+  invisible(.Call(`_stochtree_bart_samples_merge_cpp`, samples, other))
+}
+
+bcf_samples_from_components_cpp <- function(mu_forest, tau_forest, variance_forest, global_var_samples, leaf_scale_mu_samples, leaf_scale_tau_samples, tau_0_samples, b0_samples, b1_samples, y_bar, y_std, num_samples, treatment_dim) {
+  .Call(`_stochtree_bcf_samples_from_components_cpp`, mu_forest, tau_forest, variance_forest, global_var_samples, leaf_scale_mu_samples, leaf_scale_tau_samples, tau_0_samples, b0_samples, b1_samples, y_bar, y_std, num_samples, treatment_dim)
+}
+
+bcf_samples_num_samples_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_num_samples_cpp`, samples)
+}
+
+bcf_samples_treatment_dim_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_treatment_dim_cpp`, samples)
+}
+
+bcf_samples_y_bar_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_y_bar_cpp`, samples)
+}
+
+bcf_samples_y_std_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_y_std_cpp`, samples)
+}
+
+bcf_samples_has_mu_forest_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_has_mu_forest_cpp`, samples)
+}
+
+bcf_samples_has_tau_forest_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_has_tau_forest_cpp`, samples)
+}
+
+bcf_samples_has_variance_forest_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_has_variance_forest_cpp`, samples)
+}
+
+bcf_samples_global_var_samples_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_global_var_samples_cpp`, samples)
+}
+
+bcf_samples_leaf_scale_mu_samples_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_leaf_scale_mu_samples_cpp`, samples)
+}
+
+bcf_samples_leaf_scale_tau_samples_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_leaf_scale_tau_samples_cpp`, samples)
+}
+
+bcf_samples_tau_0_samples_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_tau_0_samples_cpp`, samples)
+}
+
+bcf_samples_b0_samples_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_b0_samples_cpp`, samples)
+}
+
+bcf_samples_b1_samples_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_b1_samples_cpp`, samples)
+}
+
+bcf_samples_materialize_mu_forest_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_materialize_mu_forest_cpp`, samples)
+}
+
+bcf_samples_materialize_tau_forest_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_materialize_tau_forest_cpp`, samples)
+}
+
+bcf_samples_materialize_variance_forest_cpp <- function(samples) {
+  .Call(`_stochtree_bcf_samples_materialize_variance_forest_cpp`, samples)
+}
+
+bcf_samples_merge_cpp <- function(samples, other) {
+  invisible(.Call(`_stochtree_bcf_samples_merge_cpp`, samples, other))
+}
+
 sum_cpp <- function(x) {
   .Call(`_stochtree_sum_cpp`, x)
 }
