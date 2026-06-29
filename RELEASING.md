@@ -38,6 +38,7 @@ This document describes the end-to-end process for releasing a new version of st
 - No empty version section in `NEWS.md` (CRAN will flag this)
 - `MANIFEST.in` includes any new C++ dependency header trees added since the last release
 - All tests pass locally (`source venv/bin/activate && python -m pytest` and `NOT_CRAN=true Rscript -e "devtools::load_all('.'); testthat::test_dir('test/R/testthat')"`)
+- If sampler output changed this cycle, regenerate the reproducibility references under `tools/reproducibility/{R,python}` and confirm the `reproducibility_check` workflow **fails on drift** against the new references. (A stale-reference / lenient-check mismatch caused a post-tag follow-up in 0.4.5.)
 
 ---
 
@@ -80,6 +81,13 @@ git push origin --delete v0.4.2
 ```
 
 Then you can start a new draft and pre-release it as above
+
+## Do post-tag fixes need a re-tag?
+
+When a fix lands on `main` after the release tag is cut, decide by what it touches:
+
+- **Re-tag** if it changes anything shipped in the R/Python packages — `R/`, `src/`, `stochtree/`, the version files, or `NEWS.md`.
+- **Leave the tag** if it only touches things outside the distributed packages — CI workflows, `tools/reproducibility/` references, benchmarks, docs-site config. The tagged artifact is unchanged, so moving the tag buys nothing. (In 0.4.5, a CI-only reproducibility fix landed post-tag and was correctly left out of the release.)
 
 ## Updating a full release (minor fixes after promotion)
 
@@ -143,9 +151,36 @@ Review the Actions tab for results. If a check fails, fix the issue on `main`, t
 Promoting the pre-release to a full release fires `published`, which:
 
 - **Automatically updates the `r-dev` branch** (via `r-cran-branch.yml`) and tags the R release as `r-x.y.z` (which from 0.4.2-on is a git tag but not a separate github release)
-- **Triggers wheel builds** (via `pypi-wheels.yml`); PyPI publication is currently a **manual step** — download the wheel artifacts from the Actions run and upload via `twine upload dist/*`. Setting up [PyPI trusted publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) will automate this and in upcoming release cycles.
+- **Triggers wheel builds** (via `pypi-wheels.yml`); PyPI publication is currently a **manual step** — see [PyPI publication](#pypi-publication-manual) below.
 
-**How:** Edit the pre-release → uncheck **"Set as a pre-release"** → click **"Update release"**.
+**How (UI):** Edit the pre-release → uncheck **"Set as a pre-release"** → click **"Update release"**.
+
+**How (CLI):**
+
+```bash
+gh release edit vx.y.z --repo StochasticTree/stochtree --prerelease=false --latest
+```
+
+`--latest` forces the "Latest" badge (and `/releases/latest` redirect) onto this release rather than relying on GitHub's auto-detection. A release cannot be both prerelease and latest, so these two flags work together. This does not affect which workflows fire — the `published`/`released` events trigger regardless.
+
+### PyPI publication (manual)
+
+After promotion, the `pypi-wheels.yml` run on the `published` event builds the per-platform **wheels** as artifacts (it does **not** build an sdist). Download the wheels, build the sdist locally, then upload both:
+
+```bash
+# 1. download the wheel artifacts from the release run
+# find the run id (event=release, workflow "Build Python Wheels for PyPI")
+gh run list --repo StochasticTree/stochtree --event release
+gh run download <run-id> --repo StochasticTree/stochtree --dir dist_wheels
+
+# 2. build the sdist locally (the CI workflow does not produce one)
+rm -rf dist && pipx run build --sdist
+
+# 3. upload wheels + sdist
+twine upload dist_wheels/**/*.whl dist/*.tar.gz
+```
+
+Confirm `x.y.z` appears at https://pypi.org/project/stochtree/. Setting up [PyPI trusted publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) will automate this in an upcoming release cycle.
 
 ---
 
