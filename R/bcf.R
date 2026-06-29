@@ -551,10 +551,10 @@ bcf <- function(
     }
     previous_y_bar <- previous_bcf_model$model_params$outcome_mean
     previous_y_scale <- previous_bcf_model$model_params$outcome_scale
-    previous_forest_samples_mu <- previous_bcf_model$forests_mu
-    previous_forest_samples_tau <- previous_bcf_model$forests_tau
+    previous_forest_samples_mu <- previous_bcf_model$samples$materialize_mu_forest()
+    previous_forest_samples_tau <- previous_bcf_model$samples$materialize_tau_forest()
     if (previous_bcf_model$model_params$include_variance_forest) {
-      previous_forest_samples_variance <- previous_bcf_model$forests_variance
+      previous_forest_samples_variance <- previous_bcf_model$samples$materialize_variance_forest()
     } else {
       previous_forest_samples_variance <- NULL
     }
@@ -1886,6 +1886,7 @@ bcf <- function(
     )
     result[['y_hat_test']] <- bcf_results[['y_hat_test']]
   }
+  mu_forests_r <- NULL
   if (has_mu_forest_predictions_train || has_mu_forest_predictions_test) {
     mu_forests_r <- ForestSamples$new(
       num_trees_mu,
@@ -1896,8 +1897,8 @@ bcf <- function(
     mu_forests_r$forest_container_ptr <- bcf_results[[
       "mu_forests"
     ]]
-    result[["forests_mu"]] <- mu_forests_r
   }
+  tau_forests_r <- NULL
   if (has_tau_forest_predictions_train || has_tau_forest_predictions_test) {
     tau_forests_r <- ForestSamples$new(
       num_trees_tau,
@@ -1908,7 +1909,6 @@ bcf <- function(
     tau_forests_r$forest_container_ptr <- bcf_results[[
       "tau_forests"
     ]]
-    result[["forests_tau"]] <- tau_forests_r
   }
 
   # Unpack variance forest predictions if they were returned
@@ -1938,6 +1938,7 @@ bcf <- function(
   }
 
   # Unpack variance forest pointers
+  variance_forests_r <- NULL
   if (
     has_variance_forest_predictions_train ||
       has_variance_forest_predictions_test
@@ -1951,7 +1952,6 @@ bcf <- function(
     variance_forests_r$forest_container_ptr <- bcf_results[[
       "variance_forests"
     ]]
-    result[["forests_variance"]] <- variance_forests_r
   }
 
   # Unpack RFX predictions if they were returned
@@ -2036,6 +2036,27 @@ bcf <- function(
       "b_1_samples"
     ]]
   }
+
+  # Single-owner samples object owns the forests (no longer stored as $forests_mu /
+  # $forests_tau / $forests_variance). The global and leaf scale traces are also
+  # handed to it for continuation / merge, but remain plain model fields above.
+  # tau_0 / adaptive-coding samples stay outside the wrapper (plain fields only).
+  result[["samples"]] <- BCFSamples$new(
+    mu_forest = mu_forests_r,
+    tau_forest = tau_forests_r,
+    variance_forest = variance_forests_r,
+    global_var_samples = result[["sigma2_global_samples"]],
+    leaf_scale_mu_samples = result[["sigma2_leaf_mu_samples"]],
+    leaf_scale_tau_samples = result[["sigma2_leaf_tau_samples"]],
+    tau_0_samples = NULL,
+    b0_samples = NULL,
+    b1_samples = NULL,
+    y_bar = bcf_results[["y_bar"]],
+    y_std = bcf_results[["y_std"]],
+    num_samples = bcf_results[["num_samples"]],
+    treatment_dim = ncol(Z_train)
+  )
+
   if (internal_propensity_model) {
     result[["bart_propensity_model"]] = bart_model_propensity
   }
@@ -2043,6 +2064,63 @@ bcf <- function(
   class(result) <- "bcfmodel"
 
   return(result)
+}
+
+#' Guard accessor for a `bcfmodel`'s removed direct-forest fields.
+#'
+#' The sampled prognostic / treatment / variance forests are owned by a single
+#' `BCFSamples` object in `object$samples`; they are no longer stored as
+#' `$forests_mu` / `$forests_tau` / `$forests_variance`. Accessing those names
+#' raises an error pointing at the supported extraction path. All other fields
+#' (including the scale traces and adaptive-coding samples) fall through.
+#' @noRd
+#' @export
+`$.bcfmodel` <- function(x, name) {
+  forest_fields <- c(
+    forests_mu = "mu",
+    forests_tau = "tau",
+    forests_variance = "variance"
+  )
+  if (name %in% names(forest_fields)) {
+    stop(
+      sprintf(
+        paste0(
+          "`bcfmodel$%s` has been removed. The sampled forests are owned by `model$samples`; ",
+          "extract a standalone copy with `model$samples$materialize_%s_forest()`."
+        ),
+        name,
+        forest_fields[[name]]
+      ),
+      call. = FALSE
+    )
+  }
+  .subset2(x, name)
+}
+
+# Assemble the single-owner BCFSamples object from the components a from_json
+# loader has populated on `output`, then drop the now-removed direct forest
+# fields. Forests live only in `$samples`; scale / tau_0 / coding traces stay
+# as plain fields. tau_0 and adaptive-coding samples are kept outside the wrapper.
+.attachBcfSamples <- function(output, model_params) {
+  output[["samples"]] <- BCFSamples$new(
+    mu_forest = output[["forests_mu"]],
+    tau_forest = output[["forests_tau"]],
+    variance_forest = output[["forests_variance"]],
+    global_var_samples = output[["sigma2_global_samples"]],
+    leaf_scale_mu_samples = output[["sigma2_leaf_mu_samples"]],
+    leaf_scale_tau_samples = output[["sigma2_leaf_tau_samples"]],
+    tau_0_samples = NULL,
+    b0_samples = NULL,
+    b1_samples = NULL,
+    y_bar = model_params[["outcome_mean"]],
+    y_std = model_params[["outcome_scale"]],
+    num_samples = model_params[["num_samples"]],
+    treatment_dim = model_params[["treatment_dim"]]
+  )
+  output[["forests_mu"]] <- NULL
+  output[["forests_tau"]] <- NULL
+  output[["forests_variance"]] <- NULL
+  output
 }
 
 #' @title Predict from BCF Model
@@ -2064,7 +2142,7 @@ bcf <- function(
 #'   \itemize{
 #'     \item `"tau"` returns `tau_0 + tau(X)`: the parametric treatment intercept (if sampled) plus the treatment forest. This matches `model$tau_hat_train` / `model$tau_hat_test`.
 #'     \item `"cate"` additionally folds in the random slope on treatment when random effects are fit with `rfx_model_spec = "intercept_plus_treatment"`; otherwise it is identical to `"tau"`.
-#'     \item The raw forest-only component (without `tau_0`) is not directly returned by this method; use `model$forests_tau` to access it.
+#'     \item The raw forest-only component (without `tau_0`) is not directly returned by this method; extract the treatment forest with `model$samples$materialize_tau_forest()` to access it.
 #'   }
 #'
 #'   Similarly for the prognostic term: `"mu"` returns the prognostic forest only, while `"prognostic_function"` additionally folds in the random intercept when `rfx_model_spec` is `"intercept_only"` or `"intercept_plus_treatment"`; otherwise the two are identical.
@@ -2406,21 +2484,24 @@ predict.bcfmodel <- function(
   has_variance_forest_model <- isTRUE(
     object$model_params$include_variance_forest
   )
+  # Read forests through borrowed (non-owning) pointers into the single-owner
+  # samples object -- no deep copy, no deprecated-accessor error.
+  bcf_samples <- object$samples
   variance_forest_ptr <- NULL
   if (has_variance_forest_model) {
-    if (!is.null(object$forests_variance)) {
-      variance_forest_ptr <- object$forests_variance$forest_container_ptr
+    if (!is.null(bcf_samples) && bcf_samples$has_variance_forest()) {
+      variance_forest_ptr <- bcf_samples$variance_forest_ptr()
     }
   }
   has_rfx_model <- isTRUE(object$model_params$has_rfx)
   bcf_model_list <- list(
-    mu_forests = if (!is.null(object$forests_mu)) {
-      object$forests_mu$forest_container_ptr
+    mu_forests = if (!is.null(bcf_samples) && bcf_samples$has_mu_forest()) {
+      bcf_samples$mu_forest_ptr()
     } else {
       NULL
     },
-    tau_forests = if (!is.null(object$forests_tau)) {
-      object$forests_tau$forest_container_ptr
+    tau_forests = if (!is.null(bcf_samples) && bcf_samples$has_tau_forest()) {
+      bcf_samples$tau_forest_ptr()
     } else {
       NULL
     },
@@ -3325,11 +3406,13 @@ saveBCFModelToJson <- function(object) {
     stop("This BCF model has not yet been sampled")
   }
 
-  # Add the forests under self-describing named keys
-  jsonobj$add_forest(object$forests_mu, "prognostic_forest")
-  jsonobj$add_forest(object$forests_tau, "treatment_forest")
+  # Add the forests under self-describing named keys, serializing through
+  # non-owning views into the single-owner samples object.
+  bcf_samples <- object$samples
+  jsonobj$add_forest(bcf_samples$mu_forest_view(), "prognostic_forest")
+  jsonobj$add_forest(bcf_samples$tau_forest_view(), "treatment_forest")
   if (object$model_params$include_variance_forest) {
-    jsonobj$add_forest(object$forests_variance, "variance_forest")
+    jsonobj$add_forest(bcf_samples$variance_forest_view(), "variance_forest")
   }
 
   # Add version stamp and global parameters
@@ -3856,6 +3939,7 @@ createBCFModelFromJson <- function(json_object) {
     ))
   }
 
+  output <- .attachBcfSamples(output, model_params)
   class(output) <- "bcfmodel"
   return(output)
 }
@@ -4314,6 +4398,7 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
     ))
   }
 
+  output <- .attachBcfSamples(output, model_params)
   class(output) <- "bcfmodel"
   return(output)
 }
@@ -4765,6 +4850,7 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
     ))
   }
 
+  output <- .attachBcfSamples(output, model_params)
   class(output) <- "bcfmodel"
   return(output)
 }

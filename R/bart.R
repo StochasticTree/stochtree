@@ -440,12 +440,12 @@ bart <- function(
     previous_y_bar <- previous_bart_model$model_params$outcome_mean
     previous_y_scale <- previous_bart_model$model_params$outcome_scale
     if (previous_bart_model$model_params$include_mean_forest) {
-      previous_forest_samples_mean <- previous_bart_model$mean_forests
+      previous_forest_samples_mean <- previous_bart_model$samples$materialize_mean_forest()
     } else {
       previous_forest_samples_mean <- NULL
     }
     if (previous_bart_model$model_params$include_variance_forest) {
-      previous_forest_samples_variance <- previous_bart_model$variance_forests
+      previous_forest_samples_variance <- previous_bart_model$samples$materialize_variance_forest()
     } else {
       previous_forest_samples_variance <- NULL
     }
@@ -1385,6 +1385,7 @@ bart <- function(
       bart_results[["y_std"]] +
       bart_results[["y_bar"]]
   }
+  mean_forests_r <- NULL
   if (has_mean_forest_predictions_train || has_mean_forest_predictions_test) {
     mean_forests_r <- ForestSamples$new(
       num_trees_mean,
@@ -1395,7 +1396,6 @@ bart <- function(
     mean_forests_r$forest_container_ptr <- bart_results[[
       "mean_forests"
     ]]
-    result[["mean_forests"]] <- mean_forests_r
   }
 
   # Unpack variance forest predictions if they were returned
@@ -1423,6 +1423,7 @@ bart <- function(
       "variance_forest_predictions_test"
     ]]
   }
+  variance_forests_r <- NULL
   if (
     has_variance_forest_predictions_train ||
       has_variance_forest_predictions_test
@@ -1436,7 +1437,6 @@ bart <- function(
     variance_forests_r$forest_container_ptr <- bart_results[[
       "variance_forests"
     ]]
-    result[["variance_forests"]] <- variance_forests_r
   }
 
   # Unpack RFX predictions if they were returned
@@ -1487,14 +1487,27 @@ bart <- function(
     result[["rfx_unique_group_ids"]] = levels(group_ids_factor)
   }
 
-  # Unpack global error variance samples (already scaled to original space by C++)
+  # Single-owner samples object owns the forests (forests are no longer stored as
+  # $mean_forests / $variance_forests). The scale traces are also handed to the
+  # C++ samples object (for continuation / multi-chain merge) but remain plain
+  # model fields below, on the same user-facing scale as before, so direct reads
+  # like $sigma2_global_samples are unchanged.
+  result[["samples"]] <- BARTSamples$new(
+    mean_forest = mean_forests_r,
+    variance_forest = variance_forests_r,
+    global_var_samples = bart_results[["global_error_variance_samples"]],
+    leaf_scale_samples = bart_results[["leaf_scale_samples"]],
+    y_bar = bart_results[["y_bar"]],
+    y_std = bart_results[["y_std"]],
+    num_samples = bart_results[["num_samples"]]
+  )
+
+  # Scale traces stay as plain model fields (global: original scale; leaf: standardized).
   if (!is.null(bart_results[["global_error_variance_samples"]])) {
     result[["sigma2_global_samples"]] <- bart_results[[
       "global_error_variance_samples"
     ]]
   }
-
-  # Unpack leaf scale samples (already in standardized space; store as-is)
   if (!is.null(bart_results[["leaf_scale_samples"]])) {
     result[["sigma2_leaf_samples"]] <- bart_results[["leaf_scale_samples"]]
   }
@@ -1517,6 +1530,51 @@ bart <- function(
   class(result) <- "bartmodel"
 
   return(result)
+}
+
+#' Guard accessor for a `bartmodel`'s removed direct-forest fields.
+#'
+#' The sampled forests are owned by a single `BARTSamples` object stored in
+#' `object$samples`; they are no longer stored as `$mean_forests` / `$variance_forests`.
+#' Accessing those names raises an error pointing at the supported extraction path.
+#' All other fields (including the scale traces) fall through to ordinary list
+#' extraction via `.subset2()`.
+#' @noRd
+#' @export
+`$.bartmodel` <- function(x, name) {
+  if (identical(name, "mean_forests") || identical(name, "variance_forests")) {
+    forest <- if (identical(name, "mean_forests")) "mean" else "variance"
+    stop(
+      sprintf(
+        paste0(
+          "`bartmodel$%s` has been removed. The sampled forests are owned by `model$samples`; ",
+          "extract a standalone copy with `model$samples$materialize_%s_forest()`."
+        ),
+        name,
+        forest
+      ),
+      call. = FALSE
+    )
+  }
+  .subset2(x, name)
+}
+
+# Assemble the single-owner BARTSamples object from the components a from_json
+# loader has populated on `output`, then drop the now-removed direct forest
+# fields. Forests live only in `$samples`; the scale traces remain plain fields.
+.attachBartSamples <- function(output, model_params) {
+  output[["samples"]] <- BARTSamples$new(
+    mean_forest = output[["mean_forests"]],
+    variance_forest = output[["variance_forests"]],
+    global_var_samples = output[["sigma2_global_samples"]],
+    leaf_scale_samples = output[["sigma2_leaf_samples"]],
+    y_bar = model_params[["outcome_mean"]],
+    y_std = model_params[["outcome_scale"]],
+    num_samples = model_params[["num_samples"]]
+  )
+  output[["mean_forests"]] <- NULL
+  output[["variance_forests"]] <- NULL
+  output
 }
 
 #' @title Predict from a BART Model
@@ -1744,14 +1802,18 @@ predict.bartmodel <- function(
     }
   }
 
+  # Read the forests through borrowed (non-owning) pointers into the single-owner
+  # samples object -- no deep copy, and avoids tripping the deprecated $mean_forests
+  # accessor's warning on internal prediction.
+  bart_samples <- object$samples
   bart_model_list <- list(
-    mean_forests = if (!is.null(object$mean_forests)) {
-      object$mean_forests$forest_container_ptr
+    mean_forests = if (!is.null(bart_samples) && bart_samples$has_mean_forest()) {
+      bart_samples$mean_forest_ptr()
     } else {
       NULL
     },
-    variance_forests = if (!is.null(object$variance_forests)) {
-      object$variance_forests$forest_container_ptr
+    variance_forests = if (!is.null(bart_samples) && bart_samples$has_variance_forest()) {
+      bart_samples$variance_forest_ptr()
     } else {
       NULL
     },
@@ -2485,12 +2547,15 @@ saveBARTModelToJson <- function(object) {
     stop("This BCF model has not yet been sampled")
   }
 
-  # Add the forests under self-describing named keys
+  # Add the forests under self-describing named keys, serializing through
+  # non-owning views into the single-owner samples object (no deep copy, no
+  # deprecated-accessor warning).
+  bart_samples <- object$samples
   if (object$model_params$include_mean_forest) {
-    jsonobj$add_forest(object$mean_forests, "mean_forest")
+    jsonobj$add_forest(bart_samples$mean_forest_view(), "mean_forest")
   }
   if (object$model_params$include_variance_forest) {
-    jsonobj$add_forest(object$variance_forests, "variance_forest")
+    jsonobj$add_forest(bart_samples$variance_forest_view(), "variance_forest")
   }
 
   # Add version stamp and global parameters
@@ -2905,6 +2970,7 @@ createBARTModelFromJson <- function(json_object) {
     ))
   }
 
+  output <- .attachBartSamples(output, model_params)
   class(output) <- "bartmodel"
   return(output)
 }
@@ -3243,6 +3309,7 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
     ))
   }
 
+  output <- .attachBartSamples(output, model_params)
   class(output) <- "bartmodel"
   return(output)
 }
@@ -3561,6 +3628,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
     ))
   }
 
+  output <- .attachBartSamples(output, model_params)
   class(output) <- "bartmodel"
   return(output)
 }

@@ -109,14 +109,60 @@ class BCFModel:
 
     def _set_samples(self, samples) -> None:
         """Install a new BCFSamplesCpp as the single source of truth and invalidate the
-        materialized forest-container caches."""
+        internal materialized forest-container caches."""
         self._samples = samples
         self._fc_mu_cache = None
         self._fc_tau_cache = None
         self._fc_variance_cache = None
 
     @property
-    def forest_container_mu(self):
+    def samples(self):
+        """The single-owner ``BCFSamplesCpp`` holding the sampled forests and parameter traces."""
+        return self._samples
+
+    def extract_forest(self, forest: str = "prognostic"):
+        """Return a standalone deep copy of a sampled forest as a ``ForestContainer``.
+
+        Parameters
+        ----------
+        forest : str
+            Which forest to extract: ``"prognostic"`` (mu), ``"treatment"`` (tau), or ``"variance"``.
+
+        Returns
+        -------
+        ForestContainer or None
+            A deep copy independent of the model, or ``None`` if that forest was not sampled.
+        """
+        if self._samples is None:
+            raise RuntimeError("Model has not been sampled; no forests to extract.")
+        if forest in ("prognostic", "mu"):
+            if not self._samples.has_mu_forest():
+                return None
+            cpp = self._samples.materialize_mu_forest()
+            fc = ForestContainer(cpp.NumTrees(), 1, True, False)
+            fc.forest_container_cpp = cpp
+            return fc
+        elif forest in ("treatment", "tau"):
+            if not self._samples.has_tau_forest():
+                return None
+            cpp = self._samples.materialize_tau_forest()
+            fc = ForestContainer(cpp.NumTrees(), self.treatment_dim, False, False)
+            fc.forest_container_cpp = cpp
+            return fc
+        elif forest == "variance":
+            if not self._samples.has_variance_forest():
+                return None
+            cpp = self._samples.materialize_variance_forest()
+            fc = ForestContainer(cpp.NumTrees(), 1, True, True)
+            fc.forest_container_cpp = cpp
+            return fc
+        raise ValueError(
+            f"Unknown forest '{forest}'; expected 'prognostic', 'treatment', or 'variance'."
+        )
+
+    @property
+    def _forest_container_mu(self):
+        # Internal cached deep copy for prediction / serialization (no borrowed-ptr accessor).
         if self._samples is None or not self._samples.has_mu_forest():
             return None
         if self._fc_mu_cache is None:
@@ -127,7 +173,7 @@ class BCFModel:
         return self._fc_mu_cache
 
     @property
-    def forest_container_tau(self):
+    def _forest_container_tau(self):
         if self._samples is None or not self._samples.has_tau_forest():
             return None
         if self._fc_tau_cache is None:
@@ -138,7 +184,7 @@ class BCFModel:
         return self._fc_tau_cache
 
     @property
-    def forest_container_variance(self):
+    def _forest_container_variance(self):
         if self._samples is None or not self._samples.has_variance_forest():
             return None
         if self._fc_variance_cache is None:
@@ -147,6 +193,27 @@ class BCFModel:
             fc.forest_container_cpp = cpp
             self._fc_variance_cache = fc
         return self._fc_variance_cache
+
+    @property
+    def forest_container_mu(self):
+        raise AttributeError(
+            "`BCFModel.forest_container_mu` has been removed. The sampled forests are owned by "
+            "`model.samples`; extract a standalone copy with `model.extract_forest('prognostic')`."
+        )
+
+    @property
+    def forest_container_tau(self):
+        raise AttributeError(
+            "`BCFModel.forest_container_tau` has been removed. The sampled forests are owned by "
+            "`model.samples`; extract a standalone copy with `model.extract_forest('treatment')`."
+        )
+
+    @property
+    def forest_container_variance(self):
+        raise AttributeError(
+            "`BCFModel.forest_container_variance` has been removed. The sampled forests are owned "
+            "by `model.samples`; extract a standalone copy with `model.extract_forest('variance')`."
+        )
 
     @property
     def global_var_samples(self):
@@ -2335,8 +2402,8 @@ class BCFModel:
             num_burnin=num_burnin,
             keep_every=keep_every,
             num_mcmc=num_mcmc,
-            mu_forest_container=self.forest_container_mu.forest_container_cpp,
-            tau_forest_container=self.forest_container_tau.forest_container_cpp,
+            mu_forest_container=self._forest_container_mu.forest_container_cpp,
+            tau_forest_container=self._forest_container_tau.forest_container_cpp,
             global_var_samples=self.global_var_samples if self.sample_sigma2_global else None,
             leaf_scale_mu_samples=self.leaf_scale_mu_samples if self.sample_sigma2_leaf_mu else None,
             leaf_scale_tau_samples=self.leaf_scale_tau_samples if self.sample_sigma2_leaf_tau else None,
@@ -2486,8 +2553,8 @@ class BCFModel:
                 )
         has_variance_forest = self.include_variance_forest
         has_rfx = self.has_rfx
-        has_mu_forest = self.forest_container_mu is not None
-        has_tau_forest = self.forest_container_tau is not None
+        has_mu_forest = self._forest_container_mu is not None
+        has_tau_forest = self._forest_container_tau is not None
         predict_y_hat = ("y_hat" in terms) or ("all" in terms)
         predict_mu_forest = ("mu" in terms) or ("all" in terms)
         predict_tau_forest = ("tau" in terms) or ("all" in terms)
@@ -2620,11 +2687,11 @@ class BCFModel:
         # Build a dictionary of model components that can be ingested and unpacked by bcf_predict_cpp
         variance_forest_ptr = None
         if has_variance_forest:
-            if self.forest_container_variance is not None:
-                variance_forest_ptr = self.forest_container_variance.forest_container_cpp
+            if self._forest_container_variance is not None:
+                variance_forest_ptr = self._forest_container_variance.forest_container_cpp
         bcf_model_dict = {
-          "mu_forests": self.forest_container_mu.forest_container_cpp if self.forest_container_mu is not None else None,
-          "tau_forests": self.forest_container_tau.forest_container_cpp if self.forest_container_tau is not None else None,
+          "mu_forests": self._forest_container_mu.forest_container_cpp if self._forest_container_mu is not None else None,
+          "tau_forests": self._forest_container_tau.forest_container_cpp if self._forest_container_tau is not None else None,
           "variance_forests": variance_forest_ptr,
           "rfx_container": self.rfx_container.rfx_container_cpp if has_rfx else None,
           "rfx_label_mapper": self.rfx_container.rfx_label_mapper_cpp if has_rfx else None,
@@ -3219,10 +3286,10 @@ class BCFModel:
         bcf_json = JSONSerializer()
 
         # Add the forests under self-describing named keys
-        bcf_json.add_forest(self.forest_container_mu, "prognostic_forest")
-        bcf_json.add_forest(self.forest_container_tau, "treatment_forest")
+        bcf_json.add_forest(self._forest_container_mu, "prognostic_forest")
+        bcf_json.add_forest(self._forest_container_tau, "treatment_forest")
         if self.include_variance_forest:
-            bcf_json.add_forest(self.forest_container_variance, "variance_forest")
+            bcf_json.add_forest(self._forest_container_variance, "variance_forest")
 
         # Add the rfx
         if self.has_rfx:

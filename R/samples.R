@@ -109,6 +109,27 @@ BARTSamples <- R6::R6Class(
     #' @description Borrowed (non-owning) external pointer to the variance forest container.
     variance_forest_ptr = function() bart_samples_variance_forest_ptr_cpp(self$samples_ptr),
 
+    #' @description Non-owning `ForestSamples` view over the mean forest (borrowed pointer,
+    #' no deep copy) for internal read-only consumers (serialization, kernels). NULL if absent.
+    mean_forest_view = function() {
+      if (!self$has_mean_forest()) {
+        return(NULL)
+      }
+      fc <- ForestSamples$new(0, 1, FALSE, FALSE)
+      fc$forest_container_ptr <- self$mean_forest_ptr()
+      fc
+    },
+
+    #' @description Non-owning `ForestSamples` view over the variance forest. NULL if absent.
+    variance_forest_view = function() {
+      if (!self$has_variance_forest()) {
+        return(NULL)
+      }
+      fc <- ForestSamples$new(0, 1, FALSE, FALSE)
+      fc$forest_container_ptr <- self$variance_forest_ptr()
+      fc
+    },
+
     #' @description Append another chain's draws onto this one (multi-chain combine).
     #' @param other Another `BARTSamples` with matching structure/standardization.
     merge = function(other) {
@@ -267,6 +288,36 @@ BCFSamples <- R6::R6Class(
 
     #' @description Borrowed (non-owning) external pointer to the variance forest container.
     variance_forest_ptr = function() bcf_samples_variance_forest_ptr_cpp(self$samples_ptr),
+
+    #' @description Non-owning `ForestSamples` view over the prognostic forest. NULL if absent.
+    mu_forest_view = function() {
+      if (!self$has_mu_forest()) {
+        return(NULL)
+      }
+      fc <- ForestSamples$new(0, 1, FALSE, FALSE)
+      fc$forest_container_ptr <- self$mu_forest_ptr()
+      fc
+    },
+
+    #' @description Non-owning `ForestSamples` view over the treatment forest. NULL if absent.
+    tau_forest_view = function() {
+      if (!self$has_tau_forest()) {
+        return(NULL)
+      }
+      fc <- ForestSamples$new(0, 1, FALSE, FALSE)
+      fc$forest_container_ptr <- self$tau_forest_ptr()
+      fc
+    },
+
+    #' @description Non-owning `ForestSamples` view over the variance forest. NULL if absent.
+    variance_forest_view = function() {
+      if (!self$has_variance_forest()) {
+        return(NULL)
+      }
+      fc <- ForestSamples$new(0, 1, FALSE, FALSE)
+      fc$forest_container_ptr <- self$variance_forest_ptr()
+      fc
+    },
 
     #' @description Append another chain's draws onto this one (multi-chain combine).
     #' @param other Another `BCFSamples` with matching structure/standardization.

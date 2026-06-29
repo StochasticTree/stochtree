@@ -100,28 +100,28 @@ computeForestLeafIndices <- function(
       if (!model_object$model_params$include_mean_forest) {
         stop("Mean forest was not sampled in the bart model provided")
       }
-      forest_container <- model_object$mean_forests
+      forest_container <- model_object$samples$mean_forest_view()
     } else if (forest_type == "variance") {
       if (!model_object$model_params$include_variance_forest) {
         stop(
           "Variance forest was not sampled in the bart model provided"
         )
       }
-      forest_container <- model_object$variance_forests
+      forest_container <- model_object$samples$variance_forest_view()
     }
   } else if (model_type == "bcf") {
     stopifnot(forest_type %in% c("prognostic", "treatment", "variance"))
     if (forest_type == "prognostic") {
-      forest_container <- model_object$forests_mu
+      forest_container <- model_object$samples$mu_forest_view()
     } else if (forest_type == "treatment") {
-      forest_container <- model_object$forests_tau
+      forest_container <- model_object$samples$tau_forest_view()
     } else if (forest_type == "variance") {
       if (!model_object$model_params$include_variance_forest) {
         stop(
           "Variance forest was not sampled in the bcf model provided"
         )
       }
-      forest_container <- model_object$variance_forests
+      forest_container <- model_object$samples$variance_forest_view()
     }
   } else {
     forest_container <- model_object
@@ -331,28 +331,28 @@ computeForestMaxLeafIndex <- function(
       if (!model_object$model_params$include_mean_forest) {
         stop("Mean forest was not sampled in the bart model provided")
       }
-      forest_container <- model_object$mean_forests
+      forest_container <- model_object$samples$mean_forest_view()
     } else if (forest_type == "variance") {
       if (!model_object$model_params$include_variance_forest) {
         stop(
           "Variance forest was not sampled in the bart model provided"
         )
       }
-      forest_container <- model_object$variance_forests
+      forest_container <- model_object$samples$variance_forest_view()
     }
   } else if (model_type == "bcf") {
     stopifnot(forest_type %in% c("prognostic", "treatment", "variance"))
     if (forest_type == "prognostic") {
-      forest_container <- model_object$forests_mu
+      forest_container <- model_object$samples$mu_forest_view()
     } else if (forest_type == "treatment") {
-      forest_container <- model_object$forests_tau
+      forest_container <- model_object$samples$tau_forest_view()
     } else if (forest_type == "variance") {
       if (!model_object$model_params$include_variance_forest) {
         stop(
           "Variance forest was not sampled in the bcf model provided"
         )
       }
-      forest_container <- model_object$variance_forests
+      forest_container <- model_object$samples$variance_forest_view()
     }
   } else {
     forest_container <- model_object

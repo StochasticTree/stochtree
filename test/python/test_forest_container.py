@@ -129,7 +129,7 @@ class TestPredict:
         )
 
         # Extract the mean forest container
-        mean_forest_container = bart_model.forest_container_mean
+        mean_forest_container = bart_model.extract_forest('mean')
 
         # Predict from the original container
         pred_orig = mean_forest_container.predict(forest_dataset_test)
@@ -175,7 +175,7 @@ class TestPredict:
         )
 
         # Extract the mean forest container
-        mean_forest_container = bart_model.forest_container_mean
+        mean_forest_container = bart_model.extract_forest('mean')
 
         # Predict from the original container
         pred_orig = mean_forest_container.predict(forest_dataset_test)
@@ -221,7 +221,7 @@ class TestPredict:
         )
 
         # Extract the mean forest container
-        mean_forest_container = bart_model.forest_container_mean
+        mean_forest_container = bart_model.extract_forest('mean')
 
         # Predict from the original container
         pred_orig = mean_forest_container.predict(forest_dataset_test)
@@ -254,7 +254,7 @@ class TestPredict:
         )
 
         # Extract the mean forest container
-        mean_forest_container = bart_model.forest_container_mean
+        mean_forest_container = bart_model.extract_forest('mean')
 
         # Predict from the original container
         pred_orig = mean_forest_container.predict(forest_dataset_test)

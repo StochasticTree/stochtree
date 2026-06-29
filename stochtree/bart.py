@@ -104,19 +104,57 @@ class BARTModel:
 
     def _set_samples(self, samples) -> None:
         """Install a new BARTSamplesCpp as the single source of truth and invalidate the
-        materialized forest-container caches so the next access re-derives them."""
+        internal materialized forest-container caches so the next access re-derives them."""
         self._samples = samples
         self._fc_mean_cache = None
         self._fc_variance_cache = None
 
     @property
-    def forest_container_mean(self):
+    def samples(self):
+        """The single-owner ``BARTSamplesCpp`` holding the sampled forests and parameter traces."""
+        return self._samples
+
+    def extract_forest(self, forest: str = "mean"):
+        """Return a standalone deep copy of a sampled forest as a ``ForestContainer``.
+
+        Parameters
+        ----------
+        forest : str
+            Which forest to extract: ``"mean"`` or ``"variance"``.
+
+        Returns
+        -------
+        ForestContainer or None
+            A deep copy independent of the model, or ``None`` if that forest was not sampled.
+        """
+        if self._samples is None:
+            raise RuntimeError("Model has not been sampled; no forests to extract.")
+        if forest == "mean":
+            if not self._samples.has_mean_forest():
+                return None
+            cpp = self._samples.materialize_mean_forest()
+            output_dim = self.num_basis if self.has_basis else 1
+            leaf_constant = not self.has_basis
+            fc = ForestContainer(cpp.NumTrees(), output_dim, leaf_constant, False)
+            fc.forest_container_cpp = cpp
+            return fc
+        elif forest == "variance":
+            if not self._samples.has_variance_forest():
+                return None
+            cpp = self._samples.materialize_variance_forest()
+            fc = ForestContainer(cpp.NumTrees(), 1, True, True)
+            fc.forest_container_cpp = cpp
+            return fc
+        raise ValueError(f"Unknown forest '{forest}'; expected 'mean' or 'variance'.")
+
+    @property
+    def _forest_container_mean(self):
+        # Internal cached deep copy for prediction / serialization. The Python samples
+        # wrapper exposes no borrowed-pointer accessor, so we materialize once and reuse.
         if self._samples is None or not self._samples.has_mean_forest():
             return None
         if self._fc_mean_cache is None:
             cpp = self._samples.materialize_mean_forest()
-            # Construct the wrapper with the model's known leaf metadata (mirrors how sample() built
-            # it) so the Python-side metadata / __str__ are correct; then point it at the deep copy.
             output_dim = self.num_basis if self.has_basis else 1
             leaf_constant = not self.has_basis
             fc = ForestContainer(cpp.NumTrees(), output_dim, leaf_constant, False)
@@ -125,16 +163,29 @@ class BARTModel:
         return self._fc_mean_cache
 
     @property
-    def forest_container_variance(self):
+    def _forest_container_variance(self):
         if self._samples is None or not self._samples.has_variance_forest():
             return None
         if self._fc_variance_cache is None:
             cpp = self._samples.materialize_variance_forest()
-            # Variance forest: univariate, constant leaf, exponentiated (matches sample()).
             fc = ForestContainer(cpp.NumTrees(), 1, True, True)
             fc.forest_container_cpp = cpp
             self._fc_variance_cache = fc
         return self._fc_variance_cache
+
+    @property
+    def forest_container_mean(self):
+        raise AttributeError(
+            "`BARTModel.forest_container_mean` has been removed. The sampled forests are owned by "
+            "`model.samples`; extract a standalone copy with `model.extract_forest('mean')`."
+        )
+
+    @property
+    def forest_container_variance(self):
+        raise AttributeError(
+            "`BARTModel.forest_container_variance` has been removed. The sampled forests are owned "
+            "by `model.samples`; extract a standalone copy with `model.extract_forest('variance')`."
+        )
 
     @property
     def global_var_samples(self):
@@ -1667,7 +1718,7 @@ class BARTModel:
             num_burnin=num_burnin,
             keep_every=keep_every,
             num_mcmc=num_mcmc,
-            mean_forest_container=self.forest_container_mean.forest_container_cpp,
+            mean_forest_container=self._forest_container_mean.forest_container_cpp,
             global_var_samples=self.global_var_samples if self.sample_sigma2_global else None,
             leaf_scale_samples=self.leaf_scale_samples if self.sample_sigma2_leaf else None,
             y_bar=float(self.y_bar),
@@ -1915,8 +1966,8 @@ class BARTModel:
 
         # Construct dictionary of model components to pass to C++ prediction function, with None for any components not present in the model
         bart_model_dict = {
-            "mean_forests": self.forest_container_mean.forest_container_cpp if self.include_mean_forest else None,
-            "variance_forests": self.forest_container_variance.forest_container_cpp if self.include_variance_forest else None,
+            "mean_forests": self._forest_container_mean.forest_container_cpp if self.include_mean_forest else None,
+            "variance_forests": self._forest_container_variance.forest_container_cpp if self.include_variance_forest else None,
             "rfx_container": self.rfx_container.rfx_container_cpp if has_rfx else None,
             "rfx_label_mapper": self.rfx_container.rfx_label_mapper_cpp if has_rfx else None,
             "sigma2_global_samples": getattr(self, 'global_var_samples', None),
@@ -2575,9 +2626,9 @@ class BARTModel:
 
         # Add the forests under self-describing named keys
         if self.include_mean_forest:
-            bart_json.add_forest(self.forest_container_mean, "mean_forest")
+            bart_json.add_forest(self._forest_container_mean, "mean_forest")
         if self.include_variance_forest:
-            bart_json.add_forest(self.forest_container_variance, "variance_forest")
+            bart_json.add_forest(self._forest_container_variance, "variance_forest")
 
         # Add the rfx
         if self.has_rfx:

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from stochtree import BARTModel, BCFModel
 from stochtree_cpp import BARTSamplesCpp, BCFSamplesCpp
@@ -48,7 +49,7 @@ class TestBARTSamplesCpp:
         assert fc.NumSamples() == model.num_samples
         assert (
             fc.DumpJsonString()
-            == model.forest_container_mean.forest_container_cpp.DumpJsonString()
+            == model.extract_forest('mean').forest_container_cpp.DumpJsonString()
         )
 
         # This model has no variance forest
@@ -90,7 +91,7 @@ class TestBARTSamplesCpp:
         # (the construction path the model re-point will use), and check it matches the model.
         model = self._fit()
         samples = BARTSamplesCpp.from_components(
-            model.forest_container_mean.forest_container_cpp,
+            model.extract_forest('mean').forest_container_cpp,
             None,  # no variance forest
             model.global_var_samples if model.sample_sigma2_global else None,
             model.leaf_scale_samples if model.sample_sigma2_leaf else None,
@@ -105,9 +106,21 @@ class TestBARTSamplesCpp:
         # Deep-copied forest matches the source byte-for-byte
         assert (
             samples.materialize_mean_forest().DumpJsonString()
-            == model.forest_container_mean.forest_container_cpp.DumpJsonString()
+            == model.extract_forest('mean').forest_container_cpp.DumpJsonString()
         )
         assert not samples.has_variance_forest()
+
+    def test_direct_forest_access_raises(self):
+        # The public forest_container_* attributes were removed; accessing them raises and the
+        # message points at the supported extraction call.
+        model = self._fit()
+        with pytest.raises(AttributeError, match="extract_forest"):
+            _ = model.forest_container_mean
+        with pytest.raises(AttributeError, match="extract_forest"):
+            _ = model.forest_container_variance
+        # The documented extraction path works and returns a deep copy.
+        assert model.extract_forest("mean") is not None
+        assert model.samples is not None
 
 
 class TestBCFSamplesCpp:
@@ -150,11 +163,11 @@ class TestBCFSamplesCpp:
         assert samples.has_tau_forest()
         assert (
             samples.materialize_mu_forest().DumpJsonString()
-            == model.forest_container_mu.forest_container_cpp.DumpJsonString()
+            == model.extract_forest('prognostic').forest_container_cpp.DumpJsonString()
         )
         assert (
             samples.materialize_tau_forest().DumpJsonString()
-            == model.forest_container_tau.forest_container_cpp.DumpJsonString()
+            == model.extract_forest('treatment').forest_container_cpp.DumpJsonString()
         )
         assert not samples.has_variance_forest()
         assert samples.materialize_variance_forest() is None
@@ -174,8 +187,8 @@ class TestBCFSamplesCpp:
     def test_from_components(self):
         model = self._fit()
         samples = BCFSamplesCpp.from_components(
-            model.forest_container_mu.forest_container_cpp,
-            model.forest_container_tau.forest_container_cpp,
+            model.extract_forest('prognostic').forest_container_cpp,
+            model.extract_forest('treatment').forest_container_cpp,
             None,  # no variance forest
             model.global_var_samples if model.sample_sigma2_global else None,
             model.leaf_scale_mu_samples if model.sample_sigma2_leaf_mu else None,
@@ -194,9 +207,19 @@ class TestBCFSamplesCpp:
             np.testing.assert_allclose(samples.global_var_samples(), model.global_var_samples)
         assert (
             samples.materialize_mu_forest().DumpJsonString()
-            == model.forest_container_mu.forest_container_cpp.DumpJsonString()
+            == model.extract_forest('prognostic').forest_container_cpp.DumpJsonString()
         )
         assert (
             samples.materialize_tau_forest().DumpJsonString()
-            == model.forest_container_tau.forest_container_cpp.DumpJsonString()
+            == model.extract_forest('treatment').forest_container_cpp.DumpJsonString()
         )
+
+    def test_direct_forest_access_raises(self):
+        model = self._fit()
+        with pytest.raises(AttributeError, match="extract_forest"):
+            _ = model.forest_container_mu
+        with pytest.raises(AttributeError, match="extract_forest"):
+            _ = model.forest_container_tau
+        assert model.extract_forest("prognostic") is not None
+        assert model.extract_forest("treatment") is not None
+        assert model.samples is not None
