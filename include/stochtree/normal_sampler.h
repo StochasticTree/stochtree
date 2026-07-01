@@ -17,10 +17,6 @@ class UnivariateNormalSampler {
   double Sample(double mean, double variance, std::mt19937& gen) {
     return mean + std::sqrt(variance) * std_normal_dist_(gen);
   }
-  // Accessor to the underlying standard-normal distribution so its cached-value state
-  // (the Marsaglia-polar spare value) can be persisted/restored across a continuation
-  // boundary for bit-identical warm-start.
-  standard_normal& Dist() { return std_normal_dist_; }
 
  private:
   /*! \brief Standard normal distribution */

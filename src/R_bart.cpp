@@ -125,104 +125,20 @@ StochTree::BARTConfig convert_list_to_bart_config(cpp11::list config) {
   return output;
 }
 
-cpp11::writable::list convert_bart_results_to_list(StochTree::BARTSamples& bart_samples) {
-  cpp11::writable::list output;
-
-  // Pointers to forests
-  SEXP mean_forests_sexp = (bart_samples.mean_forests.get() != nullptr)
-                               ? static_cast<SEXP>(cpp11::external_pointer<StochTree::ForestContainer>(bart_samples.mean_forests.release()))
-                               : R_NilValue;
-  output.push_back(cpp11::named_arg("mean_forests") = mean_forests_sexp);
-
-  SEXP variance_forests_sexp = (bart_samples.variance_forests.get() != nullptr)
-                                   ? static_cast<SEXP>(cpp11::external_pointer<StochTree::ForestContainer>(bart_samples.variance_forests.release()))
-                                   : R_NilValue;
-  output.push_back(cpp11::named_arg("variance_forests") = variance_forests_sexp);
-
-  // Pointers to RFX model terms
-  SEXP rfx_container_sexp = (bart_samples.rfx_container.get() != nullptr)
-                                ? static_cast<SEXP>(cpp11::external_pointer<StochTree::RandomEffectsContainer>(bart_samples.rfx_container.release()))
-                                : R_NilValue;
-  output.push_back(cpp11::named_arg("rfx_container") = rfx_container_sexp);
-  SEXP rfx_label_mapper_sexp = (bart_samples.rfx_label_mapper.get() != nullptr)
-                                   ? static_cast<SEXP>(cpp11::external_pointer<StochTree::LabelMapper>(bart_samples.rfx_label_mapper.release()))
-                                   : R_NilValue;
-  output.push_back(cpp11::named_arg("rfx_label_mapper") = rfx_label_mapper_sexp);
-
-  // Predictions
-  SEXP mean_preds_train_sexp = !bart_samples.mean_forest_predictions_train.empty()
-                                   ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.mean_forest_predictions_train.begin(), bart_samples.mean_forest_predictions_train.end()))
-                                   : R_NilValue;
-  output.push_back(cpp11::named_arg("mean_forest_predictions_train") = mean_preds_train_sexp);
-
-  SEXP var_preds_train_sexp = !bart_samples.variance_forest_predictions_train.empty()
-                                  ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.variance_forest_predictions_train.begin(), bart_samples.variance_forest_predictions_train.end()))
-                                  : R_NilValue;
-  output.push_back(cpp11::named_arg("variance_forest_predictions_train") = var_preds_train_sexp);
-
-  SEXP mean_preds_test_sexp = !bart_samples.mean_forest_predictions_test.empty()
-                                  ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.mean_forest_predictions_test.begin(), bart_samples.mean_forest_predictions_test.end()))
-                                  : R_NilValue;
-  output.push_back(cpp11::named_arg("mean_forest_predictions_test") = mean_preds_test_sexp);
-
-  SEXP var_preds_test_sexp = !bart_samples.variance_forest_predictions_test.empty()
-                                 ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.variance_forest_predictions_test.begin(), bart_samples.variance_forest_predictions_test.end()))
-                                 : R_NilValue;
-  output.push_back(cpp11::named_arg("variance_forest_predictions_test") = var_preds_test_sexp);
-
-  // RFX predictions
-  SEXP rfx_preds_train_sexp = !bart_samples.rfx_predictions_train.empty()
-                                  ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.rfx_predictions_train.begin(), bart_samples.rfx_predictions_train.end()))
-                                  : R_NilValue;
-  output.push_back(cpp11::named_arg("rfx_predictions_train") = rfx_preds_train_sexp);
-
-  SEXP rfx_preds_test_sexp = !bart_samples.rfx_predictions_test.empty()
-                                 ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.rfx_predictions_test.begin(), bart_samples.rfx_predictions_test.end()))
-                                 : R_NilValue;
-  output.push_back(cpp11::named_arg("rfx_predictions_test") = rfx_preds_test_sexp);
-
-  // Parameter samples
-  SEXP global_var_sexp = !bart_samples.global_error_variance_samples.empty()
-                             ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.global_error_variance_samples.begin(), bart_samples.global_error_variance_samples.end()))
-                             : R_NilValue;
-  output.push_back(cpp11::named_arg("global_error_variance_samples") = global_var_sexp);
-
-  SEXP leaf_scale_sexp = !bart_samples.leaf_scale_samples.empty()
-                             ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.leaf_scale_samples.begin(), bart_samples.leaf_scale_samples.end()))
-                             : R_NilValue;
-  output.push_back(cpp11::named_arg("leaf_scale_samples") = leaf_scale_sexp);
-
-  SEXP cloglog_cutpoints_sexp = !bart_samples.cloglog_cutpoint_samples.empty()
-                                    ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.cloglog_cutpoint_samples.begin(), bart_samples.cloglog_cutpoint_samples.end()))
-                                    : R_NilValue;
-  output.push_back(cpp11::named_arg("cloglog_cutpoint_samples") = cloglog_cutpoints_sexp);
-
-  // Metadata about the model that was sampled
-  double y_bar_sexp = bart_samples.y_bar;
-  output.push_back(cpp11::named_arg("y_bar") = y_bar_sexp);
-  double y_std_sexp = bart_samples.y_std;
-  output.push_back(cpp11::named_arg("y_std") = y_std_sexp);
-  int num_samples_sexp = bart_samples.num_samples;
-  output.push_back(cpp11::named_arg("num_samples") = num_samples_sexp);
-  int num_train_sexp = bart_samples.num_train;
-  output.push_back(cpp11::named_arg("num_train") = num_train_sexp);
-  int num_test_sexp = bart_samples.num_test;
-  output.push_back(cpp11::named_arg("num_test") = num_test_sexp);
-  return output;
-}
-
-void add_config_to_bart_result_list(cpp11::writable::list& result, StochTree::BARTConfig& config) {
-  // Unpack more metadata about the model that was sampled
-  result.push_back(cpp11::named_arg("sigma2_global_init") = config.sigma2_global_init);
-  result.push_back(cpp11::named_arg("sigma2_mean_init") = config.sigma2_mean_init);
-  result.push_back(cpp11::named_arg("b_sigma2_mean") = config.b_sigma2_mean);
-  result.push_back(cpp11::named_arg("shape_variance_forest") = config.shape_variance_forest);
-  result.push_back(cpp11::named_arg("scale_variance_forest") = config.scale_variance_forest);
-  return;
+cpp11::writable::list create_bart_metadata(StochTree::BARTConfig& config) {
+  // Unpack metadata about the model that was sampled
+  cpp11::writable::list model_metadata;
+  model_metadata.push_back(cpp11::named_arg("sigma2_global_init") = config.sigma2_global_init);
+  model_metadata.push_back(cpp11::named_arg("sigma2_mean_init") = config.sigma2_mean_init);
+  model_metadata.push_back(cpp11::named_arg("b_sigma2_mean") = config.b_sigma2_mean);
+  model_metadata.push_back(cpp11::named_arg("shape_variance_forest") = config.shape_variance_forest);
+  model_metadata.push_back(cpp11::named_arg("scale_variance_forest") = config.scale_variance_forest);
+  return model_metadata;
 }
 
 [[cpp11::register]]
 cpp11::writable::list bart_sample_cpp(
+    cpp11::external_pointer<StochTree::BARTSamples> samples,
     cpp11::sexp X_train,
     cpp11::sexp y_train,
     cpp11::sexp X_test,
@@ -246,9 +162,6 @@ cpp11::writable::list bart_sample_cpp(
     int num_mcmc,
     int num_chains,
     cpp11::list config_input) {
-  // Create outcome object
-  StochTree::BARTSamples results_raw = StochTree::BARTSamples();
-
   // Extract pointers to raw data
   int protect_count = 0;
   double* X_train_ptr = extract_numeric_pointer(X_train, "X_train", protect_count);
@@ -288,24 +201,23 @@ cpp11::writable::list bart_sample_cpp(
   StochTree::BARTConfig config = convert_list_to_bart_config(config_input);
 
   // Initialize a BART sampler
-  StochTree::BARTSampler bart_sampler(results_raw, config, data);
+  StochTree::BARTSampler bart_sampler(*samples, config, data);
 
   // Run the sampler
-  bart_sampler.run_gfr(results_raw, num_gfr, config.keep_gfr, num_chains);
+  bart_sampler.run_gfr(*samples, num_gfr, config.keep_gfr, num_chains);
   if (num_chains > 1) {
-    bart_sampler.run_mcmc_chains(results_raw, num_chains, num_burnin, keep_every, num_mcmc);
+    bart_sampler.run_mcmc_chains(*samples, num_chains, num_burnin, keep_every, num_mcmc);
   } else {
-    bart_sampler.run_mcmc(results_raw, num_burnin, keep_every, num_mcmc);
+    bart_sampler.run_mcmc(*samples, num_burnin, keep_every, num_mcmc);
   }
-  bart_sampler.postprocess_samples(results_raw);
+  bart_sampler.postprocess_samples(*samples);
 
   // Unprotect protected R objects
   UNPROTECT(protect_count);
 
-  // Unpack outputs
-  cpp11::writable::list output_list = convert_bart_results_to_list(results_raw);
-  add_config_to_bart_result_list(output_list, config);
-  return output_list;
+  // Unpack metadata
+  cpp11::writable::list metadata_list = create_bart_metadata(config);
+  return metadata_list;
 }
 
 cpp11::writable::list convert_bart_preds_to_list(StochTree::BARTPredictionResult& bart_preds) {
@@ -337,7 +249,8 @@ cpp11::writable::list convert_bart_preds_to_list(StochTree::BARTPredictionResult
 
 [[cpp11::register]]
 cpp11::writable::list bart_predict_cpp(
-    cpp11::list bart_model_list,
+    cpp11::external_pointer<StochTree::BARTSamples> bart_samples_ptr,
+    cpp11::list bart_model_metadata,
     cpp11::sexp X,
     cpp11::sexp leaf_basis,
     int n,
@@ -377,84 +290,65 @@ cpp11::writable::list bart_predict_cpp(
   data.rfx_basis_dim = rfx_basis_dim;
 
   // Load the BCF model and config from the model list
-  StochTree::BARTPredictionInput pred_input;
-  pred_input.global_error_variance_samples = extract_numeric_pointer(bart_model_list["sigma2_global_samples"], "sigma2_global_samples", protect_count);
-  pred_input.leaf_scale_samples = extract_numeric_pointer(bart_model_list["sigma2_leaf_samples"], "sigma2_leaf_samples", protect_count);
-  SEXP mean_forests_sexp = static_cast<SEXP>(bart_model_list["mean_forests"]);
-  if (!Rf_isNull(mean_forests_sexp)) {
-    pred_input.mean_forests = cpp11::external_pointer<StochTree::ForestContainer>(mean_forests_sexp).get();
-  }
-  SEXP variance_forests_sexp = static_cast<SEXP>(bart_model_list["variance_forests"]);
-  if (!Rf_isNull(variance_forests_sexp)) {
-    pred_input.variance_forests = cpp11::external_pointer<StochTree::ForestContainer>(variance_forests_sexp).get();
-  }
-  SEXP rfx_container_sexp = static_cast<SEXP>(bart_model_list["rfx_container"]);
-  if (!Rf_isNull(rfx_container_sexp)) {
-    pred_input.rfx_container = cpp11::external_pointer<StochTree::RandomEffectsContainer>(rfx_container_sexp).get();
-  }
-  SEXP rfx_label_mapper_sexp = static_cast<SEXP>(bart_model_list["rfx_label_mapper"]);
-  if (!Rf_isNull(rfx_label_mapper_sexp)) {
-    pred_input.rfx_label_mapper = cpp11::external_pointer<StochTree::LabelMapper>(rfx_label_mapper_sexp).get();
-  }
-  pred_input.num_samples = Rf_asInteger(bart_model_list["num_samples"]);
-  pred_input.num_obs = n;
-  pred_input.num_basis = num_basis;
-  pred_input.y_bar = Rf_asReal(bart_model_list["y_bar"]);
-  pred_input.y_std = Rf_asReal(bart_model_list["y_std"]);
-  pred_input.has_variance_forest = (bool)Rf_asLogical(bart_model_list["include_variance_forest"]);
-  pred_input.has_rfx = (bool)Rf_asLogical(bart_model_list["has_rfx"]);
-  pred_input.cloglog_cutpoint_samples = extract_numeric_pointer(bart_model_list["cloglog_cutpoint_samples"], "cloglog_cutpoint_samples", protect_count);
-  pred_input.cloglog_num_classes = Rf_asInteger(bart_model_list["cloglog_num_classes"]);
+  StochTree::BARTPredictionMetadata pred_metadata;
+  pred_metadata.num_samples = Rf_asInteger(bart_model_metadata["num_samples"]);
+  pred_metadata.num_obs = n;
+  pred_metadata.num_basis = num_basis;
+  pred_metadata.y_bar = Rf_asReal(bart_model_metadata["y_bar"]);
+  pred_metadata.y_std = Rf_asReal(bart_model_metadata["y_std"]);
+  pred_metadata.has_variance_forest = (bool)Rf_asLogical(bart_model_metadata["include_variance_forest"]);
+  pred_metadata.has_rfx = (bool)Rf_asLogical(bart_model_metadata["has_rfx"]);
+  pred_metadata.cloglog_num_classes = Rf_asInteger(bart_model_metadata["cloglog_num_classes"]);
   {
-    SEXP rfx_spec_sexp = bart_model_list["rfx_model_spec"];
+    SEXP rfx_spec_sexp = bart_model_metadata["rfx_model_spec"];
     std::string rfx_model_spec_str = Rf_isNull(rfx_spec_sexp) ? "" : std::string(CHAR(STRING_ELT(rfx_spec_sexp, 0)));
     if (rfx_model_spec_str == "intercept_only") {
-      pred_input.rfx_model_spec = StochTree::BARTRFXModelSpec::InterceptOnly;
+      pred_metadata.rfx_model_spec = StochTree::BARTRFXModelSpec::InterceptOnly;
     } else {
-      pred_input.rfx_model_spec = StochTree::BARTRFXModelSpec::Custom;
+      pred_metadata.rfx_model_spec = StochTree::BARTRFXModelSpec::Custom;
     }
   }
-  pred_input.pred_type = posterior ? StochTree::PredType::kPosterior : StochTree::PredType::kMean;
+  pred_metadata.pred_type = posterior ? StochTree::PredType::kPosterior : StochTree::PredType::kMean;
   if (scale == 0) {
-    pred_input.pred_scale = StochTree::PredScale::kLinear;
+    pred_metadata.pred_scale = StochTree::PredScale::kLinear;
   } else if (scale == 1) {
-    pred_input.pred_scale = StochTree::PredScale::kProbability;
+    pred_metadata.pred_scale = StochTree::PredScale::kProbability;
   } else {
-    pred_input.pred_scale = StochTree::PredScale::kClass;
+    pred_metadata.pred_scale = StochTree::PredScale::kClass;
   }
-  pred_input.pred_terms.y_hat = predict_y_hat;
-  pred_input.pred_terms.mean_forest = predict_mean_forest;
-  pred_input.pred_terms.variance_forest = predict_variance_forest;
-  pred_input.pred_terms.random_effects = predict_random_effects;
+  pred_metadata.pred_terms.y_hat = predict_y_hat;
+  pred_metadata.pred_terms.mean_forest = predict_mean_forest;
+  pred_metadata.pred_terms.variance_forest = predict_variance_forest;
+  pred_metadata.pred_terms.random_effects = predict_random_effects;
   {
-    SEXP link_function_sexp = bart_model_list["link_function"];
+    SEXP link_function_sexp = bart_model_metadata["link_function"];
     std::string link_function_str = Rf_isNull(link_function_sexp) ? "" : std::string(CHAR(STRING_ELT(link_function_sexp, 0)));
     if (link_function_str == "identity") {
-      pred_input.link_function = StochTree::LinkFunction::Identity;
+      pred_metadata.link_function = StochTree::LinkFunction::Identity;
     } else if (link_function_str == "probit") {
-      pred_input.link_function = StochTree::LinkFunction::Probit;
+      pred_metadata.link_function = StochTree::LinkFunction::Probit;
     } else if (link_function_str == "cloglog") {
-      pred_input.link_function = StochTree::LinkFunction::Cloglog;
+      pred_metadata.link_function = StochTree::LinkFunction::Cloglog;
     } else {
       StochTree::Log::Fatal("Unsupported link function specified in model list");
     }
   }
   {
-    SEXP outcome_type_sexp = bart_model_list["outcome_type"];
+    SEXP outcome_type_sexp = bart_model_metadata["outcome_type"];
     std::string outcome_type_str = Rf_isNull(outcome_type_sexp) ? "" : std::string(CHAR(STRING_ELT(outcome_type_sexp, 0)));
     if (outcome_type_str == "continuous") {
-      pred_input.outcome_type = StochTree::OutcomeType::Continuous;
+      pred_metadata.outcome_type = StochTree::OutcomeType::Continuous;
     } else if (outcome_type_str == "binary") {
-      pred_input.outcome_type = StochTree::OutcomeType::Binary;
+      pred_metadata.outcome_type = StochTree::OutcomeType::Binary;
     } else if (outcome_type_str == "ordinal") {
-      pred_input.outcome_type = StochTree::OutcomeType::Ordinal;
+      pred_metadata.outcome_type = StochTree::OutcomeType::Ordinal;
     } else {
       StochTree::Log::Fatal("Unsupported outcome type specified in model list");
     }
   }
 
   // Run the prediction function
-  StochTree::BARTPredictionResult pred_results = predict_bart_model(data, pred_input);
+  StochTree::BARTPredictionResult pred_results = predict_bart_model(data, *bart_samples_ptr, pred_metadata);
 
   // Unprotect protected R objects
   UNPROTECT(protect_count);

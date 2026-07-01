@@ -1,8 +1,4 @@
-# R6 wrapper around the single-owner C++ BARTSamples object, mirroring the ForestSamples idiom
-# (R/forest.R): the external pointer lives in a field and methods forward to cpp11 free functions.
-# This is the R analog of the Python BARTSamplesCpp wrapper -- one object that owns the sampled
-# forests + parameter traces, with materialize-on-demand deep-copied forest views for the
-# (deprecated) direct forest accessor.
+# R6 wrapper around the C++ BARTSamples object
 
 #' @description
 #' Container holding a sampled BART model's forests and parameter traces as a single C++ object.
@@ -15,38 +11,21 @@ BARTSamples <- R6::R6Class(
     samples_ptr = NULL,
 
     #' @description
-    #' Build a BARTSamples object by deep-copying existing forest containers and parameter arrays.
-    #' @param mean_forest `ForestSamples` for the mean forest (or NULL for a variance-only model)
-    #' @param variance_forest `ForestSamples` for the variance forest (or NULL)
-    #' @param global_var_samples Numeric vector of global error variance samples (or NULL)
-    #' @param leaf_scale_samples Numeric vector of leaf scale samples (or NULL)
-    #' @param y_bar Outcome mean used for standardization
-    #' @param y_std Outcome standard deviation used for standardization
-    #' @param num_samples Number of retained posterior samples
-    initialize = function(
-      mean_forest = NULL,
-      variance_forest = NULL,
-      global_var_samples = NULL,
-      leaf_scale_samples = NULL,
-      y_bar = 0.0,
-      y_std = 1.0,
-      num_samples = 0L
-    ) {
-      mean_ptr <- if (!is.null(mean_forest)) mean_forest$forest_container_ptr else NULL
-      variance_ptr <- if (!is.null(variance_forest)) {
-        variance_forest$forest_container_ptr
-      } else {
-        NULL
-      }
-      self$samples_ptr <- bart_samples_from_components_cpp(
-        mean_ptr,
-        variance_ptr,
-        global_var_samples,
-        leaf_scale_samples,
-        y_bar,
-        y_std,
-        as.integer(num_samples)
-      )
+    #' Initialize an empty BARTSamples object in C++ and wrap an external pointer to the object.
+    initialize = function() {
+      self$samples_ptr <- bart_samples_cpp()
+    },
+
+    #' @description
+    #' Initialize a BARTSamples object from JSON and wrap an external pointer to the object.
+    from_json = function(json) {
+      self$samples_ptr <- bart_samples_from_json_cpp(json$json_ptr)
+    },
+
+    #' @description
+    #' Convert a BARTSamples object to JSON and include it in a `CppJson` object wrapping a C++ JSON representation.
+    append_to_json = function(json) {
+      append_bart_samples_to_json_cpp(self$samples_ptr, json$json_ptr)
     },
 
     #' @description Number of retained posterior samples.
@@ -58,12 +37,59 @@ BARTSamples <- R6::R6Class(
     #' @description Outcome standard deviation used for standardization.
     y_std = function() bart_samples_y_std_cpp(self$samples_ptr),
 
+    #' @description Whether global error scale samples are present.
+    has_global_var_samples = function() {
+      bart_samples_has_global_var_samples_cpp(self$samples_ptr)
+    },
+
+    #' @description Whether leaf scale samples are present.
+    has_leaf_scale_samples = function() {
+      bart_samples_has_leaf_scale_samples_cpp(self$samples_ptr)
+    },
+
+    #' @description Whether outcome predictions for the training set are present.
+    has_yhat_train = function() {
+      bart_samples_has_yhat_train_cpp(self$samples_ptr)
+    },
+
+    #' @description Whether mean forest predictions for the training set are present.
+    has_mean_forest_predictions_train = function() {
+      bart_samples_has_mean_forest_predictions_train_cpp(self$samples_ptr)
+    },
+
+    #' @description Whether variance forest predictions for the training set are present.
+    has_variance_forest_predictions_train = function() {
+      bart_samples_has_variance_forest_predictions_train_cpp(self$samples_ptr)
+    },
+
+    #' @description Whether outcome predictions for the test set are present.
+    has_yhat_test = function() {
+      bart_samples_has_yhat_test_cpp(self$samples_ptr)
+    },
+
+    #' @description Whether mean forest predictions for the test set are present.
+    has_mean_forest_predictions_test = function() {
+      bart_samples_has_mean_forest_predictions_test_cpp(self$samples_ptr)
+    },
+
+    #' @description Whether variance forest predictions for the test set are present.
+    has_variance_forest_predictions_test = function() {
+      bart_samples_has_variance_forest_predictions_test_cpp(self$samples_ptr)
+    },
+
     #' @description Whether a mean forest is present.
-    has_mean_forest = function() bart_samples_has_mean_forest_cpp(self$samples_ptr),
+    has_mean_forest = function() {
+      bart_samples_has_mean_forest_cpp(self$samples_ptr)
+    },
 
     #' @description Whether a variance forest is present.
     has_variance_forest = function() {
       bart_samples_has_variance_forest_cpp(self$samples_ptr)
+    },
+
+    #' @description Whether random effects are present.
+    has_rfx = function() {
+      bart_samples_has_rfx_cpp(self$samples_ptr)
     },
 
     #' @description Global error variance samples (length `num_samples`, or empty).
@@ -74,6 +100,51 @@ BARTSamples <- R6::R6Class(
     #' @description Leaf scale samples (length `num_samples`, or empty).
     leaf_scale_samples = function() {
       bart_samples_leaf_scale_samples_cpp(self$samples_ptr)
+    },
+
+    #' @description Whether cloglog cutpoint samples are present.
+    has_cloglog_cutpoint_samples = function() {
+      bart_samples_has_cloglog_cutpoint_samples_cpp(self$samples_ptr)
+    },
+
+    #' @description Mean forest predictions for the training set (length `num_samples` * `num_train`, or empty).
+    y_hat_train = function() {
+      bart_samples_yhat_train_cpp(self$samples_ptr)
+    },
+
+    #' @description Mean forest predictions for the training set (length `num_samples` * `num_train`, or empty).
+    mean_forest_predictions_train = function() {
+      bart_samples_mean_forest_predictions_train_cpp(self$samples_ptr)
+    },
+
+    #' @description Variance forest predictions for the training set (length `num_samples` * `num_train`, or empty).
+    variance_forest_predictions_train = function() {
+      bart_samples_variance_forest_predictions_train_cpp(self$samples_ptr)
+    },
+
+    #' @description Random effects predictions for the training set (length `num_samples` * `num_train`, or empty).
+    rfx_predictions_train = function() {
+      bart_samples_rfx_predictions_train_cpp(self$samples_ptr)
+    },
+
+    #' @description Mean forest predictions for the test set (length `num_samples` * `num_test`, or empty).
+    y_hat_test = function() {
+      bart_samples_yhat_test_cpp(self$samples_ptr)
+    },
+
+    #' @description Mean forest predictions for the test set (length `num_samples` * `num_test`, or empty).
+    mean_forest_predictions_test = function() {
+      bart_samples_mean_forest_predictions_test_cpp(self$samples_ptr)
+    },
+
+    #' @description Variance forest predictions for the test set (length `num_samples` * `num_test`, or empty).
+    variance_forest_predictions_test = function() {
+      bart_samples_variance_forest_predictions_test_cpp(self$samples_ptr)
+    },
+
+    #' @description Random effects predictions for the test set (length `num_samples` * `num_test`, or empty).
+    rfx_predictions_test = function() {
+      bart_samples_rfx_predictions_test_cpp(self$samples_ptr)
     },
 
     #' @description Materialize a standalone deep copy of the mean forest as a `ForestSamples`
@@ -102,12 +173,32 @@ BARTSamples <- R6::R6Class(
       fc
     },
 
+    #' @description Materialize a standalone deep copy of the random effects samples as a `RandomEffectSamples`
+    #' (or NULL if absent).
+    materialize_rfx = function() {
+      if (!self$has_rfx()) {
+        return(NULL)
+      }
+      fc <- RandomEffectSamples$new()
+      fc$rfx_container_ptr <- bart_samples_materialize_rfx_container_cpp(
+        self$samples_ptr
+      )
+      fc$label_mapper_ptr <- bart_samples_materialize_rfx_label_mapper_cpp(
+        self$samples_ptr
+      )
+      fc
+    },
+
     #' @description Borrowed (non-owning) external pointer to the mean forest container, for
     #' read-through prediction. Must not outlive this object.
-    mean_forest_ptr = function() bart_samples_mean_forest_ptr_cpp(self$samples_ptr),
+    mean_forest_ptr = function() {
+      bart_samples_mean_forest_ptr_cpp(self$samples_ptr)
+    },
 
     #' @description Borrowed (non-owning) external pointer to the variance forest container.
-    variance_forest_ptr = function() bart_samples_variance_forest_ptr_cpp(self$samples_ptr),
+    variance_forest_ptr = function() {
+      bart_samples_variance_forest_ptr_cpp(self$samples_ptr)
+    },
 
     #' @description Non-owning `ForestSamples` view over the mean forest (borrowed pointer,
     #' no deep copy) for internal read-only consumers (serialization, kernels). NULL if absent.
@@ -139,8 +230,7 @@ BARTSamples <- R6::R6Class(
 )
 
 #' @description
-#' Container holding a sampled BCF model's forests and parameter traces as a single C++ object
-#' (BCF analog of `BARTSamples`).
+#' Container holding a sampled BCF model's forests and parameter traces as a single C++ object.
 #' @noRd
 BCFSamples <- R6::R6Class(
   classname = "BCFSamples",
@@ -150,55 +240,21 @@ BCFSamples <- R6::R6Class(
     samples_ptr = NULL,
 
     #' @description
-    #' Build a BCFSamples object by deep-copying existing forest containers and parameter arrays.
-    #' @param mu_forest `ForestSamples` for the prognostic forest (required)
-    #' @param tau_forest `ForestSamples` for the treatment forest (required)
-    #' @param variance_forest `ForestSamples` for the variance forest (or NULL)
-    #' @param global_var_samples Numeric vector of global error variance samples (or NULL)
-    #' @param leaf_scale_mu_samples Numeric vector of prognostic leaf scale samples (or NULL)
-    #' @param leaf_scale_tau_samples Numeric vector of treatment leaf scale samples (or NULL)
-    #' @param tau_0_samples Numeric vector of treatment intercept samples (or NULL)
-    #' @param b0_samples Numeric vector of adaptive-coding b0 samples (or NULL)
-    #' @param b1_samples Numeric vector of adaptive-coding b1 samples (or NULL)
-    #' @param y_bar Outcome mean used for standardization
-    #' @param y_std Outcome standard deviation used for standardization
-    #' @param num_samples Number of retained posterior samples
-    #' @param treatment_dim Treatment dimension
-    initialize = function(
-      mu_forest,
-      tau_forest,
-      variance_forest = NULL,
-      global_var_samples = NULL,
-      leaf_scale_mu_samples = NULL,
-      leaf_scale_tau_samples = NULL,
-      tau_0_samples = NULL,
-      b0_samples = NULL,
-      b1_samples = NULL,
-      y_bar = 0.0,
-      y_std = 1.0,
-      num_samples = 0L,
-      treatment_dim = 1L
-    ) {
-      variance_ptr <- if (!is.null(variance_forest)) {
-        variance_forest$forest_container_ptr
-      } else {
-        NULL
-      }
-      self$samples_ptr <- bcf_samples_from_components_cpp(
-        mu_forest$forest_container_ptr,
-        tau_forest$forest_container_ptr,
-        variance_ptr,
-        global_var_samples,
-        leaf_scale_mu_samples,
-        leaf_scale_tau_samples,
-        tau_0_samples,
-        b0_samples,
-        b1_samples,
-        y_bar,
-        y_std,
-        as.integer(num_samples),
-        as.integer(treatment_dim)
-      )
+    #' Initialize an empty BCFSamples object in C++ and wrap an external pointer to the object.
+    initialize = function() {
+      self$samples_ptr <- bcf_samples_cpp()
+    },
+
+    #' @description
+    #' Initialize a BCFSamples object from JSON and wrap an external pointer to the object.
+    from_json = function(json) {
+      self$samples_ptr <- bcf_samples_from_json_cpp(json$json_ptr)
+    },
+
+    #' @description
+    #' Convert a BCFSamples object to JSON and return a `CppJson` object wrapping the C++ JSON representation.
+    append_to_json = function(json) {
+      append_bcf_samples_to_json_cpp(self$samples_ptr, json$json_ptr)
     },
 
     #' @description Number of retained posterior samples.
@@ -217,11 +273,18 @@ BCFSamples <- R6::R6Class(
     has_mu_forest = function() bcf_samples_has_mu_forest_cpp(self$samples_ptr),
 
     #' @description Whether a treatment forest is present.
-    has_tau_forest = function() bcf_samples_has_tau_forest_cpp(self$samples_ptr),
+    has_tau_forest = function() {
+      bcf_samples_has_tau_forest_cpp(self$samples_ptr)
+    },
 
     #' @description Whether a variance forest is present.
     has_variance_forest = function() {
       bcf_samples_has_variance_forest_cpp(self$samples_ptr)
+    },
+
+    #' @description Whether random effects are present.
+    has_rfx = function() {
+      bcf_samples_has_rfx_cpp(self$samples_ptr)
     },
 
     #' @description Global error variance samples.
@@ -254,7 +317,9 @@ BCFSamples <- R6::R6Class(
         return(NULL)
       }
       fc <- ForestSamples$new(0, 1, FALSE, FALSE)
-      fc$forest_container_ptr <- bcf_samples_materialize_mu_forest_cpp(self$samples_ptr)
+      fc$forest_container_ptr <- bcf_samples_materialize_mu_forest_cpp(
+        self$samples_ptr
+      )
       fc
     },
 
@@ -264,7 +329,9 @@ BCFSamples <- R6::R6Class(
         return(NULL)
       }
       fc <- ForestSamples$new(0, 1, FALSE, FALSE)
-      fc$forest_container_ptr <- bcf_samples_materialize_tau_forest_cpp(self$samples_ptr)
+      fc$forest_container_ptr <- bcf_samples_materialize_tau_forest_cpp(
+        self$samples_ptr
+      )
       fc
     },
 
@@ -284,10 +351,14 @@ BCFSamples <- R6::R6Class(
     mu_forest_ptr = function() bcf_samples_mu_forest_ptr_cpp(self$samples_ptr),
 
     #' @description Borrowed (non-owning) external pointer to the treatment forest container.
-    tau_forest_ptr = function() bcf_samples_tau_forest_ptr_cpp(self$samples_ptr),
+    tau_forest_ptr = function() {
+      bcf_samples_tau_forest_ptr_cpp(self$samples_ptr)
+    },
 
     #' @description Borrowed (non-owning) external pointer to the variance forest container.
-    variance_forest_ptr = function() bcf_samples_variance_forest_ptr_cpp(self$samples_ptr),
+    variance_forest_ptr = function() {
+      bcf_samples_variance_forest_ptr_cpp(self$samples_ptr)
+    },
 
     #' @description Non-owning `ForestSamples` view over the prognostic forest. NULL if absent.
     mu_forest_view = function() {

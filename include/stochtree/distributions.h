@@ -78,16 +78,6 @@ class standard_normal {
     }
   }
 
-  // Accessors to persist/restore the Marsaglia-polar spare-value cache across a
-  // warm-start continuation boundary (so a continued chain is bit-identical to a
-  // single run of the combined length).
-  bool HasCachedValue() const { return has_cached_value_; }
-  double CachedValue() const { return cached_value_; }
-  void SetCachedState(bool has_cached, double cached_value) {
-    has_cached_value_ = has_cached;
-    cached_value_ = cached_value;
-  }
-
  private:
   bool has_cached_value_;
   double cached_value_;

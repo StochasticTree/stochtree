@@ -614,9 +614,9 @@ bcf <- function(
 
   # Determine whether conditional variance will be modeled
   if (num_trees_variance > 0) {
-    include_variance_forest = TRUE
+    include_variance_forest <- TRUE
   } else {
-    include_variance_forest = FALSE
+    include_variance_forest <- FALSE
   }
 
   # `observation_weights` was renamed to `observation_weights_train`; honor the
@@ -674,7 +674,7 @@ bcf <- function(
 
   # Variable weight preprocessing (and initialization if necessary)
   if (is.null(variable_weights)) {
-    variable_weights = rep(1 / ncol(X_train), ncol(X_train))
+    variable_weights <- rep(1 / ncol(X_train), ncol(X_train))
   }
   if (any(variable_weights < 0)) {
     stop("variable_weights cannot have any negative weights")
@@ -1241,7 +1241,7 @@ bcf <- function(
   stopifnot(num_mcmc >= 0)
 
   # Determine whether a test set is provided
-  has_test = !is.null(X_test)
+  has_test <- !is.null(X_test)
 
   # Convert y_train to numeric vector if not already converted
   if (!is.null(dim(y_train))) {
@@ -1740,7 +1740,9 @@ bcf <- function(
     }
   )
 
-  bcf_results <- bcf_sample_cpp(
+  bcf_samples <- BCFSamples$new()
+  bcf_metadata <- bcf_sample_cpp(
+    samples = bcf_samples$samples_ptr,
     X_train = X_train,
     Z_train = Z_train,
     y_train = y_train,
@@ -1784,281 +1786,32 @@ bcf <- function(
   )
   result <- list()
   model_params_cpp <- list(
-    "initial_sigma2" = bcf_results[["sigma2_global_init"]],
-    "sigma2_leaf_mu" = bcf_results[["sigma2_mu_init"]],
-    "sigma2_leaf_tau" = bcf_results[["sigma2_tau_init"]],
-    "b_leaf_mu" = bcf_results[["b_sigma2_mu"]],
-    "b_leaf_tau" = bcf_results[["b_sigma2_tau"]],
-    "a_forest" = bcf_results[["shape_variance_forest"]],
-    "b_forest" = bcf_results[["scale_variance_forest"]],
-    "outcome_mean" = bcf_results[["y_bar"]],
-    "outcome_scale" = bcf_results[["y_std"]],
-    "num_samples" = bcf_results[["num_samples"]],
+    "initial_sigma2" = bcf_metadata[["sigma2_global_init"]],
+    "sigma2_leaf_mu" = bcf_metadata[["sigma2_mu_init"]],
+    "sigma2_leaf_tau" = bcf_metadata[["sigma2_tau_init"]],
+    "b_leaf_mu" = bcf_metadata[["b_sigma2_mu"]],
+    "b_leaf_tau" = bcf_metadata[["b_sigma2_tau"]],
+    "a_forest" = bcf_metadata[["shape_variance_forest"]],
+    "b_forest" = bcf_metadata[["scale_variance_forest"]],
+    "outcome_mean" = bcf_samples$y_bar(),
+    "outcome_scale" = bcf_samples$y_std(),
+    "num_samples" = bcf_samples$num_samples(),
     "sample_tau_0" = sample_tau_0,
     "tau_0_prior_var" = if (sample_tau_0) tau_0_prior_var else NULL
   )
   model_params <- c(model_params_r, model_params_cpp)
   result[["model_params"]] <- model_params
   result[["train_set_metadata"]] <- X_train_metadata
-
-  # Unpack forest and outcome predictions
-  has_mu_forest_predictions_train <- !is.null(
-    bcf_results[['mu_forest_predictions_train']]
-  )
-  if (has_mu_forest_predictions_train) {
-    dim(bcf_results[['mu_forest_predictions_train']]) <- c(
-      bcf_results[["num_train"]],
-      bcf_results[["num_samples"]]
-    )
-    result[["mu_hat_train"]] <- bcf_results[['mu_forest_predictions_train']] *
-      bcf_results[["y_std"]] +
-      bcf_results[["y_bar"]]
-  }
-  has_mu_forest_predictions_test <- !is.null(
-    bcf_results[['mu_forest_predictions_test']]
-  )
-  if (has_mu_forest_predictions_test) {
-    dim(bcf_results[['mu_forest_predictions_test']]) <- c(
-      bcf_results[["num_test"]],
-      bcf_results[["num_samples"]]
-    )
-    result[["mu_hat_test"]] <- bcf_results[['mu_forest_predictions_test']] *
-      bcf_results[["y_std"]] +
-      bcf_results[["y_bar"]]
-  }
-  has_tau_forest_predictions_train <- !is.null(
-    bcf_results[['tau_forest_predictions_train']]
-  )
-  if (has_tau_forest_predictions_train) {
-    if (has_multivariate_treatment) {
-      dim(bcf_results[['tau_forest_predictions_train']]) <- c(
-        bcf_results[["num_train"]],
-        bcf_results[["treatment_dim"]],
-        bcf_results[["num_samples"]]
-      )
-    } else {
-      dim(bcf_results[['tau_forest_predictions_train']]) <- c(
-        bcf_results[["num_train"]],
-        bcf_results[["num_samples"]]
-      )
-    }
-    result[['tau_hat_train']] <- bcf_results[[
-      'tau_forest_predictions_train'
-    ]] *
-      bcf_results[["y_std"]]
-  }
-  has_tau_forest_predictions_test <- !is.null(
-    bcf_results[['tau_forest_predictions_test']]
-  )
-  if (has_tau_forest_predictions_test) {
-    if (has_multivariate_treatment) {
-      dim(bcf_results[['tau_forest_predictions_test']]) <- c(
-        bcf_results[["num_test"]],
-        bcf_results[["treatment_dim"]],
-        bcf_results[["num_samples"]]
-      )
-    } else {
-      dim(bcf_results[['tau_forest_predictions_test']]) <- c(
-        bcf_results[["num_test"]],
-        bcf_results[["num_samples"]]
-      )
-    }
-    result[['tau_hat_test']] <- bcf_results[['tau_forest_predictions_test']] *
-      bcf_results[["y_std"]]
-  }
-  has_y_hat_train <- !is.null(
-    bcf_results[['y_hat_train']]
-  )
-  if (has_y_hat_train) {
-    dim(bcf_results[['y_hat_train']]) <- c(
-      bcf_results[["num_train"]],
-      bcf_results[["num_samples"]]
-    )
-    result[['y_hat_train']] <- bcf_results[['y_hat_train']]
-  }
-  has_y_hat_test <- !is.null(
-    bcf_results[['y_hat_test']]
-  )
-  if (has_y_hat_test) {
-    dim(bcf_results[['y_hat_test']]) <- c(
-      bcf_results[["num_test"]],
-      bcf_results[["num_samples"]]
-    )
-    result[['y_hat_test']] <- bcf_results[['y_hat_test']]
-  }
-  mu_forests_r <- NULL
-  if (has_mu_forest_predictions_train || has_mu_forest_predictions_test) {
-    mu_forests_r <- ForestSamples$new(
-      num_trees_mu,
-      1,
-      TRUE,
-      FALSE
-    )
-    mu_forests_r$forest_container_ptr <- bcf_results[[
-      "mu_forests"
-    ]]
-  }
-  tau_forests_r <- NULL
-  if (has_tau_forest_predictions_train || has_tau_forest_predictions_test) {
-    tau_forests_r <- ForestSamples$new(
-      num_trees_tau,
-      ncol(Z_train),
-      FALSE,
-      FALSE
-    )
-    tau_forests_r$forest_container_ptr <- bcf_results[[
-      "tau_forests"
-    ]]
-  }
-
-  # Unpack variance forest predictions if they were returned
-  has_variance_forest_predictions_train <- !is.null(
-    bcf_results[['variance_forest_predictions_train']]
-  )
-  has_variance_forest_predictions_test <- !is.null(
-    bcf_results[['variance_forest_predictions_test']]
-  )
-  if (has_variance_forest_predictions_train) {
-    dim(bcf_results[['variance_forest_predictions_train']]) <- c(
-      bcf_results[["num_train"]],
-      bcf_results[["num_samples"]]
-    )
-    result[["sigma2_x_hat_train"]] <- bcf_results[[
-      "variance_forest_predictions_train"
-    ]]
-  }
-  if (has_variance_forest_predictions_test) {
-    dim(bcf_results[['variance_forest_predictions_test']]) <- c(
-      bcf_results[["num_test"]],
-      bcf_results[["num_samples"]]
-    )
-    result[["sigma2_x_hat_test"]] <- bcf_results[[
-      "variance_forest_predictions_test"
-    ]]
-  }
-
-  # Unpack variance forest pointers
-  variance_forests_r <- NULL
-  if (
-    has_variance_forest_predictions_train ||
-      has_variance_forest_predictions_test
-  ) {
-    variance_forests_r <- ForestSamples$new(
-      num_trees_variance,
-      1,
-      FALSE,
-      TRUE
-    )
-    variance_forests_r$forest_container_ptr <- bcf_results[[
-      "variance_forests"
-    ]]
-  }
-
-  # Unpack RFX predictions if they were returned
-  has_rfx_predictions_train <- !is.null(bcf_results[[
-    'rfx_predictions_train'
-  ]])
-  has_rfx_predictions_test <- !is.null(bcf_results[['rfx_predictions_test']])
-  if (has_rfx_predictions_train) {
-    dim(bcf_results[['rfx_predictions_train']]) <- c(
-      bcf_results[["num_train"]],
-      bcf_results[["num_samples"]]
-    )
-    rfx_preds_train <- bcf_results[["rfx_predictions_train"]] *
-      bcf_results[["y_std"]]
-    if (!is.null(result[["y_hat_train"]])) {
-      result[["y_hat_train"]] <- result[["y_hat_train"]] + rfx_preds_train
-    } else {
-      result[["y_hat_train"]] <- rfx_preds_train
-    }
-    result[["rfx_preds_train"]] = rfx_preds_train
-  }
-  if (has_rfx_predictions_test) {
-    dim(bcf_results[['rfx_predictions_test']]) <- c(
-      bcf_results[["num_test"]],
-      bcf_results[["num_samples"]]
-    )
-    rfx_preds_test <- bcf_results[["rfx_predictions_test"]] *
-      bcf_results[["y_std"]]
-    if (!is.null(result[["y_hat_test"]])) {
-      result[["y_hat_test"]] <- result[["y_hat_test"]] + rfx_preds_test
-    } else {
-      result[["y_hat_test"]] <- rfx_preds_test
-    }
-    result[["rfx_preds_test"]] = rfx_preds_test
-  }
+  result[["samples"]] <- bcf_samples
 
   # Unpack RFX samples
   if (has_rfx) {
-    rfx_samples <- RandomEffectSamples$new()
-    rfx_samples$rfx_container_ptr <- bcf_results[[
-      "rfx_container"
-    ]]
-    rfx_samples$label_mapper_ptr <- bcf_results[[
-      "rfx_label_mapper"
-    ]]
-    rfx_samples$training_group_ids <- rfx_group_ids_train
-    result[["rfx_samples"]] = rfx_samples
-    result[["rfx_unique_group_ids"]] = levels(group_ids_factor)
+    # Only need to store unique group IDs, everything else stored in BARTSamples
+    result[["rfx_unique_group_ids"]] <- levels(group_ids_factor)
   }
-
-  result[["train_set_metadata"]] <- X_train_metadata
-  if (sample_sigma2_global) {
-    result[["sigma2_global_samples"]] = bcf_results[[
-      "global_error_variance_samples"
-    ]]
-  }
-  if (sample_sigma2_leaf_mu) {
-    result[["sigma2_leaf_mu_samples"]] = bcf_results[[
-      "leaf_scale_mu_samples"
-    ]]
-  }
-  if (sample_sigma2_leaf_tau) {
-    result[["sigma2_leaf_tau_samples"]] = bcf_results[[
-      "leaf_scale_tau_samples"
-    ]]
-  }
-  if (sample_tau_0) {
-    dim(bcf_results[['tau_0_samples']]) <- c(
-      ncol(Z_train),
-      bcf_results[["num_samples"]]
-    )
-    result[["tau_0_samples"]] = bcf_results[[
-      "tau_0_samples"
-    ]] *
-      bcf_results[["y_std"]]
-  }
-  if (adaptive_coding) {
-    result[["b_0_samples"]] = bcf_results[[
-      "b_0_samples"
-    ]]
-    result[["b_1_samples"]] = bcf_results[[
-      "b_1_samples"
-    ]]
-  }
-
-  # Single-owner samples object owns the forests (no longer stored as $forests_mu /
-  # $forests_tau / $forests_variance). The global and leaf scale traces are also
-  # handed to it for continuation / merge, but remain plain model fields above.
-  # tau_0 / adaptive-coding samples stay outside the wrapper (plain fields only).
-  result[["samples"]] <- BCFSamples$new(
-    mu_forest = mu_forests_r,
-    tau_forest = tau_forests_r,
-    variance_forest = variance_forests_r,
-    global_var_samples = result[["sigma2_global_samples"]],
-    leaf_scale_mu_samples = result[["sigma2_leaf_mu_samples"]],
-    leaf_scale_tau_samples = result[["sigma2_leaf_tau_samples"]],
-    tau_0_samples = NULL,
-    b0_samples = NULL,
-    b1_samples = NULL,
-    y_bar = bcf_results[["y_bar"]],
-    y_std = bcf_results[["y_std"]],
-    num_samples = bcf_results[["num_samples"]],
-    treatment_dim = ncol(Z_train)
-  )
 
   if (internal_propensity_model) {
-    result[["bart_propensity_model"]] = bart_model_propensity
+    result[["bart_propensity_model"]] <- bart_model_propensity
   }
 
   class(result) <- "bcfmodel"
@@ -2068,59 +1821,65 @@ bcf <- function(
 
 #' Guard accessor for a `bcfmodel`'s removed direct-forest fields.
 #'
-#' The sampled prognostic / treatment / variance forests are owned by a single
-#' `BCFSamples` object in `object$samples`; they are no longer stored as
-#' `$forests_mu` / `$forests_tau` / `$forests_variance`. Accessing those names
-#' raises an error pointing at the supported extraction path. All other fields
-#' (including the scale traces and adaptive-coding samples) fall through.
+#' The sampled forests / parameters / predictions are owned by a single `BCFSamples` object stored in `object$samples`.
+#' They are no longer stored or accessible via `$forests_mu` / `$forests_tau` / `$forests_variance`.
+#' Similarly, sampled parameter vectors are no longer stored or accessible via `$sigma2_global_samples` / `$sigma2_leaf_mu_samples` / `$sigma2_leaf_tau_samples`
+#' and cached predictions are no longer accessible via `$y_hat_train` / `$y_hat_test` / `$mu_hat_train` / `$mu_hat_test` / `$tau_hat_train` / `$tau_hat_test` /
+#' `$sigma2_x_hat_train` / `$sigma2_x_hat_test`. Accessing any of these model terms by name raises an error pointing at the supported extraction path.
 #' @noRd
 #' @export
 `$.bcfmodel` <- function(x, name) {
-  forest_fields <- c(
-    forests_mu = "mu",
-    forests_tau = "tau",
-    forests_variance = "variance"
-  )
-  if (name %in% names(forest_fields)) {
+  if (
+    identical(name, "forests_mu") ||
+      identical(name, "forests_tau") ||
+      identical(name, "forests_variance")
+  ) {
     stop(
       sprintf(
         paste0(
           "`bcfmodel$%s` has been removed. The sampled forests are owned by `model$samples`; ",
-          "extract a standalone copy with `model$samples$materialize_%s_forest()`."
+          "extract a standalone copy with `extractForest()`."
         ),
-        name,
-        forest_fields[[name]]
+        name
       ),
       call. = FALSE
     )
+  } else if (
+    identical(name, "sigma2_global_samples") ||
+      identical(name, "sigma2_leaf_mu_samples") ||
+      identical(name, "sigma2_leaf_tau_samples") ||
+      identical(name, "b_0_samples") ||
+      identical(name, "b_1_samples") ||
+      identical(name, "tau_0_samples") ||
+      identical(name, "y_hat_train") ||
+      identical(name, "y_hat_test") ||
+      identical(name, "mu_hat_train") ||
+      identical(name, "mu_hat_test") ||
+      identical(name, "tau_hat_train") ||
+      identical(name, "tau_hat_test") ||
+      identical(name, "sigma2_x_hat_train") ||
+      identical(name, "sigma2_x_hat_test")
+  ) {
+    stop(
+      sprintf(
+        paste0(
+          "`bcfmodel$%s` has been removed. The parameters are stored in a C++ BCFSamples object; ",
+          "you can extract a standalone copy with `extractParameter()`."
+        ),
+        name
+      ),
+      call. = FALSE
+    )
+  } else {
+    .subset2(x, name)
   }
-  .subset2(x, name)
 }
 
-# Assemble the single-owner BCFSamples object from the components a from_json
-# loader has populated on `output`, then drop the now-removed direct forest
-# fields. Forests live only in `$samples`; scale / tau_0 / coding traces stay
-# as plain fields. tau_0 and adaptive-coding samples are kept outside the wrapper.
-.attachBcfSamples <- function(output, model_params) {
-  output[["samples"]] <- BCFSamples$new(
-    mu_forest = output[["forests_mu"]],
-    tau_forest = output[["forests_tau"]],
-    variance_forest = output[["forests_variance"]],
-    global_var_samples = output[["sigma2_global_samples"]],
-    leaf_scale_mu_samples = output[["sigma2_leaf_mu_samples"]],
-    leaf_scale_tau_samples = output[["sigma2_leaf_tau_samples"]],
-    tau_0_samples = NULL,
-    b0_samples = NULL,
-    b1_samples = NULL,
-    y_bar = model_params[["outcome_mean"]],
-    y_std = model_params[["outcome_scale"]],
-    num_samples = model_params[["num_samples"]],
-    treatment_dim = model_params[["treatment_dim"]]
-  )
-  output[["forests_mu"]] <- NULL
-  output[["forests_tau"]] <- NULL
-  output[["forests_variance"]] <- NULL
-  output
+# Assemble BCFSamples object from JSON
+.attachBCFSamples <- function(output, json) {
+  bcf_samples <- BCFSamples$new()
+  bcf_samples$from_json(json)
+  bcf_samples
 }
 
 #' @title Predict from BCF Model
@@ -2253,7 +2012,7 @@ predict.bcfmodel <- function(
   }
 
   # Handle prediction terms
-  rfx_model_spec = object$model_params$rfx_model_spec
+  rfx_model_spec <- object$model_params$rfx_model_spec
   rfx_intercept_only <- rfx_model_spec == "intercept_only"
   rfx_intercept_plus_treatment <- rfx_model_spec == "intercept_plus_treatment"
   rfx_intercept <- rfx_intercept_only || rfx_intercept_plus_treatment
@@ -3369,7 +3128,7 @@ extractParameter.bcfmodel <- function(object, term) {
 #'                  treatment_effect_forest_params = tau_params)
 #' rfx_samples <- getRandomEffectSamples(bcf_model)
 getRandomEffectSamples.bcfmodel <- function(object, ...) {
-  result = list()
+  result <- list()
 
   if (!object$model_params$has_rfx) {
     warning("This model has no RFX terms, returning an empty list")
@@ -3685,7 +3444,7 @@ createBCFModelFromJson <- function(json_object) {
   }
 
   # Unpack model params
-  model_params = list()
+  model_params <- list()
   model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
   model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
   model_params[["standardize"]] <- json_object$get_boolean("standardize")
@@ -3923,7 +3682,9 @@ createBCFModelFromJson <- function(json_object) {
   if (cross_platform) {
     # Identity metadata for the cross-platform all-numeric path (gate enforced);
     # the foreign native preprocessor is not reconstructed.
-    output[["train_set_metadata"]] <- buildIdentityPreprocessorMetadata(json_object)
+    output[["train_set_metadata"]] <- buildIdentityPreprocessorMetadata(
+      json_object
+    )
   } else if (has_field("covariate_preprocessor")) {
     preprocessor_metadata_string <- json_object$get_string(
       "covariate_preprocessor"
@@ -4021,7 +3782,7 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   }
 
   # Unpack model params
-  model_params = list()
+  model_params <- list()
   model_params[["outcome_scale"]] <- json_object_default$get_scalar(
     "outcome_scale"
   )
@@ -4473,7 +4234,7 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
   }
 
   # Unpack model params
-  model_params = list()
+  model_params <- list()
   model_params[["outcome_scale"]] <- json_object_default$get_scalar(
     "outcome_scale"
   )

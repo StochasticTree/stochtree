@@ -264,10 +264,36 @@ struct BARTSamples {
     AppendForestContainerSamples(mean_forests, other.mean_forests, "mean");
     AppendForestContainerSamples(variance_forests, other.variance_forests, "variance");
     global_error_variance_samples.insert(global_error_variance_samples.end(),
-        other.global_error_variance_samples.begin(), other.global_error_variance_samples.end());
+                                         other.global_error_variance_samples.begin(), other.global_error_variance_samples.end());
     leaf_scale_samples.insert(leaf_scale_samples.end(),
-        other.leaf_scale_samples.begin(), other.leaf_scale_samples.end());
+                              other.leaf_scale_samples.begin(), other.leaf_scale_samples.end());
     num_samples += other.num_samples;
+  }
+
+  std::vector<double> OutcomePredictionsTrain() const {
+    std::vector<double> predictions(num_train * num_samples, 0.0);
+    for (int i = 0; i < num_train; ++i) {
+      if (mean_forest_predictions_train.empty()) {
+        predictions[i] += mean_forest_predictions_train[i];
+      }
+      if (!rfx_predictions_train.empty()) {
+        predictions[i] += rfx_predictions_train[i];  // Add random effects contribution if present
+      }
+    }
+    return predictions;
+  }
+
+  std::vector<double> OutcomePredictionsTest() const {
+    std::vector<double> predictions(num_test * num_samples, 0.0);
+    for (int i = 0; i < num_test; ++i) {
+      if (mean_forest_predictions_test.empty()) {
+        predictions[i] += mean_forest_predictions_test[i];
+      }
+      if (!rfx_predictions_test.empty()) {
+        predictions[i] += rfx_predictions_test[i];  // Add random effects contribution if present
+      }
+    }
+    return predictions;
   }
 };
 

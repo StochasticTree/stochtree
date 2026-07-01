@@ -158,136 +158,8 @@ StochTree::BCFConfig convert_list_to_bcf_config(cpp11::list config) {
   return output;
 }
 
-cpp11::writable::list convert_bcf_results_to_list(StochTree::BCFSamples& bcf_samples) {
-  cpp11::writable::list output;
-
-  // Pointers to forests
-  SEXP mu_forests_sexp = (bcf_samples.mu_forests.get() != nullptr)
-                             ? static_cast<SEXP>(cpp11::external_pointer<StochTree::ForestContainer>(bcf_samples.mu_forests.release()))
-                             : R_NilValue;
-  output.push_back(cpp11::named_arg("mu_forests") = mu_forests_sexp);
-
-  SEXP tau_forests_sexp = (bcf_samples.tau_forests.get() != nullptr)
-                              ? static_cast<SEXP>(cpp11::external_pointer<StochTree::ForestContainer>(bcf_samples.tau_forests.release()))
-                              : R_NilValue;
-  output.push_back(cpp11::named_arg("tau_forests") = tau_forests_sexp);
-
-  SEXP variance_forests_sexp = (bcf_samples.variance_forests.get() != nullptr)
-                                   ? static_cast<SEXP>(cpp11::external_pointer<StochTree::ForestContainer>(bcf_samples.variance_forests.release()))
-                                   : R_NilValue;
-  output.push_back(cpp11::named_arg("variance_forests") = variance_forests_sexp);
-
-  // Pointers to RFX model terms
-  SEXP rfx_container_sexp = (bcf_samples.rfx_container.get() != nullptr)
-                                ? static_cast<SEXP>(cpp11::external_pointer<StochTree::RandomEffectsContainer>(bcf_samples.rfx_container.release()))
-                                : R_NilValue;
-  output.push_back(cpp11::named_arg("rfx_container") = rfx_container_sexp);
-  SEXP rfx_label_mapper_sexp = (bcf_samples.rfx_label_mapper.get() != nullptr)
-                                   ? static_cast<SEXP>(cpp11::external_pointer<StochTree::LabelMapper>(bcf_samples.rfx_label_mapper.release()))
-                                   : R_NilValue;
-  output.push_back(cpp11::named_arg("rfx_label_mapper") = rfx_label_mapper_sexp);
-
-  // Predictions
-  SEXP mu_forest_predictions_train_sexp = !bcf_samples.mu_forest_predictions_train.empty()
-                                              ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.mu_forest_predictions_train.begin(), bcf_samples.mu_forest_predictions_train.end()))
-                                              : R_NilValue;
-  output.push_back(cpp11::named_arg("mu_forest_predictions_train") = mu_forest_predictions_train_sexp);
-
-  SEXP tau_forest_predictions_train_sexp = !bcf_samples.tau_forest_predictions_train.empty()
-                                               ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.tau_forest_predictions_train.begin(), bcf_samples.tau_forest_predictions_train.end()))
-                                               : R_NilValue;
-  output.push_back(cpp11::named_arg("tau_forest_predictions_train") = tau_forest_predictions_train_sexp);
-
-  SEXP var_preds_train_sexp = !bcf_samples.variance_forest_predictions_train.empty()
-                                  ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.variance_forest_predictions_train.begin(), bcf_samples.variance_forest_predictions_train.end()))
-                                  : R_NilValue;
-  output.push_back(cpp11::named_arg("variance_forest_predictions_train") = var_preds_train_sexp);
-
-  SEXP y_hat_train_sexp = !bcf_samples.y_hat_train.empty()
-                              ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.y_hat_train.begin(), bcf_samples.y_hat_train.end()))
-                              : R_NilValue;
-  output.push_back(cpp11::named_arg("y_hat_train") = y_hat_train_sexp);
-
-  SEXP mu_forest_predictions_test_sexp = !bcf_samples.mu_forest_predictions_test.empty()
-                                             ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.mu_forest_predictions_test.begin(), bcf_samples.mu_forest_predictions_test.end()))
-                                             : R_NilValue;
-  output.push_back(cpp11::named_arg("mu_forest_predictions_test") = mu_forest_predictions_test_sexp);
-
-  SEXP tau_forest_predictions_test_sexp = !bcf_samples.tau_forest_predictions_test.empty()
-                                              ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.tau_forest_predictions_test.begin(), bcf_samples.tau_forest_predictions_test.end()))
-                                              : R_NilValue;
-  output.push_back(cpp11::named_arg("tau_forest_predictions_test") = tau_forest_predictions_test_sexp);
-
-  SEXP var_preds_test_sexp = !bcf_samples.variance_forest_predictions_test.empty()
-                                 ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.variance_forest_predictions_test.begin(), bcf_samples.variance_forest_predictions_test.end()))
-                                 : R_NilValue;
-  output.push_back(cpp11::named_arg("variance_forest_predictions_test") = var_preds_test_sexp);
-
-  SEXP y_hat_test_sexp = !bcf_samples.y_hat_test.empty()
-                             ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.y_hat_test.begin(), bcf_samples.y_hat_test.end()))
-                             : R_NilValue;
-  output.push_back(cpp11::named_arg("y_hat_test") = y_hat_test_sexp);
-
-  // RFX predictions
-  SEXP rfx_preds_train_sexp = !bcf_samples.rfx_predictions_train.empty()
-                                  ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.rfx_predictions_train.begin(), bcf_samples.rfx_predictions_train.end()))
-                                  : R_NilValue;
-  output.push_back(cpp11::named_arg("rfx_predictions_train") = rfx_preds_train_sexp);
-
-  SEXP rfx_preds_test_sexp = !bcf_samples.rfx_predictions_test.empty()
-                                 ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.rfx_predictions_test.begin(), bcf_samples.rfx_predictions_test.end()))
-                                 : R_NilValue;
-  output.push_back(cpp11::named_arg("rfx_predictions_test") = rfx_preds_test_sexp);
-
-  // Parameter samples
-  SEXP global_var_sexp = !bcf_samples.global_error_variance_samples.empty()
-                             ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.global_error_variance_samples.begin(), bcf_samples.global_error_variance_samples.end()))
-                             : R_NilValue;
-  output.push_back(cpp11::named_arg("global_error_variance_samples") = global_var_sexp);
-
-  SEXP leaf_scale_mu_sexp = !bcf_samples.leaf_scale_mu_samples.empty()
-                                ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.leaf_scale_mu_samples.begin(), bcf_samples.leaf_scale_mu_samples.end()))
-                                : R_NilValue;
-  output.push_back(cpp11::named_arg("leaf_scale_mu_samples") = leaf_scale_mu_sexp);
-
-  SEXP leaf_scale_tau_sexp = !bcf_samples.leaf_scale_tau_samples.empty()
-                                 ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.leaf_scale_tau_samples.begin(), bcf_samples.leaf_scale_tau_samples.end()))
-                                 : R_NilValue;
-  output.push_back(cpp11::named_arg("leaf_scale_tau_samples") = leaf_scale_tau_sexp);
-
-  SEXP tau_0_samples_sexp = !bcf_samples.tau_0_samples.empty()
-                                ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.tau_0_samples.begin(), bcf_samples.tau_0_samples.end()))
-                                : R_NilValue;
-  output.push_back(cpp11::named_arg("tau_0_samples") = tau_0_samples_sexp);
-
-  SEXP b0_samples_sexp = !bcf_samples.b0_samples.empty()
-                             ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.b0_samples.begin(), bcf_samples.b0_samples.end()))
-                             : R_NilValue;
-  output.push_back(cpp11::named_arg("b_0_samples") = b0_samples_sexp);
-
-  SEXP b1_samples_sexp = !bcf_samples.b1_samples.empty()
-                             ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.b1_samples.begin(), bcf_samples.b1_samples.end()))
-                             : R_NilValue;
-  output.push_back(cpp11::named_arg("b_1_samples") = b1_samples_sexp);
-
-  // Metadata about the model that was sampled
-  double y_bar_sexp = bcf_samples.y_bar;
-  output.push_back(cpp11::named_arg("y_bar") = y_bar_sexp);
-  double y_std_sexp = bcf_samples.y_std;
-  output.push_back(cpp11::named_arg("y_std") = y_std_sexp);
-  int num_samples_sexp = bcf_samples.num_samples;
-  output.push_back(cpp11::named_arg("num_samples") = num_samples_sexp);
-  int num_train_sexp = bcf_samples.num_train;
-  output.push_back(cpp11::named_arg("num_train") = num_train_sexp);
-  int num_test_sexp = bcf_samples.num_test;
-  output.push_back(cpp11::named_arg("num_test") = num_test_sexp);
-  int treatment_dim_sexp = bcf_samples.treatment_dim;
-  output.push_back(cpp11::named_arg("treatment_dim") = treatment_dim_sexp);
-  return output;
-}
-
-void add_config_to_bcf_result_list(cpp11::writable::list& result, StochTree::BCFConfig& config) {
-  // Unpack more metadata about the model that was sampled
+cpp11::writable::list create_bcf_metadata(StochTree::BCFConfig& config) {
+  cpp11::writable::list result;
   result.push_back(cpp11::named_arg("sigma2_global_init") = config.sigma2_global_init);
   result.push_back(cpp11::named_arg("sigma2_mu_init") = config.sigma2_mu_init);
   result.push_back(cpp11::named_arg("sigma2_tau_init") = config.sigma2_tau_init);
@@ -295,11 +167,12 @@ void add_config_to_bcf_result_list(cpp11::writable::list& result, StochTree::BCF
   result.push_back(cpp11::named_arg("b_sigma2_tau") = config.b_sigma2_tau);
   result.push_back(cpp11::named_arg("shape_variance_forest") = config.shape_variance_forest);
   result.push_back(cpp11::named_arg("scale_variance_forest") = config.scale_variance_forest);
-  return;
+  return result;
 }
 
 [[cpp11::register]]
 cpp11::writable::list bcf_sample_cpp(
+    cpp11::external_pointer<StochTree::BCFSamples> samples,
     cpp11::sexp X_train,
     cpp11::sexp Z_train,
     cpp11::sexp y_train,
@@ -324,9 +197,6 @@ cpp11::writable::list bcf_sample_cpp(
     int num_chains,
     bool adaptive_coding,
     cpp11::list config_input) {
-  // Create outcome object
-  StochTree::BCFSamples results_raw = StochTree::BCFSamples();
-
   // Extract pointers to raw data
   int protect_count = 0;
   double* X_train_ptr = extract_numeric_pointer(X_train, "X_train", protect_count);
@@ -366,23 +236,22 @@ cpp11::writable::list bcf_sample_cpp(
   StochTree::BCFConfig config = convert_list_to_bcf_config(config_input);
 
   // Initialize a BCF sampler
-  StochTree::BCFSampler bcf_sampler(results_raw, config, data);
+  StochTree::BCFSampler bcf_sampler(*samples, config, data);
 
   // Run the sampler
-  bcf_sampler.run_gfr(results_raw, num_gfr, config.keep_gfr, num_chains);
+  bcf_sampler.run_gfr(*samples, num_gfr, config.keep_gfr, num_chains);
   if (num_chains > 1) {
-    bcf_sampler.run_mcmc_chains(results_raw, num_chains, num_burnin, keep_every, num_mcmc);
+    bcf_sampler.run_mcmc_chains(*samples, num_chains, num_burnin, keep_every, num_mcmc);
   } else {
-    bcf_sampler.run_mcmc(results_raw, num_burnin, keep_every, num_mcmc);
+    bcf_sampler.run_mcmc(*samples, num_burnin, keep_every, num_mcmc);
   }
-  bcf_sampler.postprocess_samples(results_raw);
+  bcf_sampler.postprocess_samples(*samples);
 
   // Unprotect protected R objects
   UNPROTECT(protect_count);
 
   // Unpack outputs
-  cpp11::writable::list output_list = convert_bcf_results_to_list(results_raw);
-  add_config_to_bcf_result_list(output_list, config);
+  cpp11::writable::list output_list = create_bcf_metadata(config);
   return output_list;
 }
 
@@ -430,7 +299,8 @@ cpp11::writable::list convert_bcf_preds_to_list(StochTree::BCFPredictionResult& 
 
 [[cpp11::register]]
 cpp11::writable::list bcf_predict_cpp(
-    cpp11::list bcf_model_list,
+    cpp11::external_pointer<StochTree::BCFSamples> bcf_samples_ptr,
+    cpp11::list bcf_model_metadata,
     cpp11::sexp X,
     cpp11::sexp Z,
     int n,
@@ -473,71 +343,45 @@ cpp11::writable::list bcf_predict_cpp(
   data.rfx_basis_dim = rfx_basis_dim;
 
   // Load the BCF model and config from the model list
-  StochTree::BCFPredictionInput pred_input;
-  pred_input.global_error_variance_samples = extract_numeric_pointer(bcf_model_list["sigma2_global_samples"], "sigma2_global_samples", protect_count);
-  pred_input.leaf_scale_mu_samples = extract_numeric_pointer(bcf_model_list["sigma2_leaf_mu_samples"], "sigma2_leaf_mu_samples", protect_count);
-  pred_input.leaf_scale_tau_samples = extract_numeric_pointer(bcf_model_list["sigma2_leaf_tau_samples"], "sigma2_leaf_tau_samples", protect_count);
-  pred_input.b0_samples = extract_numeric_pointer(bcf_model_list["b0_samples"], "b0_samples", protect_count);
-  pred_input.b1_samples = extract_numeric_pointer(bcf_model_list["b1_samples"], "b1_samples", protect_count);
-  pred_input.tau_0_samples = extract_numeric_pointer(bcf_model_list["tau_0_samples"], "tau_0_samples", protect_count);
-  SEXP mu_forests_sexp = static_cast<SEXP>(bcf_model_list["mu_forests"]);
-  if (!Rf_isNull(mu_forests_sexp)) {
-    pred_input.mu_forests = cpp11::external_pointer<StochTree::ForestContainer>(mu_forests_sexp).get();
-  }
-  SEXP tau_forests_sexp = static_cast<SEXP>(bcf_model_list["tau_forests"]);
-  if (!Rf_isNull(tau_forests_sexp)) {
-    pred_input.tau_forests = cpp11::external_pointer<StochTree::ForestContainer>(tau_forests_sexp).get();
-  }
-  SEXP variance_forests_sexp = static_cast<SEXP>(bcf_model_list["variance_forests"]);
-  if (!Rf_isNull(variance_forests_sexp)) {
-    pred_input.variance_forests = cpp11::external_pointer<StochTree::ForestContainer>(variance_forests_sexp).get();
-  }
-  SEXP rfx_container_sexp = static_cast<SEXP>(bcf_model_list["rfx_container"]);
-  if (!Rf_isNull(rfx_container_sexp)) {
-    pred_input.rfx_container = cpp11::external_pointer<StochTree::RandomEffectsContainer>(rfx_container_sexp).get();
-  }
-  SEXP rfx_label_mapper_sexp = static_cast<SEXP>(bcf_model_list["rfx_label_mapper"]);
-  if (!Rf_isNull(rfx_label_mapper_sexp)) {
-    pred_input.rfx_label_mapper = cpp11::external_pointer<StochTree::LabelMapper>(rfx_label_mapper_sexp).get();
-  }
-  pred_input.num_samples = Rf_asInteger(bcf_model_list["num_samples"]);
-  pred_input.num_obs = n;
-  pred_input.treatment_dim = treatment_dim;
-  pred_input.y_bar = Rf_asReal(bcf_model_list["y_bar"]);
-  pred_input.y_std = Rf_asReal(bcf_model_list["y_std"]);
-  pred_input.has_variance_forest = (bool)Rf_asLogical(bcf_model_list["include_variance_forest"]);
-  pred_input.has_rfx = (bool)Rf_asLogical(bcf_model_list["has_rfx"]);
+  StochTree::BCFPredictionMetadata pred_metadata;
+  pred_metadata.num_samples = Rf_asInteger(bcf_model_metadata["num_samples"]);
+  pred_metadata.num_obs = n;
+  pred_metadata.treatment_dim = treatment_dim;
+  pred_metadata.y_bar = Rf_asReal(bcf_model_metadata["y_bar"]);
+  pred_metadata.y_std = Rf_asReal(bcf_model_metadata["y_std"]);
+  pred_metadata.has_variance_forest = (bool)Rf_asLogical(bcf_model_metadata["include_variance_forest"]);
+  pred_metadata.has_rfx = (bool)Rf_asLogical(bcf_model_metadata["has_rfx"]);
   {
-    SEXP rfx_spec_sexp = bcf_model_list["rfx_model_spec"];
+    SEXP rfx_spec_sexp = bcf_model_metadata["rfx_model_spec"];
     std::string rfx_model_spec_str = Rf_isNull(rfx_spec_sexp) ? "" : std::string(CHAR(STRING_ELT(rfx_spec_sexp, 0)));
     if (rfx_model_spec_str == "intercept_only") {
-      pred_input.rfx_model_spec = StochTree::BCFRFXModelSpec::InterceptOnly;
+      pred_metadata.rfx_model_spec = StochTree::BCFRFXModelSpec::InterceptOnly;
     } else if (rfx_model_spec_str == "intercept_plus_treatment") {
-      pred_input.rfx_model_spec = StochTree::BCFRFXModelSpec::InterceptPlusTreatment;
+      pred_metadata.rfx_model_spec = StochTree::BCFRFXModelSpec::InterceptPlusTreatment;
     } else {
-      pred_input.rfx_model_spec = StochTree::BCFRFXModelSpec::Custom;
+      pred_metadata.rfx_model_spec = StochTree::BCFRFXModelSpec::Custom;
     }
   }
-  pred_input.adaptive_coding = (bool)Rf_asLogical(bcf_model_list["adaptive_coding"]);
-  pred_input.sample_tau_0 = (bool)Rf_asLogical(bcf_model_list["sample_tau_0"]);
-  pred_input.pred_type = posterior ? StochTree::PredType::kPosterior : StochTree::PredType::kMean;
+  pred_metadata.adaptive_coding = (bool)Rf_asLogical(bcf_model_metadata["adaptive_coding"]);
+  pred_metadata.sample_tau_0 = (bool)Rf_asLogical(bcf_model_metadata["sample_tau_0"]);
+  pred_metadata.pred_type = posterior ? StochTree::PredType::kPosterior : StochTree::PredType::kMean;
   if (scale == 0) {
-    pred_input.pred_scale = StochTree::PredScale::kLinear;
+    pred_metadata.pred_scale = StochTree::PredScale::kLinear;
   } else if (scale == 1) {
-    pred_input.pred_scale = StochTree::PredScale::kProbability;
+    pred_metadata.pred_scale = StochTree::PredScale::kProbability;
   } else {
-    pred_input.pred_scale = StochTree::PredScale::kClass;
+    pred_metadata.pred_scale = StochTree::PredScale::kClass;
   }
-  pred_input.pred_terms.y_hat = predict_y_hat;
-  pred_input.pred_terms.mu_x = predict_mu_x;
-  pred_input.pred_terms.tau_x = predict_tau_x;
-  pred_input.pred_terms.prognostic_function = predict_prognostic_function;
-  pred_input.pred_terms.cate = predict_cate;
-  pred_input.pred_terms.conditional_variance = predict_conditional_variance;
-  pred_input.pred_terms.random_effects = predict_random_effects;
+  pred_metadata.pred_terms.y_hat = predict_y_hat;
+  pred_metadata.pred_terms.mu_x = predict_mu_x;
+  pred_metadata.pred_terms.tau_x = predict_tau_x;
+  pred_metadata.pred_terms.prognostic_function = predict_prognostic_function;
+  pred_metadata.pred_terms.cate = predict_cate;
+  pred_metadata.pred_terms.conditional_variance = predict_conditional_variance;
+  pred_metadata.pred_terms.random_effects = predict_random_effects;
 
   // Run the prediction function
-  StochTree::BCFPredictionResult pred_results = predict_bcf_model(data, pred_input);
+  StochTree::BCFPredictionResult pred_results = predict_bcf_model(data, *bcf_samples_ptr, pred_metadata);
 
   // Unprotect protected R objects
   UNPROTECT(protect_count);

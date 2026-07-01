@@ -65,43 +65,6 @@ class BARTSampler {
     iss >> rng_;
   }
 
-  // The mean leaf model's normal sampler caches a Marsaglia-polar spare value between draws.
-  // That cache is sampler-internal state (not part of the saved model), so a freshly
-  // constructed continuation sampler would start with an empty cache while the original run
-  // ended with a (possibly populated) one -- breaking bit-identity. Encode/restore it as
-  // "<has_cached> <cached_value>". Only the Gaussian (identity-link) mean leaf models carry
-  // this sampler; other variants encode an empty cache.
-  std::string GetLeafNormalCache() {
-    bool has_cached = false;
-    double cached_value = 0.0;
-    std::visit([&](auto& model) {
-      using T = std::decay_t<decltype(model)>;
-      if constexpr (std::is_same_v<T, GaussianConstantLeafModel> ||
-                    std::is_same_v<T, GaussianUnivariateRegressionLeafModel>) {
-        has_cached = model.NormalSampler().Dist().HasCachedValue();
-        cached_value = model.NormalSampler().Dist().CachedValue();
-      }
-    }, mean_leaf_model_);
-    std::ostringstream oss;
-    oss << (has_cached ? 1 : 0) << ' ' << std::setprecision(17) << cached_value;
-    return oss.str();
-  }
-
-  void SetLeafNormalCache(const std::string& state) {
-    if (state.empty()) return;
-    std::istringstream iss(state);
-    int has_cached = 0;
-    double cached_value = 0.0;
-    iss >> has_cached >> cached_value;
-    std::visit([&](auto& model) {
-      using T = std::decay_t<decltype(model)>;
-      if constexpr (std::is_same_v<T, GaussianConstantLeafModel> ||
-                    std::is_same_v<T, GaussianUnivariateRegressionLeafModel>) {
-        model.NormalSampler().Dist().SetCachedState(has_cached != 0, cached_value);
-      }
-    }, mean_leaf_model_);
-  }
-
  private:
   /*! Initialize state variables */
   void InitializeState(BARTSamples& samples, bool continuation = false);

@@ -95,6 +95,10 @@ class LabelMapper {
   int CategoryNumber(int category_id) {
     return label_map_[category_id];
   }
+  void CopyFromOther(LabelMapper& other) {
+    keys_ = other.Keys();
+    label_map_ = other.Map();
+  }
   void SaveToJsonFile(std::string filename) {
     nlohmann::json model_json = this->to_json();
     std::ofstream output_file(filename);
@@ -322,6 +326,16 @@ class RandomEffectsContainer {
     nlohmann::json rfx_container_json = nlohmann::json::parse(json_string);
     this->Reset();
     this->from_json(rfx_container_json);
+  }
+  void CopyFromOther(RandomEffectsContainer& other) {
+    this->Reset();
+    num_samples_ = other.NumSamples();
+    num_components_ = other.NumComponents();
+    num_groups_ = other.NumGroups();
+    beta_ = other.GetBeta();
+    alpha_ = other.GetAlpha();
+    xi_ = other.GetXi();
+    sigma_xi_ = other.GetSigma();
   }
   void AddSample(MultivariateRegressionRandomEffectsModel& model);
   void DeleteSample(int sample_num);
