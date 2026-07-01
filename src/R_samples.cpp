@@ -4,6 +4,7 @@
 #include <stochtree/bart.h>
 #include <stochtree/bcf.h>
 #include <stochtree/container.h>
+#include <initializer_list>
 #include <memory>
 
 // Deep-copy a forest container sample-by-sample (so the caller's EXTPTR keeps its own copy).
@@ -33,6 +34,15 @@ static std::unique_ptr<StochTree::LabelMapper> clone_label_mapper(StochTree::Lab
 static cpp11::writable::doubles vec_to_doubles(const std::vector<double>& v) {
   cpp11::writable::doubles out(static_cast<R_xlen_t>(v.size()));
   std::copy(v.begin(), v.end(), out.begin());
+  return out;
+}
+
+// Convert std::vector<double> to cpp11::writable::doubles (for returning samples as an R-native vector).
+static cpp11::writable::doubles vec_to_doubles_reshape(const std::vector<double>& v, std::initializer_list<int> dims) {
+  auto out = vec_to_doubles(v);
+  if (!v.empty()) {
+    out.attr("dim") = cpp11::writable::integers(dims);
+  }
   return out;
 }
 
@@ -144,42 +154,42 @@ bool bart_samples_has_variance_forest_cpp(cpp11::external_pointer<StochTree::BAR
 
 [[cpp11::register]]
 cpp11::writable::doubles bart_samples_mean_forest_predictions_train_cpp(cpp11::external_pointer<StochTree::BARTSamples> samples) {
-  return vec_to_doubles(samples->mean_forest_predictions_train);
+  return vec_to_doubles_reshape(samples->mean_forest_predictions_train, {samples->num_train, samples->num_samples});
 }
 
 [[cpp11::register]]
 cpp11::writable::doubles bart_samples_variance_forest_predictions_train_cpp(cpp11::external_pointer<StochTree::BARTSamples> samples) {
-  return vec_to_doubles(samples->variance_forest_predictions_train);
+  return vec_to_doubles_reshape(samples->variance_forest_predictions_train, {samples->num_train, samples->num_samples});
 }
 
 [[cpp11::register]]
 cpp11::writable::doubles bart_samples_rfx_predictions_train_cpp(cpp11::external_pointer<StochTree::BARTSamples> samples) {
-  return vec_to_doubles(samples->rfx_predictions_train);
+  return vec_to_doubles_reshape(samples->rfx_predictions_train, {samples->num_train, samples->num_samples});
 }
 
 [[cpp11::register]]
 cpp11::writable::doubles bart_samples_yhat_train_cpp(cpp11::external_pointer<StochTree::BARTSamples> samples) {
-  return vec_to_doubles(samples->OutcomePredictionsTrain());
+  return vec_to_doubles_reshape(samples->OutcomePredictionsTrain(), {samples->num_train, samples->num_samples});
 }
 
 [[cpp11::register]]
 cpp11::writable::doubles bart_samples_mean_forest_predictions_test_cpp(cpp11::external_pointer<StochTree::BARTSamples> samples) {
-  return vec_to_doubles(samples->mean_forest_predictions_test);
+  return vec_to_doubles_reshape(samples->mean_forest_predictions_test, {samples->num_test, samples->num_samples});
 }
 
 [[cpp11::register]]
 cpp11::writable::doubles bart_samples_variance_forest_predictions_test_cpp(cpp11::external_pointer<StochTree::BARTSamples> samples) {
-  return vec_to_doubles(samples->variance_forest_predictions_test);
+  return vec_to_doubles_reshape(samples->variance_forest_predictions_test, {samples->num_test, samples->num_samples});
 }
 
 [[cpp11::register]]
 cpp11::writable::doubles bart_samples_rfx_predictions_test_cpp(cpp11::external_pointer<StochTree::BARTSamples> samples) {
-  return vec_to_doubles(samples->rfx_predictions_test);
+  return vec_to_doubles_reshape(samples->rfx_predictions_test, {samples->num_test, samples->num_samples});
 }
 
 [[cpp11::register]]
 cpp11::writable::doubles bart_samples_yhat_test_cpp(cpp11::external_pointer<StochTree::BARTSamples> samples) {
-  return vec_to_doubles(samples->OutcomePredictionsTest());
+  return vec_to_doubles_reshape(samples->OutcomePredictionsTest(), {samples->num_test, samples->num_samples});
 }
 
 [[cpp11::register]]

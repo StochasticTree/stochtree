@@ -571,7 +571,7 @@ void BCFSampler::run_gfr(BCFSamples& samples, int num_gfr, bool keep_gfr, int nu
   // Reserve space for GFR predictions if they are to be retained
   if (keep_gfr) {
     samples.mu_forest_predictions_train.reserve(data_.n_train * num_gfr);
-    samples.tau_forest_predictions_train.reserve(data_.n_train * num_gfr);
+    samples.tau_forest_predictions_train.reserve(data_.n_train * data_.treatment_dim * num_gfr);
     if (has_variance_forest_) {
       samples.variance_forest_predictions_train.reserve(data_.n_train * num_gfr);
     }
@@ -609,10 +609,10 @@ void BCFSampler::run_gfr(BCFSamples& samples, int num_gfr, bool keep_gfr, int nu
 void BCFSampler::run_mcmc(BCFSamples& samples, int num_burnin, int keep_every, int num_mcmc) {
   // Reserve space for MCMC predictions if they are to be retained
   samples.mu_forest_predictions_train.reserve(data_.n_train * num_mcmc);
-  samples.tau_forest_predictions_train.reserve(data_.n_train * num_mcmc);
+  samples.tau_forest_predictions_train.reserve(data_.n_train * data_.treatment_dim * num_mcmc);
   if (has_test_) {
     samples.mu_forest_predictions_test.reserve(data_.n_test * num_mcmc);
-    samples.tau_forest_predictions_test.reserve(data_.n_test * num_mcmc);
+    samples.tau_forest_predictions_test.reserve(data_.n_test * data_.treatment_dim * num_mcmc);
   }
   if (has_variance_forest_) {
     samples.variance_forest_predictions_train.reserve(data_.n_train * num_mcmc);
