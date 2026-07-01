@@ -39,8 +39,8 @@ TestDataset LoadSmallRFXDatasetMultivariateBasis();
 /*! Creates a modest dataset (100 observations) */
 TestDataset LoadMediumDatasetUnivariateBasis();
 
-} // namespace TestUtils
+}  // namespace TestUtils
 
-} // namespace StochTree
+}  // namespace StochTree
 
 #endif  // STOCHTREE_TESTUTILS_H_

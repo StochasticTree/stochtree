@@ -16,6 +16,7 @@ bcf(
   propensity_test = NULL,
   rfx_group_ids_test = NULL,
   rfx_basis_test = NULL,
+  observation_weights_train = NULL,
   observation_weights = NULL,
   num_gfr = 5,
   num_burnin = 0,
@@ -64,11 +65,13 @@ that were not in the training set.}
 
 \item{rfx_basis_test}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
 
-\item{observation_weights}{(Optional) Numeric vector of observation weights of length \code{nrow(X_train)}. Weights are
+\item{observation_weights_train}{(Optional) Numeric vector of observation weights of length \code{nrow(X_train)}. Weights are
 applied as \code{y_i | - ~ N(mu(X_i), sigma^2 / w_i)}, so larger weights increase an observation's influence on the fit.
 All weights must be non-negative. Default: \code{NULL} (all observations equally weighted). Applied to both the
 prognostic and treatment effect forests. Compatible with Gaussian (continuous/identity) and probit outcome models;
 not compatible with cloglog link functions.}
+
+\item{observation_weights}{Deprecated alias for \code{observation_weights_train}; will be removed in a future release.}
 
 \item{num_gfr}{Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.}
 
@@ -94,7 +97,7 @@ Default: \code{NULL}.}
 \item \code{sigma2_global_shape} Shape parameter in the \code{IG(sigma2_global_shape, sigma2_global_scale)} global error variance model. Default: \code{0}.
 \item \code{sigma2_global_scale} Scale parameter in the \code{IG(sigma2_global_shape, sigma2_global_scale)} global error variance model. Default: \code{0}.
 \item \code{variable_weights} Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to \code{1/ncol(X_train)}. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in \code{X_train} and then set \code{propensity_covariate} to \code{'none'} adjust \code{keep_vars} accordingly for the \code{prognostic} or \code{treatment_effect} forests.
-\item \code{propensity_covariate} Whether to include the propensity score as a covariate in either or both of the forests. Enter \code{"none"} for neither, \code{"prognostic"} for the prognostic forest, \code{"treatment_effect"} for the treatment forest, and \code{"both"} for both forests. If this is not \code{"none"} and a propensity score is not provided, it will be estimated from (\code{X_train}, \code{Z_train}) using \code{stochtree::bart()}. Default: \code{"mu"}.
+\item \code{propensity_covariate} Whether to include the propensity score as a covariate in either or both of the forests. Enter \code{"none"} for neither, \code{"prognostic"} for the prognostic forest, \code{"treatment_effect"} for the treatment forest, and \code{"both"} for both forests. If this is not \code{"none"} and a propensity score is not provided, it will be estimated from (\code{X_train}, \code{Z_train}) using \code{stochtree::bart()}. Default: \code{"prognostic"}.
 \item \code{adaptive_coding} Whether or not to use an "adaptive coding" scheme in which a binary treatment variable is not coded manually as (0,1) or (-1,1) but learned via parameters \code{b_0} and \code{b_1} that attach to the outcome model \verb{[b_0 (1-Z) + b_1 Z] tau(X)}. This is ignored when Z is not binary. Default: \code{FALSE}.
 \item \code{control_coding_init} Initial value of the "control" group coding parameter. This is ignored when Z is not binary. Default: \code{-0.5}.
 \item \code{treated_coding_init} Initial value of the "treatment" group coding parameter. This is ignored when Z is not binary. Default: \code{0.5}.
@@ -107,7 +110,7 @@ Default: \code{NULL}.}
 \item \code{verbose} Whether or not to print progress during the sampling loops. Default: \code{FALSE}.
 \item \code{outcome_model} A structured \code{OutcomeModel} object that specifies the outcome type and desired link function. This argument pre-empts the legacy (deprecated) \code{probit_outcome_model} option. Default: \code{OutcomeModel(outcome='continuous', link='identity')}.
 \item \code{probit_outcome_model} Deprecated in favor of \code{outcome_model}. Whether or not the outcome should be modeled as explicitly binary via a probit link. If \code{TRUE}, \code{y} must only contain the values \code{0} and \code{1}. Default: \code{FALSE}.
-\item \code{num_threads} Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to \code{1}, otherwise to the maximum number of available threads.
+\item \code{num_threads} Number of threads to use in the GFR and MCMC algorithms, as well as prediction. Defaults to \code{1} (single-threaded). Set to \code{-1} to use the maximum number of available threads, or a positive integer for a specific count. OpenMP must be available for values other than \code{1}.
 }}
 
 \item{prognostic_forest_params}{(Optional) A list of prognostic forest model parameters, each of which has a default value processed internally, so this argument list is optional.

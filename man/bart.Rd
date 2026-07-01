@@ -14,6 +14,7 @@ bart(
   leaf_basis_test = NULL,
   rfx_group_ids_test = NULL,
   rfx_basis_test = NULL,
+  observation_weights_train = NULL,
   observation_weights = NULL,
   num_gfr = 5,
   num_burnin = 0,
@@ -60,11 +61,13 @@ that were not in the training set.}
 
 \item{rfx_basis_test}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
 
-\item{observation_weights}{(Optional) Numeric vector of observation weights of length \code{nrow(X_train)}. Weights are
+\item{observation_weights_train}{(Optional) Numeric vector of observation weights of length \code{nrow(X_train)}. Weights are
 applied as \code{y_i | - ~ N(mu(X_i), sigma^2 / w_i)}, so larger weights increase an observation's influence on the fit.
 All weights must be non-negative. Default: \code{NULL} (all observations equally weighted). Compatible with Gaussian
 (continuous/identity) and probit outcome models; not compatible with cloglog link functions. Note: these are
 referred to internally in the C++ layer as "variance weights" (\code{var_weights}), since they scale the residual variance.}
+
+\item{observation_weights}{Deprecated alias for \code{observation_weights_train}; will be removed in a future release.}
 
 \item{num_gfr}{Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.}
 
@@ -93,7 +96,7 @@ referred to internally in the C++ layer as "variance weights" (\code{var_weights
 \item \code{verbose} Whether or not to print progress during the sampling loops. Default: \code{FALSE}.
 \item \code{outcome_model} A structured \code{OutcomeModel} object that specifies the outcome type and desired link function. This argument pre-empts the legacy (deprecated) \code{probit_outcome_model} option. Default: \code{OutcomeModel(outcome='continuous', link='identity')}.
 \item \code{probit_outcome_model} Deprecated in favor of \code{outcome_model}. Whether or not the outcome should be modeled as explicitly binary via a probit link. If \code{TRUE}, \code{y} must only contain the values \code{0} and \code{1}. Default: \code{FALSE}.
-\item \code{num_threads} Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to \code{1}, otherwise to the maximum number of available threads.
+\item \code{num_threads} Number of threads to use in the GFR and MCMC algorithms, as well as prediction. Defaults to \code{1} (single-threaded). Set to \code{-1} to use the maximum number of available threads, or a positive integer for a specific count. OpenMP must be available for values other than \code{1}.
 }}
 
 \item{mean_forest_params}{(Optional) A list of mean forest model parameters, each of which has a default value processed internally, so this argument list is optional.

@@ -1,9 +1,9 @@
 /*!
  * Logging and runtime value checking utilities.
- * 
- * This code is largely included as-is from LightGBM, which carries 
+ *
+ * This code is largely included as-is from LightGBM, which carries
  * the following copyright information:
- * 
+ *
  * Copyright (c) 2016 Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License. See LICENSE file in the project root for
  * license information.
@@ -65,10 +65,10 @@ namespace StochTree {
 #endif
 
 #ifndef CHECK_NOTNULL
-#define CHECK_NOTNULL(pointer)                                         \
-  if ((pointer) == nullptr)                                            \
+#define CHECK_NOTNULL(pointer)                                          \
+  if ((pointer) == nullptr)                                             \
     StochTree::Log::Fatal(#pointer " Can't be NULL at %s, line %d .\n", \
-                         __FILE__, __LINE__);
+                          __FILE__, __LINE__);
 #endif
 
 enum class LogLevel : int {
@@ -83,7 +83,7 @@ enum class LogLevel : int {
  */
 class Log {
  public:
-  using Callback = void (*)(const char *);
+  using Callback = void (*)(const char*);
   /*!
    * \brief Resets the minimal log level. It is INFO by default.
    * \param level The new minimal log level.
@@ -92,25 +92,25 @@ class Log {
 
   static void ResetCallBack(Callback callback) { GetLogCallBack() = callback; }
 
-  static void Debug(const char *format, ...) {
+  static void Debug(const char* format, ...) {
     va_list val;
     va_start(val, format);
     Write(LogLevel::Debug, "Debug", format, val);
     va_end(val);
   }
-  static void Info(const char *format, ...) {
+  static void Info(const char* format, ...) {
     va_list val;
     va_start(val, format);
     Write(LogLevel::Info, "Info", format, val);
     va_end(val);
   }
-  static void Warning(const char *format, ...) {
+  static void Warning(const char* format, ...) {
     va_list val;
     va_start(val, format);
     Write(LogLevel::Warning, "Warning", format, val);
     va_end(val);
   }
-  static void Fatal(const char *format, ...) {
+  static void Fatal(const char* format, ...) {
     va_list val;
     const size_t kBufSize = 1024;
     char str_buf[kBufSize];
@@ -135,7 +135,7 @@ class Log {
   }
 
  private:
-  static void Write(LogLevel level, const char *level_str, const char *format,
+  static void Write(LogLevel level, const char* level_str, const char* format,
                     va_list val) {
     if (level <= GetLevel()) {  // omit the message with low level
 // R code should write back to R's output stream,
@@ -166,12 +166,12 @@ class Log {
 
   // a trick to use static variable in header file.
   // May be not good, but avoid to use an additional cpp file
-  static LogLevel &GetLevel() {
+  static LogLevel& GetLevel() {
     static THREAD_LOCAL LogLevel level = LogLevel::Info;
     return level;
   }
 
-  static Callback &GetLogCallBack() {
+  static Callback& GetLogCallBack() {
     static THREAD_LOCAL Callback callback = nullptr;
     return callback;
   }

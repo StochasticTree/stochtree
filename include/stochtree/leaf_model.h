@@ -383,8 +383,8 @@ class GaussianConstantSuffStat {
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     if (dataset.HasVarWeights()) {
-      sum_w += 1/dataset.VarWeightValue(row_idx);
-      sum_yw += outcome(row_idx, 0)/dataset.VarWeightValue(row_idx);
+      sum_w += 1 / dataset.VarWeightValue(row_idx);
+      sum_yw += outcome(row_idx, 0) / dataset.VarWeightValue(row_idx);
     } else {
       sum_w += 1.0;
       sum_yw += outcome(row_idx, 0);
@@ -462,7 +462,10 @@ class GaussianConstantLeafModel {
    *
    * \param tau Leaf node prior scale parameter
    */
-  GaussianConstantLeafModel(double tau) {tau_ = tau; normal_sampler_ = UnivariateNormalSampler();}
+  GaussianConstantLeafModel(double tau) {
+    tau_ = tau;
+    normal_sampler_ = UnivariateNormalSampler();
+  }
   ~GaussianConstantLeafModel() {}
   /*!
    * \brief Log marginal likelihood for a proposed split, evaluated only for observations that fall into the node being split.
@@ -511,11 +514,12 @@ class GaussianConstantLeafModel {
    *
    * \param tau Leaf node prior scale parameter
    */
-  void SetScale(double tau) {tau_ = tau;}
+  void SetScale(double tau) { tau_ = tau; }
   /*!
    * \brief Whether this model requires a basis vector for posterior inference and prediction
    */
-  inline bool RequiresBasis() {return false;}
+  inline bool RequiresBasis() { return false; }
+
  private:
   double tau_;
   UnivariateNormalSampler normal_sampler_;
@@ -547,11 +551,11 @@ class GaussianUnivariateRegressionSuffStat {
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     if (dataset.HasVarWeights()) {
-      sum_xxw += dataset.BasisValue(row_idx, 0)*dataset.BasisValue(row_idx, 0)/dataset.VarWeightValue(row_idx);
-      sum_yxw += outcome(row_idx, 0)*dataset.BasisValue(row_idx, 0)/dataset.VarWeightValue(row_idx);
+      sum_xxw += dataset.BasisValue(row_idx, 0) * dataset.BasisValue(row_idx, 0) / dataset.VarWeightValue(row_idx);
+      sum_yxw += outcome(row_idx, 0) * dataset.BasisValue(row_idx, 0) / dataset.VarWeightValue(row_idx);
     } else {
-      sum_xxw += dataset.BasisValue(row_idx, 0)*dataset.BasisValue(row_idx, 0);
-      sum_yxw += outcome(row_idx, 0)*dataset.BasisValue(row_idx, 0);
+      sum_xxw += dataset.BasisValue(row_idx, 0) * dataset.BasisValue(row_idx, 0);
+      sum_yxw += outcome(row_idx, 0) * dataset.BasisValue(row_idx, 0);
     }
   }
   /*!
@@ -562,7 +566,7 @@ class GaussianUnivariateRegressionSuffStat {
     sum_xxw = 0.0;
     sum_yxw = 0.0;
   }
-    /*!
+  /*!
    * \brief Increment the value of each sufficient statistic by the values provided by `suff_stat`
    *
    * \param suff_stat Sufficient statistic to be added to the current sufficient statistics
@@ -621,7 +625,10 @@ class GaussianUnivariateRegressionSuffStat {
 /*! \brief Marginal likelihood and posterior computation for gaussian homoskedastic constant leaf outcome model */
 class GaussianUnivariateRegressionLeafModel {
  public:
-  GaussianUnivariateRegressionLeafModel(double tau) {tau_ = tau; normal_sampler_ = UnivariateNormalSampler();}
+  GaussianUnivariateRegressionLeafModel(double tau) {
+    tau_ = tau;
+    normal_sampler_ = UnivariateNormalSampler();
+  }
   ~GaussianUnivariateRegressionLeafModel() {}
   /*!
    * \brief Log marginal likelihood for a proposed split, evaluated only for observations that fall into the node being split.
@@ -665,8 +672,9 @@ class GaussianUnivariateRegressionLeafModel {
    */
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
-  void SetScale(double tau) {tau_ = tau;}
-  inline bool RequiresBasis() {return true;}
+  void SetScale(double tau) { tau_ = tau; }
+  inline bool RequiresBasis() { return true; }
+
  private:
   double tau_;
   UnivariateNormalSampler normal_sampler_;
@@ -703,16 +711,16 @@ class GaussianMultivariateRegressionSuffStat {
     n += 1;
     if (dataset.HasVarWeights()) {
       for (int i = 0; i < p; i++) {
-        ytWX(0,i) += outcome(row_idx, 0) * dataset.BasisValue(row_idx, i) / dataset.VarWeightValue(row_idx);
+        ytWX(0, i) += outcome(row_idx, 0) * dataset.BasisValue(row_idx, i) / dataset.VarWeightValue(row_idx);
         for (int j = 0; j < p; j++) {
-          XtWX(i,j) += dataset.BasisValue(row_idx, i) * dataset.BasisValue(row_idx, j) / dataset.VarWeightValue(row_idx);
+          XtWX(i, j) += dataset.BasisValue(row_idx, i) * dataset.BasisValue(row_idx, j) / dataset.VarWeightValue(row_idx);
         }
       }
     } else {
       for (int i = 0; i < p; i++) {
-        ytWX(0,i) += outcome(row_idx, 0) * dataset.BasisValue(row_idx, i);
+        ytWX(0, i) += outcome(row_idx, 0) * dataset.BasisValue(row_idx, i);
         for (int j = 0; j < p; j++) {
-          XtWX(i,j) += dataset.BasisValue(row_idx, i) * dataset.BasisValue(row_idx, j);
+          XtWX(i, j) += dataset.BasisValue(row_idx, i) * dataset.BasisValue(row_idx, j);
         }
       }
     }
@@ -729,7 +737,7 @@ class GaussianMultivariateRegressionSuffStat {
       }
     }
   }
-   /*!
+  /*!
    * \brief Increment the value of each sufficient statistic by the values provided by `suff_stat`
    *
    * \param suff_stat Sufficient statistic to be added to the current sufficient statistics
@@ -793,7 +801,10 @@ class GaussianMultivariateRegressionLeafModel {
    *
    * \param Sigma_0 Prior covariance, must have the same number of rows and columns as dimensions of the basis vector for the multivariate regression problem
    */
-  GaussianMultivariateRegressionLeafModel(Eigen::MatrixXd& Sigma_0) {Sigma_0_ = Sigma_0; multivariate_normal_sampler_ = MultivariateNormalSampler();}
+  GaussianMultivariateRegressionLeafModel(Eigen::MatrixXd& Sigma_0) {
+    Sigma_0_ = Sigma_0;
+    multivariate_normal_sampler_ = MultivariateNormalSampler();
+  }
   ~GaussianMultivariateRegressionLeafModel() {}
   /*!
    * \brief Log marginal likelihood for a proposed split, evaluated only for observations that fall into the node being split.
@@ -837,8 +848,9 @@ class GaussianMultivariateRegressionLeafModel {
    */
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
-  void SetScale(Eigen::MatrixXd& Sigma_0) {Sigma_0_ = Sigma_0;}
-  inline bool RequiresBasis() {return true;}
+  void SetScale(Eigen::MatrixXd& Sigma_0) { Sigma_0_ = Sigma_0; }
+  inline bool RequiresBasis() { return true; }
+
  private:
   Eigen::MatrixXd Sigma_0_;
   MultivariateNormalSampler multivariate_normal_sampler_;
@@ -864,7 +876,7 @@ class LogLinearVarianceSuffStat {
    */
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
-    weighted_sum_ei += std::exp(std::log(outcome(row_idx)*outcome(row_idx)) - tracker.GetSamplePrediction(row_idx) + tracker.GetTreeSamplePrediction(row_idx, tree_idx));
+    weighted_sum_ei += std::exp(std::log(outcome(row_idx) * outcome(row_idx)) - tracker.GetSamplePrediction(row_idx) + tracker.GetTreeSamplePrediction(row_idx, tree_idx));
   }
   /*!
    * \brief Reset all of the sufficient statistics to zero
@@ -929,7 +941,11 @@ class LogLinearVarianceSuffStat {
 /*! \brief Marginal likelihood and posterior computation for heteroskedastic log-linear variance model */
 class LogLinearVarianceLeafModel {
  public:
-  LogLinearVarianceLeafModel(double a, double b) {a_ = a; b_ = b; gamma_sampler_ = GammaSampler();}
+  LogLinearVarianceLeafModel(double a, double b) {
+    a_ = a;
+    b_ = b;
+    gamma_sampler_ = GammaSampler();
+  }
   ~LogLinearVarianceLeafModel() {}
   /*!
    * \brief Log marginal likelihood for a proposed split, evaluated only for observations that fall into the node being split.
@@ -974,15 +990,15 @@ class LogLinearVarianceLeafModel {
    */
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
-  void SetPriorShape(double a) {a_ = a;}
-  void SetPriorRate(double b) {b_ = b;}
-  inline bool RequiresBasis() {return false;}
+  void SetPriorShape(double a) { a_ = a; }
+  void SetPriorRate(double b) { b_ = b; }
+  inline bool RequiresBasis() { return false; }
+
  private:
   double a_;
   double b_;
   GammaSampler gamma_sampler_;
 };
-
 
 /*! \brief Sufficient statistic and associated operations for complementary log-log ordinal BART model */
 class CloglogOrdinalSuffStat {
@@ -1016,20 +1032,20 @@ class CloglogOrdinalSuffStat {
     unsigned int y = static_cast<unsigned int>(outcome(row_idx));
 
     // Get auxiliary data from tracker (assuming types: 0=latents Z, 1=forest predictions, 2=cutpoints gamma, 3=cumsum exp of gamma)
-    double Z = dataset.GetAuxiliaryDataValue(0, row_idx);  // latent variables Z
+    double Z = dataset.GetAuxiliaryDataValue(0, row_idx);             // latent variables Z
     double lambda_minus = dataset.GetAuxiliaryDataValue(1, row_idx);  // forest predictions excluding current tree
 
     // Get cutpoints gamma and cumulative sum of exp(gamma)
     const std::vector<double>& gamma = dataset.GetAuxiliaryDataVectorConst(2);  // cutpoints gamma
     const std::vector<double>& seg = dataset.GetAuxiliaryDataVectorConst(3);    // cumsum exp of gamma
-    
+
     int K = gamma.size() + 1;  // Number of ordinal categories
 
     if (y == K - 1) {
       other_sum += std::exp(lambda_minus) * seg[y];  // checked and it's correct
     } else {
       sum_Y_less_K += 1.0;
-      other_sum += std::exp(lambda_minus) * (Z * std::exp(gamma[y]) + seg[y]); // checked and it's correct
+      other_sum += std::exp(lambda_minus) * (Z * std::exp(gamma[y]) + seg[y]);  // checked and it's correct
     }
   }
 
@@ -1150,7 +1166,7 @@ class CloglogOrdinalLeafModel {
    * Samples from log-gamma: sample from gamma, then take log.
    */
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
-  inline bool RequiresBasis() {return false;}
+  inline bool RequiresBasis() { return false; }
 
  private:
   double a_;
@@ -1185,12 +1201,12 @@ using LeafModelVariant = std::variant<GaussianConstantLeafModel,
                                       LogLinearVarianceLeafModel,
                                       CloglogOrdinalLeafModel>;
 
-template<typename SuffStatType, typename... SuffStatConstructorArgs>
+template <typename SuffStatType, typename... SuffStatConstructorArgs>
 static inline SuffStatVariant createSuffStat(SuffStatConstructorArgs... leaf_suff_stat_args) {
   return SuffStatType(leaf_suff_stat_args...);
 }
 
-template<typename LeafModelType, typename... LeafModelConstructorArgs>
+template <typename LeafModelType, typename... LeafModelConstructorArgs>
 static inline LeafModelVariant createLeafModel(LeafModelConstructorArgs... leaf_model_args) {
   return LeafModelType(leaf_model_args...);
 }
@@ -1238,12 +1254,11 @@ static inline LeafModelVariant leafModelFactory(ModelType model_type, double tau
   }
 }
 
-template<typename SuffStatType, typename... SuffStatConstructorArgs>
+template <typename SuffStatType, typename... SuffStatConstructorArgs>
 static inline void AccumulateSuffStatProposed(
-  SuffStatType& node_suff_stat, SuffStatType& left_suff_stat, SuffStatType& right_suff_stat, ForestDataset& dataset, ForestTracker& tracker,
-  ColumnVector& residual, double global_variance, TreeSplit& split, int tree_num, int leaf_num, int split_feature, int num_threads,
-  SuffStatConstructorArgs&... suff_stat_args
-) {
+    SuffStatType& node_suff_stat, SuffStatType& left_suff_stat, SuffStatType& right_suff_stat, ForestDataset& dataset, ForestTracker& tracker,
+    ColumnVector& residual, double global_variance, TreeSplit& split, int tree_num, int leaf_num, int split_feature, int num_threads,
+    SuffStatConstructorArgs&... suff_stat_args) {
   // Determine the position of the node's indices in the forest tracking data structure
   int node_begin_index = tracker.UnsortedNodeBegin(tree_num, leaf_num);
   int node_end_index = tracker.UnsortedNodeEnd(tree_num, leaf_num);
@@ -1309,9 +1324,9 @@ static inline void AccumulateSuffStatProposed(
   }
 }
 
-template<typename SuffStatType>
+template <typename SuffStatType>
 static inline void AccumulateSuffStatExisting(SuffStatType& node_suff_stat, SuffStatType& left_suff_stat, SuffStatType& right_suff_stat, ForestDataset& dataset, ForestTracker& tracker,
-                                ColumnVector& residual, double global_variance, int tree_num, int split_node_id, int left_node_id, int right_node_id) {
+                                              ColumnVector& residual, double global_variance, int tree_num, int split_node_id, int left_node_id, int right_node_id) {
   // Acquire iterators
   auto left_node_begin_iter = tracker.UnsortedNodeBeginIterator(tree_num, left_node_id);
   auto left_node_end_iter = tracker.UnsortedNodeEndIterator(tree_num, left_node_id);
@@ -1333,7 +1348,7 @@ static inline void AccumulateSuffStatExisting(SuffStatType& node_suff_stat, Suff
   }
 }
 
-template<typename SuffStatType, bool sorted>
+template <typename SuffStatType, bool sorted>
 static inline void AccumulateSingleNodeSuffStat(SuffStatType& node_suff_stat, ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, int tree_num, int node_id) {
   // Acquire iterators
   std::vector<data_size_t>::iterator node_begin_iter;
@@ -1354,10 +1369,10 @@ static inline void AccumulateSingleNodeSuffStat(SuffStatType& node_suff_stat, Fo
   }
 }
 
-template<typename SuffStatType>
+template <typename SuffStatType>
 static inline void AccumulateCutpointBinSuffStat(SuffStatType& left_suff_stat, ForestTracker& tracker, CutpointGridContainer& cutpoint_grid_container,
-                                   ForestDataset& dataset, ColumnVector& residual, double global_variance, int tree_num, int node_id,
-                                   int feature_num, int cutpoint_num) {
+                                                 ForestDataset& dataset, ColumnVector& residual, double global_variance, int tree_num, int node_id,
+                                                 int feature_num, int cutpoint_num) {
   // Acquire iterators
   auto node_begin_iter = tracker.SortedNodeBeginIterator(node_id, feature_num);
   auto node_end_iter = tracker.SortedNodeEndIterator(node_id, feature_num);
@@ -1382,8 +1397,8 @@ static inline void AccumulateCutpointBinSuffStat(SuffStatType& left_suff_stat, F
   }
 }
 
-/*! \} */ // end of leaf_model_group
+/*! \} */  // end of leaf_model_group
 
-} // namespace StochTree
+}  // namespace StochTree
 
-#endif // STOCHTREE_LEAF_MODEL_H_
+#endif  // STOCHTREE_LEAF_MODEL_H_

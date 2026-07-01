@@ -136,7 +136,7 @@ class TestJson:
 
         # Roundtrip to / from JSON
         json_test = JSONSerializer()
-        json_test.add_forest(bart_model.forest_container_mean)
+        json_test.add_forest(bart_model.extract_forest('mean'))
         forest_container = json_test.get_forest_container("forest_0")
 
         # Predict from the deserialized forest container
