@@ -167,22 +167,7 @@ struct BARTSamples {
   double y_bar = 0.0;
   double y_std = 0.0;
 
-  // Serialize the samples-owned subtree (forests + parameter traces + intrinsic scalars) into a
-  // JSON object. This is the shared C++ source of truth for BART (de)serialization; the per-language
-  // layer writes the surrounding envelope (model_params, covariate preprocessor, schema_version) into
-  // the same object. Key layout matches the existing R/Python output exactly so the wire format is
-  // unchanged (forests under named keys, parameter traces under a "parameters" subfolder, intrinsic
-  // scalars top-level). nlohmann dumps keys sorted, so insertion order is irrelevant to the bytes.
-  // NOTE: random effects and cloglog cutpoint samples are not yet routed through this path; callers
-  // with those still use the per-language serializer. Guarded to avoid silently dropping them.
-  nlohmann::json ToJson() const {
-    if (rfx_container != nullptr || rfx_label_mapper != nullptr) {
-      Log::Fatal("BARTSamples::ToJson does not yet support random effects");
-    }
-    if (!cloglog_cutpoint_samples.empty()) {
-      Log::Fatal("BARTSamples::ToJson does not yet support cloglog cutpoint samples");
-    }
-    nlohmann::json obj;
+  void AppendToJson(nlohmann::json& obj) const {
     // Forests, under self-describing named keys, with the num_forests counter
     nlohmann::json forests = nlohmann::json::object();
     int num_forests = 0;
@@ -194,8 +179,12 @@ struct BARTSamples {
       forests.emplace("variance_forest", variance_forests->to_json());
       num_forests++;
     }
-    obj.emplace("forests", forests);
-    obj.emplace("num_forests", num_forests);
+    // NOTE: use operator[] assignment (not emplace) for the top-level keys below. The R CppJson
+    // envelope pre-creates empty "forests"/"random_effects"/"num_forests"/"num_random_effects"
+    // keys, and nlohmann::json::emplace is a no-op when the key already exists (like std::map),
+    // which would silently drop the forests/rfx. Assignment overwrites whether or not the key exists.
+    obj["forests"] = forests;
+    obj["num_forests"] = num_forests;
     // Parameter traces, under the "parameters" subfolder (presence inferred from non-empty vectors)
     nlohmann::json parameters = nlohmann::json::object();
     if (!global_error_variance_samples.empty()) {
@@ -204,24 +193,32 @@ struct BARTSamples {
     if (!leaf_scale_samples.empty()) {
       parameters.emplace("sigma2_leaf_samples", leaf_scale_samples);
     }
+    if (!cloglog_cutpoint_samples.empty()) {
+      parameters.emplace("cloglog_cutpoint_samples", cloglog_cutpoint_samples);
+    }
     if (!parameters.empty()) {
-      obj.emplace("parameters", parameters);
+      obj["parameters"] = parameters;
     }
     // Intrinsic scalars (stored in user-facing scale, matching the existing wire format)
-    obj.emplace("outcome_mean", y_bar);
-    obj.emplace("outcome_scale", y_std);
-    obj.emplace("num_samples", num_samples);
-    return obj;
+    obj["outcome_mean"] = y_bar;
+    obj["outcome_scale"] = y_std;
+    obj["num_samples"] = num_samples;
+    // Random effects
+    int num_random_effects = 0;
+    nlohmann::json rfx = nlohmann::json::object();
+    if (rfx_container != nullptr && rfx_label_mapper != nullptr) {
+      rfx.emplace("random_effect_container_0", rfx_container->to_json());
+      rfx.emplace("random_effect_label_mapper_0", rfx_label_mapper->to_json());
+      rfx.emplace("random_effect_groupids_0", rfx_label_mapper->Keys());
+      num_random_effects = 1;
+    }
+    obj["random_effects"] = rfx;
+    obj["num_random_effects"] = num_random_effects;
   }
 
-  // Populate this BARTSamples from the samples-owned subtree of a parsed JSON object. Presence is
-  // inferred from the JSON structure (does "forests" contain "mean_forest"? does "parameters"
-  // contain "sigma2_global_samples"?) rather than from the envelope's boolean flags, so the samples
-  // (de)serialization is self-contained. Inverse of ToJson(); see its note re: rfx/cloglog scope.
+  // Populate this BARTSamples from a parsed JSON object
   void FromJson(const nlohmann::json& obj) {
-    if (obj.contains("num_random_effects") && obj.at("num_random_effects").get<int>() > 0) {
-      Log::Fatal("BARTSamples::FromJson does not yet support random effects");
-    }
+    // Unpack forests if present, checking for the expected keys
     if (obj.contains("forests")) {
       const nlohmann::json& forests = obj.at("forests");
       if (forests.contains("mean_forest")) {
@@ -233,6 +230,7 @@ struct BARTSamples {
         variance_forests->from_json(forests.at("variance_forest"));
       }
     }
+    // Unpack parameters if present, checking for expected keys
     if (obj.contains("parameters")) {
       const nlohmann::json& parameters = obj.at("parameters");
       if (parameters.contains("sigma2_global_samples")) {
@@ -241,7 +239,18 @@ struct BARTSamples {
       if (parameters.contains("sigma2_leaf_samples")) {
         leaf_scale_samples = parameters.at("sigma2_leaf_samples").get<std::vector<double>>();
       }
+      if (parameters.contains("cloglog_cutpoint_samples")) {
+        cloglog_cutpoint_samples = parameters.at("cloglog_cutpoint_samples").get<std::vector<double>>();
+      }
     }
+    // Unpack random effects if present, checking for expected keys
+    if (obj.contains("num_random_effects") && obj.at("num_random_effects").get<int>() > 0) {
+      rfx_container = std::make_unique<RandomEffectsContainer>();
+      rfx_label_mapper = std::make_unique<LabelMapper>();
+      rfx_container->from_json(obj.at("random_effects").at("random_effect_container_0"));
+      rfx_label_mapper->from_json(obj.at("random_effects").at("random_effect_label_mapper_0"));
+    }
+    // Unpack outcome statistics
     if (obj.contains("outcome_mean")) y_bar = obj.at("outcome_mean").get<double>();
     if (obj.contains("outcome_scale")) y_std = obj.at("outcome_scale").get<double>();
     if (obj.contains("num_samples")) num_samples = obj.at("num_samples").get<int>();
@@ -252,28 +261,54 @@ struct BARTSamples {
   // (same forests present, same outcome standardization). Forests are deep-copied sample-by-sample
   // and parameter traces concatenated, so draw order is preserved (this's draws, then other's).
   void Merge(const BARTSamples& other) {
-    if (!cloglog_cutpoint_samples.empty() || !other.cloglog_cutpoint_samples.empty()) {
-      Log::Fatal("BARTSamples::Merge does not yet support cloglog cutpoint samples");
-    }
-    if (rfx_container != nullptr || other.rfx_container != nullptr) {
-      Log::Fatal("BARTSamples::Merge does not yet support random effects");
-    }
+    // Runtime checks for samples objects to be combined
     if (y_bar != other.y_bar || y_std != other.y_std) {
       Log::Fatal("Cannot merge BARTSamples with different outcome standardization");
     }
+    if (rfx_container != nullptr && other.rfx_container != nullptr) {
+      if (rfx_container->NumComponents() != other.rfx_container->NumComponents() ||
+          rfx_container->NumGroups() != other.rfx_container->NumGroups()) {
+        Log::Fatal("Cannot merge BARTSamples with different random effects structure");
+      }
+      if (rfx_label_mapper->Keys() != other.rfx_label_mapper->Keys()) {
+        Log::Fatal("Cannot merge BARTSamples with different random effects label mapping");
+      }
+      if (rfx_label_mapper->Map() != other.rfx_label_mapper->Map()) {
+        Log::Fatal("Cannot merge BARTSamples with different random effects label mapping");
+      }
+    }
+    // Append forests if they exist in the samples object
     AppendForestContainerSamples(mean_forests, other.mean_forests, "mean");
     AppendForestContainerSamples(variance_forests, other.variance_forests, "variance");
+    // Append random effects if they exist in the samples object
+    // Note that the LabelMapper is not sample-specific so we do not need to append to it
+    AppendRandomEffectsContainerSamples(rfx_container, other.rfx_container);
+    // Append parameter samples
+    if ((!global_error_variance_samples.empty() && other.global_error_variance_samples.empty()) ||
+        (global_error_variance_samples.empty() && !other.global_error_variance_samples.empty())) {
+      Log::Fatal("Cannot merge BARTSamples objects: global error variance samples present in one chain but not the other");
+    }
     global_error_variance_samples.insert(global_error_variance_samples.end(),
                                          other.global_error_variance_samples.begin(), other.global_error_variance_samples.end());
+    if ((!leaf_scale_samples.empty() && other.leaf_scale_samples.empty()) ||
+        (leaf_scale_samples.empty() && !other.leaf_scale_samples.empty())) {
+      Log::Fatal("Cannot merge BARTSamples objects: leaf scale samples present in one chain but not the other");
+    }
     leaf_scale_samples.insert(leaf_scale_samples.end(),
                               other.leaf_scale_samples.begin(), other.leaf_scale_samples.end());
+    if ((!cloglog_cutpoint_samples.empty() && other.cloglog_cutpoint_samples.empty()) ||
+        (cloglog_cutpoint_samples.empty() && !other.cloglog_cutpoint_samples.empty())) {
+      Log::Fatal("Cannot merge BARTSamples objects: cloglog cutpoint samples present in one chain but not the other");
+    }
+    cloglog_cutpoint_samples.insert(cloglog_cutpoint_samples.end(),
+                                    other.cloglog_cutpoint_samples.begin(), other.cloglog_cutpoint_samples.end());
     num_samples += other.num_samples;
   }
 
   std::vector<double> OutcomePredictionsTrain() const {
     std::vector<double> predictions(num_train * num_samples, 0.0);
-    for (int i = 0; i < num_train; ++i) {
-      if (mean_forest_predictions_train.empty()) {
+    for (int i = 0; i < num_train * num_samples; ++i) {
+      if (!mean_forest_predictions_train.empty()) {
         predictions[i] += mean_forest_predictions_train[i];
       }
       if (!rfx_predictions_train.empty()) {
@@ -285,8 +320,8 @@ struct BARTSamples {
 
   std::vector<double> OutcomePredictionsTest() const {
     std::vector<double> predictions(num_test * num_samples, 0.0);
-    for (int i = 0; i < num_test; ++i) {
-      if (mean_forest_predictions_test.empty()) {
+    for (int i = 0; i < num_test * num_samples; ++i) {
+      if (!mean_forest_predictions_test.empty()) {
         predictions[i] += mean_forest_predictions_test[i];
       }
       if (!rfx_predictions_test.empty()) {

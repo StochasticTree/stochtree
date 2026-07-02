@@ -589,6 +589,19 @@ void BARTSampler::postprocess_samples(BARTSamples& samples) {
     double y_std2 = samples.y_std * samples.y_std;
     for (double& v : samples.global_error_variance_samples) v *= y_std2;
   }
+
+  // Convert mean forest and random effects predictions from standardized space to the
+  // original outcome scale, matching predict(): the mean forest carries the location
+  // shift (y_bar), random effects carry only the scale factor. For probit/cloglog
+  // outcomes y_bar=0 and y_std=1, so these adjustments are the identity.
+  if (has_mean_forest_) {
+    for (double& v : samples.mean_forest_predictions_train) v = v * samples.y_std + samples.y_bar;
+    for (double& v : samples.mean_forest_predictions_test)  v = v * samples.y_std + samples.y_bar;
+  }
+  if (has_random_effects_) {
+    for (double& v : samples.rfx_predictions_train) v *= samples.y_std;
+    for (double& v : samples.rfx_predictions_test)  v *= samples.y_std;
+  }
 }
 
 void BARTSampler::RunOneIteration(BARTSamples& samples, bool gfr, bool keep_sample, bool write_snapshot) {
@@ -680,8 +693,8 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, bool gfr, bool keep_samp
                                                        variance_forest_preds_train,
                                                        variance_forest_preds_train + samples.num_train);
     }
-    if (config_.link_function == LinkFunction::Cloglog) {
-      // Store cutpoint samples
+    if (config_.outcome_type == OutcomeType::Ordinal) {
+      // Store cutpoint samples (ordinal only; binary cloglog has a single fixed cutpoint)
       std::vector<double> cloglog_cutpoints(config_.num_classes_cloglog - 1);
       for (int i = 0; i < config_.num_classes_cloglog - 1; i++) {
         cloglog_cutpoints[i] = forest_dataset_->GetAuxiliaryDataValue(2, i);

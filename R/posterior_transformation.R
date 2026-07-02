@@ -658,7 +658,7 @@ sampleBCFPosteriorPredictive <- function(
     if (samples_global_variance) {
       ppd_variance <- matrix(
         rep(
-          model_object$sigma2_global_samples,
+          model_object$samples$global_var_samples(),
           each = num_observations
         ),
         nrow = num_observations
@@ -834,7 +834,7 @@ sampleBARTPosteriorPredictive <- function(
       if (samples_global_variance) {
         ppd_variance <- matrix(
           rep(
-            model_object$sigma2_global_samples,
+            model_object$samples$global_var_samples(),
             each = num_observations
           ),
           nrow = num_observations

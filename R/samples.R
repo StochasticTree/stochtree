@@ -107,6 +107,14 @@ BARTSamples <- R6::R6Class(
       bart_samples_has_cloglog_cutpoint_samples_cpp(self$samples_ptr)
     },
 
+    #' @description Cloglog ordinal cutpoint samples (`(num_classes - 1)` x `num_samples`), or NULL.
+    cloglog_cutpoint_samples = function() {
+      if (!self$has_cloglog_cutpoint_samples()) {
+        return(NULL)
+      }
+      bart_samples_cloglog_cutpoint_samples_cpp(self$samples_ptr)
+    },
+
     #' @description Mean forest predictions for the training set (length `num_samples` * `num_train`, or empty).
     y_hat_train = function() {
       bart_samples_yhat_train_cpp(self$samples_ptr)

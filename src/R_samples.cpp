@@ -63,8 +63,7 @@ cpp11::external_pointer<StochTree::BARTSamples> bart_samples_from_json_cpp(cpp11
 
 [[cpp11::register]]
 void append_bart_samples_to_json_cpp(cpp11::external_pointer<StochTree::BARTSamples> samples, cpp11::external_pointer<nlohmann::json> json) {
-  nlohmann::json json_samples = samples->ToJson();
-  json->emplace("bart_samples", json_samples);
+  samples->AppendToJson(*json);
 }
 
 [[cpp11::register]]
@@ -204,7 +203,10 @@ cpp11::writable::doubles bart_samples_leaf_scale_samples_cpp(cpp11::external_poi
 
 [[cpp11::register]]
 cpp11::writable::doubles bart_samples_cloglog_cutpoint_samples_cpp(cpp11::external_pointer<StochTree::BARTSamples> samples) {
-  return vec_to_doubles(samples->cloglog_cutpoint_samples);
+  int ns = samples->num_samples;
+  int len = static_cast<int>(samples->cloglog_cutpoint_samples.size());
+  int num_cutpoints = (ns > 0) ? len / ns : 0;
+  return vec_to_doubles_reshape(samples->cloglog_cutpoint_samples, {num_cutpoints, ns});
 }
 
 // Materialize a standalone deep copy of the mean forest container.

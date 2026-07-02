@@ -376,6 +376,39 @@ class RandomEffectsContainer {
   void AddSigma(MultivariateRegressionRandomEffectsModel& model);
 };
 
+/*!
+ * \brief Append every retained random effects sample from `src` onto the end of `dst` (deep copy).
+ * Used by BARTSamples::Merge / BCFSamples::Merge to combine independently-sampled chains. The random effects
+ * must be present in both samples objects or neither.
+ */
+inline void AppendRandomEffectsContainerSamples(std::unique_ptr<RandomEffectsContainer>& dst,
+                                                const std::unique_ptr<RandomEffectsContainer>& src) {
+  if (src == nullptr && dst == nullptr) return;
+  if (src == nullptr || dst == nullptr) {
+    Log::Fatal("Cannot merge samples: random effects container present in one chain but not the other");
+  }
+  // Check that group and basis dimensions match between the two containers before appending
+  if (src->NumComponents() != dst->NumComponents()) {
+    Log::Fatal("Cannot merge samples: random effects container has %d components in one chain but %d in the other", src->NumComponents(), dst->NumComponents());
+  }
+  if (src->NumGroups() != dst->NumGroups()) {
+    Log::Fatal("Cannot merge samples: random effects container has %d groups in one chain but %d in the other", src->NumGroups(), dst->NumGroups());
+  }
+  dst->SetNumSamples(dst->NumSamples() + src->NumSamples());
+  std::vector<double>& dst_beta = dst->GetBeta();
+  std::vector<double>& dst_alpha = dst->GetAlpha();
+  std::vector<double>& dst_xi = dst->GetXi();
+  std::vector<double>& dst_sigma_xi = dst->GetSigma();
+  std::vector<double>& src_beta = src->GetBeta();
+  std::vector<double>& src_alpha = src->GetAlpha();
+  std::vector<double>& src_xi = src->GetXi();
+  std::vector<double>& src_sigma_xi = src->GetSigma();
+  dst_beta.insert(dst_beta.end(), src_beta.begin(), src_beta.end());
+  dst_alpha.insert(dst_alpha.end(), src_alpha.begin(), src_alpha.end());
+  dst_xi.insert(dst_xi.end(), src_xi.begin(), src_xi.end());
+  dst_sigma_xi.insert(dst_sigma_xi.end(), src_sigma_xi.begin(), src_sigma_xi.end());
+}
+
 }  // namespace StochTree
 
 #endif  // STOCHTREE_RANDOM_EFFECTS_H_

@@ -450,13 +450,13 @@ bart <- function(
       previous_forest_samples_variance <- NULL
     }
     if (previous_bart_model$model_params$sample_sigma2_global) {
-      previous_global_var_samples <- previous_bart_model$sigma2_global_samples /
+      previous_global_var_samples <- previous_bart_model$samples$global_var_samples() /
         (previous_y_scale * previous_y_scale)
     } else {
       previous_global_var_samples <- NULL
     }
     if (previous_bart_model$model_params$sample_sigma2_leaf) {
-      previous_leaf_var_samples <- previous_bart_model$sigma2_leaf_samples
+      previous_leaf_var_samples <- previous_bart_model$samples$leaf_scale_samples()
     } else {
       previous_leaf_var_samples <- NULL
     }
@@ -466,7 +466,7 @@ bart <- function(
       previous_rfx_samples <- NULL
     }
     if (previous_bart_model$model_params$outcome_model$link == "cloglog") {
-      previous_cloglog_cutpoint_samples <- previous_bart_model$cloglog_cutpoint_samples
+      previous_cloglog_cutpoint_samples <- previous_bart_model$samples$cloglog_cutpoint_samples()
       previous_cloglog_num_categories <- previous_bart_model$cloglog_num_categories
     } else {
       previous_cloglog_cutpoint_samples <- NULL
@@ -2110,7 +2110,7 @@ summary.bartmodel <- function(object, ...) {
 plot.bartmodel <- function(x, ...) {
   # Check if model has global error scale samples
   has_sigma2_samples <- x$model_params$sample_sigma2_global
-  has_mean_forest_preds <- !is.null(x$y_hat_train)
+  has_mean_forest_preds <- x$samples$has_yhat_train()
 
   # Check if model is ordinal / binary
   is_probit <- (x$model_params$outcome_model$link == "probit" &&
@@ -2127,7 +2127,7 @@ plot.bartmodel <- function(x, ...) {
   if (has_sigma2_samples || has_mean_forest_preds) {
     if (has_sigma2_samples) {
       plot(
-        x$sigma2_global_samples,
+        x$samples$global_var_samples(),
         type = "l",
         ylab = "Sigma^2",
         main = "Global error scale traceplot"
@@ -2139,7 +2139,7 @@ plot.bartmodel <- function(x, ...) {
         plot_text <- "In-sample mean function trace for the first train set observation"
       }
       plot(
-        x$y_hat_train[1, ],
+        x$samples$y_hat_train()[1, ],
         type = "l",
         ylab = "Predictions",
         main = plot_text
