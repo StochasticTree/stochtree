@@ -218,9 +218,6 @@ struct BCFSamples {
   // wiring boundary per the locked scale decision, not here. Random effects are not yet routed
   // through this path (guarded to avoid silent drops).
   void AppendToJson(nlohmann::json& obj) const {
-    if (rfx_container != nullptr || rfx_label_mapper != nullptr) {
-      Log::Fatal("BCFSamples::ToJson does not yet support random effects");
-    }
     // Forests, under the BCF self-describing named keys, with the num_forests counter
     nlohmann::json forests = nlohmann::json::object();
     int num_forests = 0;

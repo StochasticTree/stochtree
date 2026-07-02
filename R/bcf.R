@@ -559,35 +559,35 @@ bcf <- function(
       previous_forest_samples_variance <- NULL
     }
     if (previous_bcf_model$model_params$sample_sigma2_global) {
-      previous_global_var_samples <- previous_bcf_model$sigma2_global_samples /
+      previous_global_var_samples <- previous_bcf_model$samples$global_var_samples() /
         (previous_y_scale * previous_y_scale)
     } else {
       previous_global_var_samples <- NULL
     }
     if (previous_bcf_model$model_params$sample_sigma2_leaf_mu) {
-      previous_leaf_var_mu_samples <- previous_bcf_model$sigma2_leaf_mu_samples
+      previous_leaf_var_mu_samples <- previous_bcf_model$samples$leaf_scale_mu_samples()
     } else {
       previous_leaf_var_mu_samples <- NULL
     }
     if (previous_bcf_model$model_params$sample_sigma2_leaf_tau) {
-      previous_leaf_var_tau_samples <- previous_bcf_model$sigma2_leaf_tau_samples
+      previous_leaf_var_tau_samples <- previous_bcf_model$samples$leaf_scale_tau_samples()
     } else {
       previous_leaf_var_tau_samples <- NULL
     }
     if (previous_bcf_model$model_params$has_rfx) {
-      previous_rfx_samples <- previous_bcf_model$rfx_samples
+      previous_rfx_samples <- previous_bcf_model$samples$materialize_rfx()
     } else {
       previous_rfx_samples <- NULL
     }
     if (previous_bcf_model$model_params$adaptive_coding) {
-      previous_b_1_samples <- previous_bcf_model$b_1_samples
-      previous_b_0_samples <- previous_bcf_model$b_0_samples
+      previous_b_1_samples <- previous_bcf_model$samples$b1_samples()
+      previous_b_0_samples <- previous_bcf_model$samples$b0_samples()
     } else {
       previous_b_1_samples <- NULL
       previous_b_0_samples <- NULL
     }
     if (previous_bcf_model$model_params$sample_tau_0) {
-      previous_tau_0_samples <- previous_bcf_model$tau_0_samples
+      previous_tau_0_samples <- previous_bcf_model$samples$tau_0_samples()
     } else {
       previous_tau_0_samples <- NULL
     }
@@ -2239,41 +2239,8 @@ predict.bcfmodel <- function(
   # Read forests through borrowed (non-owning) pointers into the single-owner
   # samples object -- no deep copy, no deprecated-accessor error.
   bcf_samples <- object$samples
-  variance_forest_ptr <- NULL
-  if (has_variance_forest_model) {
-    if (!is.null(bcf_samples) && bcf_samples$has_variance_forest()) {
-      variance_forest_ptr <- bcf_samples$variance_forest_ptr()
-    }
-  }
   has_rfx_model <- isTRUE(object$model_params$has_rfx)
-  bcf_model_list <- list(
-    mu_forests = if (!is.null(bcf_samples) && bcf_samples$has_mu_forest()) {
-      bcf_samples$mu_forest_ptr()
-    } else {
-      NULL
-    },
-    tau_forests = if (!is.null(bcf_samples) && bcf_samples$has_tau_forest()) {
-      bcf_samples$tau_forest_ptr()
-    } else {
-      NULL
-    },
-    variance_forests = variance_forest_ptr,
-    rfx_container = if (has_rfx_model) {
-      object$rfx_samples$rfx_container_ptr
-    } else {
-      NULL
-    },
-    rfx_label_mapper = if (has_rfx_model) {
-      object$rfx_samples$label_mapper_ptr
-    } else {
-      NULL
-    },
-    sigma2_global_samples = object$sigma2_global_samples,
-    sigma2_leaf_mu_samples = object$sigma2_leaf_mu_samples,
-    sigma2_leaf_tau_samples = object$sigma2_leaf_tau_samples,
-    b0_samples = object$b_0_samples,
-    b1_samples = object$b_1_samples,
-    tau_0_samples = object$tau_0_samples,
+  bcf_metadata_list <- list(
     num_samples = as.integer(object$model_params$num_samples),
     y_bar = as.double(object$model_params$outcome_mean),
     y_std = as.double(object$model_params$outcome_scale),
@@ -2289,7 +2256,8 @@ predict.bcfmodel <- function(
   )
 
   output <- bcf_predict_cpp(
-    bcf_model_list = bcf_model_list,
+    bcf_samples_ptr = bcf_samples$samples_ptr,
+    bcf_metadata_list = bcf_metadata_list,
     X = X_combined,
     Z = Z,
     n = n,
@@ -3129,7 +3097,8 @@ getRandomEffectSamples.bcfmodel <- function(object, ...) {
   }
 
   # Extract the samples
-  result <- object$rfx_samples$extract_parameter_samples()
+  rfx_samples <- object$samples$materialize_rfx()
+  result <- rfx_samples$extract_parameter_samples()
 
   # Scale by sd(y_train)
   result$beta_samples <- result$beta_samples *
@@ -3889,7 +3858,7 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   if (model_params[["has_rfx"]]) {
     output[["rfx_unique_group_ids"]] <- resolveRfxUniqueGroupIds(
       json_object_default,
-      output[["rfx_samples"]] ## TODO: write materialize wrapper for RFX
+      output[["samples"]]$materialize_rfx()
     )
   }
 
