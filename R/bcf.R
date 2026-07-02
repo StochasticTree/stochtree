@@ -1875,13 +1875,6 @@ bcf <- function(
   }
 }
 
-# Assemble BCFSamples object from JSON
-.attachBCFSamples <- function(output, json) {
-  bcf_samples <- BCFSamples$new()
-  bcf_samples$from_json(json)
-  bcf_samples
-}
-
 #' @title Predict from BCF Model
 #' @description
 #' Predict from a sampled BCF model on new data
@@ -3165,14 +3158,9 @@ saveBCFModelToJson <- function(object) {
     stop("This BCF model has not yet been sampled")
   }
 
-  # Add the forests under self-describing named keys, serializing through
-  # non-owning views into the single-owner samples object.
+  # Add the samples to the JSON object
   bcf_samples <- object$samples
-  jsonobj$add_forest(bcf_samples$mu_forest_view(), "prognostic_forest")
-  jsonobj$add_forest(bcf_samples$tau_forest_view(), "treatment_forest")
-  if (object$model_params$include_variance_forest) {
-    jsonobj$add_forest(bcf_samples$variance_forest_view(), "variance_forest")
-  }
+  bcf_samples$append_to_json(jsonobj)
 
   # Add version stamp and global parameters
   jsonobj$add_string("stochtree_version", getStochtreeVersion())
@@ -3243,43 +3231,9 @@ saveBCFModelToJson <- function(object) {
     outcome_model_link,
     "outcome_model"
   )
-  if (object$model_params$sample_sigma2_global) {
-    jsonobj$add_vector(
-      "sigma2_global_samples",
-      object$sigma2_global_samples,
-      "parameters"
-    )
-  }
-  if (object$model_params$sample_sigma2_leaf_mu) {
-    jsonobj$add_vector(
-      "sigma2_leaf_mu_samples",
-      object$sigma2_leaf_mu_samples,
-      "parameters"
-    )
-  }
-  if (object$model_params$sample_sigma2_leaf_tau) {
-    jsonobj$add_vector(
-      "sigma2_leaf_tau_samples",
-      object$sigma2_leaf_tau_samples,
-      "parameters"
-    )
-  }
-  if (object$model_params$adaptive_coding) {
-    jsonobj$add_vector("b1_samples", object$b_1_samples, "parameters")
-    jsonobj$add_vector("b0_samples", object$b_0_samples, "parameters")
-  }
-  if (object$model_params$sample_tau_0 && !is.null(object$tau_0_samples)) {
-    jsonobj$add_scalar("tau_0_dim", nrow(object$tau_0_samples))
-    jsonobj$add_vector(
-      "tau_0_samples",
-      as.numeric(object$tau_0_samples),
-      "parameters"
-    )
-  }
 
-  # Add random effects (if present)
+  # Add random effects group IDs
   if (object$model_params$has_rfx) {
-    jsonobj$add_random_effects(object$rfx_samples)
     jsonobj$add_string_vector(
       "rfx_unique_group_ids",
       object$rfx_unique_group_ids,
@@ -3405,6 +3359,14 @@ saveBCFModelToJsonString <- function(object) {
   }
 }
 
+#' @description Create a BCFSamples object from JSON
+#' @noRd
+createBCFSamplesFromJson <- function(json) {
+  bcf_samples <- BCFSamples$new()
+  bcf_samples$from_json(json)
+  bcf_samples
+}
+
 #' @title Convert JSON to BCF Model
 #' @param json_object Object of type `CppJson` containing Json representation of a BCF model
 #' @export
@@ -3424,27 +3386,11 @@ createBCFModelFromJson <- function(json_object) {
     json_contains_field_subfolder_cpp(json_object$json_ptr, subfolder, name)
   }
 
-  # Unpack the forests (v1 named keys)
-  output[["forests_mu"]] <- loadForestContainerJson(
-    json_object,
-    "prognostic_forest"
-  )
-  output[["forests_tau"]] <- loadForestContainerJson(
-    json_object,
-    "treatment_forest"
-  )
+  # Unpack model params
+  model_params <- list()
   include_variance_forest <- json_object$get_boolean(
     "include_variance_forest"
   )
-  if (include_variance_forest) {
-    output[["forests_variance"]] <- loadForestContainerJson(
-      json_object,
-      "variance_forest"
-    )
-  }
-
-  # Unpack model params
-  model_params <- list()
   model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
   model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
   model_params[["standardize"]] <- json_object$get_boolean("standardize")
@@ -3609,62 +3555,14 @@ createBCFModelFromJson <- function(json_object) {
   }
   output[["model_params"]] <- model_params
 
-  # Unpack sampled parameters
-  if (model_params[["sample_sigma2_global"]]) {
-    output[["sigma2_global_samples"]] <- json_object$get_vector(
-      "sigma2_global_samples",
-      "parameters"
-    )
-  }
-  if (model_params[["sample_sigma2_leaf_mu"]]) {
-    output[["sigma2_leaf_mu_samples"]] <- json_object$get_vector(
-      "sigma2_leaf_mu_samples",
-      "parameters"
-    )
-  }
-  if (model_params[["sample_sigma2_leaf_tau"]]) {
-    output[["sigma2_leaf_tau_samples"]] <- json_object$get_vector(
-      "sigma2_leaf_tau_samples",
-      "parameters"
-    )
-  }
-  if (model_params[["adaptive_coding"]]) {
-    if (has_subfolder_field("parameters", "b1_samples")) {
-      output[["b_1_samples"]] <- json_object$get_vector(
-        "b1_samples",
-        "parameters"
-      )
-      output[["b_0_samples"]] <- json_object$get_vector(
-        "b0_samples",
-        "parameters"
-      )
-    } else {
-      output[["b_1_samples"]] <- json_object$get_vector(
-        "b_1_samples",
-        "parameters"
-      )
-      output[["b_0_samples"]] <- json_object$get_vector(
-        "b_0_samples",
-        "parameters"
-      )
-      warning(sprintf(
-        "JSON fields 'b_1_samples'/'b_0_samples' are deprecated; please re-save the model to use 'b1_samples'/'b0_samples' (inferred version: %s).",
-        .ver
-      ))
-    }
-  }
-  if (model_params[["sample_tau_0"]]) {
-    tau_0_dim <- as.integer(json_object$get_scalar("tau_0_dim"))
-    tau_0_vec <- json_object$get_vector("tau_0_samples", "parameters")
-    output[["tau_0_samples"]] <- matrix(tau_0_vec, nrow = tau_0_dim)
-  }
+  # Unpack samples
+  output[["samples"]] <- createBCFSamplesFromJson(json_object)
 
-  # Unpack random effects
+  # Unpack random effects group IDs
   if (model_params[["has_rfx"]]) {
-    output[["rfx_samples"]] <- loadRandomEffectSamplesJson(json_object, 0)
     output[["rfx_unique_group_ids"]] <- resolveRfxUniqueGroupIds(
       json_object,
-      output[["rfx_samples"]]
+      output[["samples"]]$materialize_rfx()
     )
   }
 
@@ -3700,7 +3598,6 @@ createBCFModelFromJson <- function(json_object) {
     ))
   }
 
-  output <- .attachBcfSamples(output, model_params)
   class(output) <- "bcfmodel"
   return(output)
 }
@@ -3762,27 +3659,11 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
     )
   }
 
-  # Unpack the forests (v1 named keys)
-  output[["forests_mu"]] <- loadForestContainerCombinedJson(
-    json_object_list,
-    "prognostic_forest"
-  )
-  output[["forests_tau"]] <- loadForestContainerCombinedJson(
-    json_object_list,
-    "treatment_forest"
-  )
+  # Unpack model params
+  model_params <- list()
   include_variance_forest <- json_object_default$get_boolean(
     "include_variance_forest"
   )
-  if (include_variance_forest) {
-    output[["forests_variance"]] <- loadForestContainerCombinedJson(
-      json_object_list,
-      "variance_forest"
-    )
-  }
-
-  # Unpack model params
-  model_params <- list()
   model_params[["outcome_scale"]] <- json_object_default$get_scalar(
     "outcome_scale"
   )
@@ -3992,148 +3873,23 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   }
   output[["model_params"]] <- model_params
 
-  # Unpack sampled parameters
-  if (model_params[["sample_sigma2_global"]]) {
-    for (i in 1:length(json_object_list)) {
-      json_object <- json_object_list[[i]]
-      if (i == 1) {
-        output[["sigma2_global_samples"]] <- json_object$get_vector(
-          "sigma2_global_samples",
-          "parameters"
-        )
-      } else {
-        output[["sigma2_global_samples"]] <- c(
-          output[["sigma2_global_samples"]],
-          json_object$get_vector(
-            "sigma2_global_samples",
-            "parameters"
-          )
-        )
-      }
+  # Unpack samples
+  for (i in 1:length(json_object_list)) {
+    json_object <- json_object_list[[i]]
+    if (i == 1) {
+      combined_samples <- createBCFSamplesFromJson(json_object)
+    } else {
+      additional_samples <- createBCFSamplesFromJson(json_object)
+      combined_samples$merge(additional_samples)
     }
   }
-  if (model_params[["sample_sigma2_leaf_mu"]]) {
-    for (i in 1:length(json_object_list)) {
-      json_object <- json_object_list[[i]]
-      if (i == 1) {
-        output[["sigma2_leaf_mu_samples"]] <- json_object$get_vector(
-          "sigma2_leaf_mu_samples",
-          "parameters"
-        )
-      } else {
-        output[["sigma2_leaf_mu_samples"]] <- c(
-          output[["sigma2_leaf_mu_samples"]],
-          json_object$get_vector(
-            "sigma2_leaf_mu_samples",
-            "parameters"
-          )
-        )
-      }
-    }
-  }
-  if (model_params[["sample_sigma2_leaf_tau"]]) {
-    for (i in 1:length(json_object_list)) {
-      json_object <- json_object_list[[i]]
-      if (i == 1) {
-        output[["sigma2_leaf_tau_samples"]] <- json_object$get_vector(
-          "sigma2_leaf_tau_samples",
-          "parameters"
-        )
-      } else {
-        output[["sigma2_leaf_tau_samples"]] <- c(
-          output[["sigma2_leaf_tau_samples"]],
-          json_object$get_vector(
-            "sigma2_leaf_tau_samples",
-            "parameters"
-          )
-        )
-      }
-    }
-  }
-  if (model_params[["sample_sigma2_leaf_tau"]]) {
-    for (i in 1:length(json_object_list)) {
-      json_object <- json_object_list[[i]]
-      if (i == 1) {
-        output[["sigma2_leaf_tau_samples"]] <- json_object$get_vector(
-          "sigma2_leaf_tau_samples",
-          "parameters"
-        )
-      } else {
-        output[["sigma2_leaf_tau_samples"]] <- c(
-          output[["sigma2_leaf_tau_samples"]],
-          json_object$get_vector(
-            "sigma2_leaf_tau_samples",
-            "parameters"
-          )
-        )
-      }
-    }
-  }
-  .b_use_new_names <- has_subfolder_field("parameters", "b1_samples")
-  if (model_params[["adaptive_coding"]]) {
-    if (!.b_use_new_names) {
-      warning(sprintf(
-        "JSON fields 'b_1_samples'/'b_0_samples' are deprecated; please re-save the model to use 'b1_samples'/'b0_samples' (inferred version: %s).",
-        .ver
-      ))
-    }
-    for (i in 1:length(json_object_list)) {
-      json_object <- json_object_list[[i]]
-      if (i == 1) {
-        output[["b_1_samples"]] <- json_object$get_vector(
-          if (.b_use_new_names) "b1_samples" else "b_1_samples",
-          "parameters"
-        )
-        output[["b_0_samples"]] <- json_object$get_vector(
-          if (.b_use_new_names) "b0_samples" else "b_0_samples",
-          "parameters"
-        )
-      } else {
-        output[["b_1_samples"]] <- c(
-          output[["b_1_samples"]],
-          json_object$get_vector(
-            if (.b_use_new_names) "b1_samples" else "b_1_samples",
-            "parameters"
-          )
-        )
-        output[["b_0_samples"]] <- c(
-          output[["b_0_samples"]],
-          json_object$get_vector(
-            if (.b_use_new_names) "b0_samples" else "b_0_samples",
-            "parameters"
-          )
-        )
-      }
-    }
-  }
-  if (model_params[["sample_tau_0"]]) {
-    tau_0_dim <- as.integer(json_object_default$get_scalar("tau_0_dim"))
-    for (i in 1:length(json_object_list)) {
-      json_object <- json_object_list[[i]]
-      tau_0_mat_i <- matrix(
-        json_object$get_vector("tau_0_samples", "parameters"),
-        nrow = tau_0_dim
-      )
-      if (i == 1) {
-        output[["tau_0_samples"]] <- tau_0_mat_i
-      } else {
-        output[["tau_0_samples"]] <- cbind(
-          output[["tau_0_samples"]],
-          tau_0_mat_i
-        )
-      }
-    }
-  }
+  output[["samples"]] <- combined_samples
 
-  # Unpack random effects
+  # Unpack random effects group IDs
   if (model_params[["has_rfx"]]) {
-    output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(
-      json_object_list,
-      0
-    )
     output[["rfx_unique_group_ids"]] <- resolveRfxUniqueGroupIds(
       json_object_default,
-      output[["rfx_samples"]]
+      output[["rfx_samples"]] ## TODO: write materialize wrapper for RFX
     )
   }
 
@@ -4159,7 +3915,6 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
     ))
   }
 
-  output <- .attachBcfSamples(output, model_params)
   class(output) <- "bcfmodel"
   return(output)
 }
@@ -4169,9 +3924,6 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
 #' @export
 #' @rdname BCFSerialization
 createBCFModelFromCombinedJsonString <- function(json_string_list) {
-  # Initialize the BCF model
-  output <- list()
-
   # Convert JSON strings
   json_object_list <- list()
   for (i in 1:length(json_string_list)) {
@@ -4193,425 +3945,6 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
     }
   }
 
-  # For scalar / preprocessing details which aren't sample-dependent,
-  # defer to the first json
-  json_object_default <- json_object_list[[1]]
-
-  # Version inference and presence-check helpers
-  .ver <- inferStochtreeJsonVersion(json_object_default)
-  for (.jo in json_object_list) {
-    resolveSchemaVersion(.jo, migrate = .migrateBcfJsonV0ToV1)
-  }
-  cross_platform <- enforceCrossPlatformGate(json_object_default, "R")
-  has_field <- function(name) {
-    json_contains_field_cpp(json_object_default$json_ptr, name)
-  }
-  has_subfolder_field <- function(subfolder, name) {
-    json_contains_field_subfolder_cpp(
-      json_object_default$json_ptr,
-      subfolder,
-      name
-    )
-  }
-
-  # Unpack the forests (v1 named keys)
-  output[["forests_mu"]] <- loadForestContainerCombinedJson(
-    json_object_list,
-    "prognostic_forest"
-  )
-  output[["forests_tau"]] <- loadForestContainerCombinedJson(
-    json_object_list,
-    "treatment_forest"
-  )
-  include_variance_forest <- json_object_default$get_boolean(
-    "include_variance_forest"
-  )
-  if (include_variance_forest) {
-    output[["forests_variance"]] <- loadForestContainerCombinedJson(
-      json_object_list,
-      "variance_forest"
-    )
-  }
-
-  # Unpack model params
-  model_params <- list()
-  model_params[["outcome_scale"]] <- json_object_default$get_scalar(
-    "outcome_scale"
-  )
-  model_params[["outcome_mean"]] <- json_object_default$get_scalar(
-    "outcome_mean"
-  )
-  model_params[["standardize"]] <- json_object_default$get_boolean(
-    "standardize"
-  )
-  if (has_field("sigma2_init")) {
-    model_params[["initial_sigma2"]] <- json_object_default$get_scalar(
-      "sigma2_init"
-    )
-  } else {
-    model_params[["initial_sigma2"]] <- json_object_default$get_scalar(
-      "initial_sigma2"
-    )
-    warning(sprintf(
-      "JSON field 'initial_sigma2' is deprecated; please re-save the model to use 'sigma2_init' (inferred version: %s).",
-      .ver
-    ))
-  }
-  model_params[["sample_sigma2_global"]] <- json_object_default$get_boolean(
-    "sample_sigma2_global"
-  )
-  model_params[["sample_sigma2_leaf_mu"]] <- json_object_default$get_boolean(
-    "sample_sigma2_leaf_mu"
-  )
-  model_params[["sample_sigma2_leaf_tau"]] <- json_object_default$get_boolean(
-    "sample_sigma2_leaf_tau"
-  )
-  model_params[["include_variance_forest"]] <- include_variance_forest
-  model_params[["propensity_covariate"]] <- json_object_default$get_string(
-    "propensity_covariate"
-  )
-  model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
-  if (has_field("has_rfx_basis")) {
-    model_params[["has_rfx_basis"]] <- json_object_default$get_boolean(
-      "has_rfx_basis"
-    )
-    model_params[["num_rfx_basis"]] <- json_object_default$get_scalar(
-      "num_rfx_basis"
-    )
-  } else {
-    model_params[["has_rfx_basis"]] <- FALSE
-    model_params[["num_rfx_basis"]] <- 1
-    warning(sprintf(
-      "Fields 'has_rfx_basis' and 'num_rfx_basis' not found in BCF JSON (inferred version: %s). Defaulting to has_rfx_basis=FALSE, num_rfx_basis=1.",
-      .ver
-    ))
-  }
-  model_params[["num_covariates"]] <- json_object_default$get_scalar(
-    "num_covariates"
-  )
-  if (has_field("num_chains")) {
-    model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
-  } else {
-    model_params[["num_chains"]] <- 1
-    warning(sprintf(
-      "Field 'num_chains' not found in BCF JSON (inferred version: %s). Defaulting to 1.",
-      .ver
-    ))
-  }
-  if (has_field("keep_every")) {
-    model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
-  } else {
-    model_params[["keep_every"]] <- 1
-    warning(sprintf(
-      "Field 'keep_every' not found in BCF JSON (inferred version: %s). Defaulting to 1.",
-      .ver
-    ))
-  }
-  if (has_field("multivariate_treatment")) {
-    model_params[["multivariate_treatment"]] <- json_object_default$get_boolean(
-      "multivariate_treatment"
-    )
-  } else {
-    model_params[["multivariate_treatment"]] <- FALSE
-    warning(sprintf(
-      "Field 'multivariate_treatment' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
-      .ver
-    ))
-  }
-  model_params[["adaptive_coding"]] <- json_object_default$get_boolean(
-    "adaptive_coding"
-  )
-  if (has_field("binary_treatment")) {
-    model_params[["binary_treatment"]] <- json_object_default$get_boolean(
-      "binary_treatment"
-    )
-  } else {
-    model_params[["binary_treatment"]] <- .inferBinaryTreatmentFromJson(
-      json_object_default,
-      has_field
-    )
-    warning(sprintf(
-      "Field 'binary_treatment' not found in BCF JSON (inferred version: %s). Inferred binary_treatment=%s from other JSON fields.",
-      .ver,
-      model_params[["binary_treatment"]]
-    ))
-  }
-  if (has_field("treatment_dim")) {
-    model_params[["treatment_dim"]] <- json_object_default$get_scalar(
-      "treatment_dim"
-    )
-  } else {
-    model_params[["treatment_dim"]] <- 1
-    if (
-      has_field("multivariate_treatment") &&
-        isTRUE(json_object_default$get_boolean("multivariate_treatment"))
-    ) {
-      warning(sprintf(
-        "Field 'treatment_dim' not found in BCF JSON (inferred version: %s) for a multivariate-treatment model. Defaulting to 1.",
-        .ver
-      ))
-    }
-  }
-  if (has_field("sample_tau_0")) {
-    model_params[["sample_tau_0"]] <- json_object_default$get_boolean(
-      "sample_tau_0"
-    )
-  } else {
-    model_params[["sample_tau_0"]] <- FALSE
-    warning(sprintf(
-      "Field 'sample_tau_0' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
-      .ver
-    ))
-  }
-  if (has_field("internal_propensity_model")) {
-    model_params[[
-      "internal_propensity_model"
-    ]] <- json_object_default$get_boolean("internal_propensity_model")
-  } else {
-    model_params[["internal_propensity_model"]] <- FALSE
-    warning(sprintf(
-      "Field 'internal_propensity_model' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
-      .ver
-    ))
-  }
-  if (has_field("probit_outcome_model")) {
-    model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
-      "probit_outcome_model"
-    )
-  } else {
-    model_params[["probit_outcome_model"]] <- FALSE
-    warning(sprintf(
-      "Field 'probit_outcome_model' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
-      .ver
-    ))
-  }
-  if (has_subfolder_field("outcome_model", "outcome")) {
-    outcome_model_outcome <- json_object_default$get_string(
-      "outcome",
-      "outcome_model"
-    )
-    outcome_model_link <- json_object_default$get_string(
-      "link",
-      "outcome_model"
-    )
-  } else {
-    outcome_model_outcome <- "continuous"
-    outcome_model_link <- "identity"
-    warning(sprintf(
-      "Subfolder 'outcome_model' not found in BCF JSON (inferred version: %s). Defaulting to outcome='continuous', link='identity'.",
-      .ver
-    ))
-  }
-  model_params[["outcome_model"]] <- OutcomeModel(
-    outcome = outcome_model_outcome,
-    link = outcome_model_link
-  )
-  if (has_field("rfx_model_spec")) {
-    model_params[["rfx_model_spec"]] <- json_object_default$get_string(
-      "rfx_model_spec"
-    )
-  } else {
-    model_params[["rfx_model_spec"]] <- ""
-    if (model_params[["has_rfx"]]) {
-      warning(sprintf(
-        "Field 'rfx_model_spec' not found in BCF JSON (inferred version: %s) but has_rfx=TRUE.",
-        .ver
-      ))
-    }
-  }
-
-  # Combine values that are sample-specific
-  for (i in 1:length(json_object_list)) {
-    json_object <- json_object_list[[i]]
-    if (i == 1) {
-      model_params[["num_gfr"]] <- json_object$get_scalar("num_gfr")
-      model_params[["num_burnin"]] <- json_object$get_scalar("num_burnin")
-      model_params[["num_mcmc"]] <- json_object$get_scalar("num_mcmc")
-      model_params[["num_samples"]] <- json_object$get_scalar(
-        "num_samples"
-      )
-    } else {
-      prev_json <- json_object_list[[i - 1]]
-      model_params[["num_gfr"]] <- model_params[["num_gfr"]] +
-        json_object$get_scalar("num_gfr")
-      model_params[["num_burnin"]] <- model_params[["num_burnin"]] +
-        json_object$get_scalar("num_burnin")
-      model_params[["num_mcmc"]] <- model_params[["num_mcmc"]] +
-        json_object$get_scalar("num_mcmc")
-      model_params[["num_samples"]] <- model_params[["num_samples"]] +
-        json_object$get_scalar("num_samples")
-    }
-  }
-  output[["model_params"]] <- model_params
-
-  # Unpack sampled parameters
-  if (model_params[["sample_sigma2_global"]]) {
-    for (i in 1:length(json_object_list)) {
-      json_object <- json_object_list[[i]]
-      if (i == 1) {
-        output[["sigma2_global_samples"]] <- json_object$get_vector(
-          "sigma2_global_samples",
-          "parameters"
-        )
-      } else {
-        output[["sigma2_global_samples"]] <- c(
-          output[["sigma2_global_samples"]],
-          json_object$get_vector(
-            "sigma2_global_samples",
-            "parameters"
-          )
-        )
-      }
-    }
-  }
-  if (model_params[["sample_sigma2_leaf_mu"]]) {
-    for (i in 1:length(json_object_list)) {
-      json_object <- json_object_list[[i]]
-      if (i == 1) {
-        output[["sigma2_leaf_mu_samples"]] <- json_object$get_vector(
-          "sigma2_leaf_mu_samples",
-          "parameters"
-        )
-      } else {
-        output[["sigma2_leaf_mu_samples"]] <- c(
-          output[["sigma2_leaf_mu_samples"]],
-          json_object$get_vector(
-            "sigma2_leaf_mu_samples",
-            "parameters"
-          )
-        )
-      }
-    }
-  }
-  if (model_params[["sample_sigma2_leaf_tau"]]) {
-    for (i in 1:length(json_object_list)) {
-      json_object <- json_object_list[[i]]
-      if (i == 1) {
-        output[["sigma2_leaf_tau_samples"]] <- json_object$get_vector(
-          "sigma2_leaf_tau_samples",
-          "parameters"
-        )
-      } else {
-        output[["sigma2_leaf_tau_samples"]] <- c(
-          output[["sigma2_leaf_tau_samples"]],
-          json_object$get_vector(
-            "sigma2_leaf_tau_samples",
-            "parameters"
-          )
-        )
-      }
-    }
-  }
-  if (model_params[["sample_sigma2_leaf_tau"]]) {
-    for (i in 1:length(json_object_list)) {
-      json_object <- json_object_list[[i]]
-      if (i == 1) {
-        output[["sigma2_leaf_tau_samples"]] <- json_object$get_vector(
-          "sigma2_leaf_tau_samples",
-          "parameters"
-        )
-      } else {
-        output[["sigma2_leaf_tau_samples"]] <- c(
-          output[["sigma2_leaf_tau_samples"]],
-          json_object$get_vector(
-            "sigma2_leaf_tau_samples",
-            "parameters"
-          )
-        )
-      }
-    }
-  }
-  .b_use_new_names <- has_subfolder_field("parameters", "b1_samples")
-  if (model_params[["adaptive_coding"]]) {
-    if (!.b_use_new_names) {
-      warning(sprintf(
-        "JSON fields 'b_1_samples'/'b_0_samples' are deprecated; please re-save the model to use 'b1_samples'/'b0_samples' (inferred version: %s).",
-        .ver
-      ))
-    }
-    for (i in 1:length(json_object_list)) {
-      json_object <- json_object_list[[i]]
-      if (i == 1) {
-        output[["b_1_samples"]] <- json_object$get_vector(
-          if (.b_use_new_names) "b1_samples" else "b_1_samples",
-          "parameters"
-        )
-        output[["b_0_samples"]] <- json_object$get_vector(
-          if (.b_use_new_names) "b0_samples" else "b_0_samples",
-          "parameters"
-        )
-      } else {
-        output[["b_1_samples"]] <- c(
-          output[["b_1_samples"]],
-          json_object$get_vector(
-            if (.b_use_new_names) "b1_samples" else "b_1_samples",
-            "parameters"
-          )
-        )
-        output[["b_0_samples"]] <- c(
-          output[["b_0_samples"]],
-          json_object$get_vector(
-            if (.b_use_new_names) "b0_samples" else "b_0_samples",
-            "parameters"
-          )
-        )
-      }
-    }
-  }
-  if (model_params[["sample_tau_0"]]) {
-    tau_0_dim <- as.integer(json_object_default$get_scalar("tau_0_dim"))
-    for (i in 1:length(json_object_list)) {
-      json_object <- json_object_list[[i]]
-      tau_0_mat_i <- matrix(
-        json_object$get_vector("tau_0_samples", "parameters"),
-        nrow = tau_0_dim
-      )
-      if (i == 1) {
-        output[["tau_0_samples"]] <- tau_0_mat_i
-      } else {
-        output[["tau_0_samples"]] <- cbind(
-          output[["tau_0_samples"]],
-          tau_0_mat_i
-        )
-      }
-    }
-  }
-
-  # Unpack random effects
-  if (model_params[["has_rfx"]]) {
-    output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(
-      json_object_list,
-      0
-    )
-    output[["rfx_unique_group_ids"]] <- resolveRfxUniqueGroupIds(
-      json_object_default,
-      output[["rfx_samples"]]
-    )
-  }
-
-  # Unpack covariate preprocessor
-  if (cross_platform) {
-    # Identity metadata for the cross-platform all-numeric path (gate enforced);
-    # the foreign native preprocessor is not reconstructed.
-    output[["train_set_metadata"]] <- buildIdentityPreprocessorMetadata(
-      json_object_default
-    )
-  } else if (has_field("covariate_preprocessor")) {
-    preprocessor_metadata_string <- json_object_default$get_string(
-      "covariate_preprocessor"
-    )
-    output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
-      preprocessor_metadata_string
-    )
-  } else {
-    output[["train_set_metadata"]] <- NULL
-    warning(sprintf(
-      "Field 'covariate_preprocessor' not found in BCF JSON (inferred version: %s). Preprocessor is unavailable; prediction may fail.",
-      .ver
-    ))
-  }
-
-  output <- .attachBcfSamples(output, model_params)
-  class(output) <- "bcfmodel"
-  return(output)
+  # Create BCF model from list of JSON objects
+  createBCFModelFromCombinedJson(json_object_list)
 }

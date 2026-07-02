@@ -857,6 +857,21 @@ extern "C" SEXP _stochtree_bcf_samples_cpp() {
   END_CPP11
 }
 // R_samples.cpp
+cpp11::external_pointer<StochTree::BCFSamples> bcf_samples_from_json_cpp(cpp11::external_pointer<nlohmann::json> json);
+extern "C" SEXP _stochtree_bcf_samples_from_json_cpp(SEXP json) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_samples_from_json_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json)));
+  END_CPP11
+}
+// R_samples.cpp
+void append_bcf_samples_to_json_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples, cpp11::external_pointer<nlohmann::json> json);
+extern "C" SEXP _stochtree_append_bcf_samples_to_json_cpp(SEXP samples, SEXP json) {
+  BEGIN_CPP11
+    append_bcf_samples_to_json_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json));
+    return R_NilValue;
+  END_CPP11
+}
+// R_samples.cpp
 int bcf_samples_num_samples_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
 extern "C" SEXP _stochtree_bcf_samples_num_samples_cpp(SEXP samples) {
   BEGIN_CPP11
@@ -955,6 +970,76 @@ extern "C" SEXP _stochtree_bcf_samples_b1_samples_cpp(SEXP samples) {
   END_CPP11
 }
 // R_samples.cpp
+cpp11::writable::doubles bcf_samples_yhat_train_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
+extern "C" SEXP _stochtree_bcf_samples_yhat_train_cpp(SEXP samples) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_samples_yhat_train_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples)));
+  END_CPP11
+}
+// R_samples.cpp
+cpp11::writable::doubles bcf_samples_mu_forest_predictions_train_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
+extern "C" SEXP _stochtree_bcf_samples_mu_forest_predictions_train_cpp(SEXP samples) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_samples_mu_forest_predictions_train_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples)));
+  END_CPP11
+}
+// R_samples.cpp
+cpp11::writable::doubles bcf_samples_tau_forest_predictions_train_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
+extern "C" SEXP _stochtree_bcf_samples_tau_forest_predictions_train_cpp(SEXP samples) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_samples_tau_forest_predictions_train_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples)));
+  END_CPP11
+}
+// R_samples.cpp
+cpp11::writable::doubles bcf_samples_variance_forest_predictions_train_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
+extern "C" SEXP _stochtree_bcf_samples_variance_forest_predictions_train_cpp(SEXP samples) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_samples_variance_forest_predictions_train_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples)));
+  END_CPP11
+}
+// R_samples.cpp
+cpp11::writable::doubles bcf_samples_rfx_predictions_train_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
+extern "C" SEXP _stochtree_bcf_samples_rfx_predictions_train_cpp(SEXP samples) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_samples_rfx_predictions_train_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples)));
+  END_CPP11
+}
+// R_samples.cpp
+cpp11::writable::doubles bcf_samples_yhat_test_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
+extern "C" SEXP _stochtree_bcf_samples_yhat_test_cpp(SEXP samples) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_samples_yhat_test_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples)));
+  END_CPP11
+}
+// R_samples.cpp
+cpp11::writable::doubles bcf_samples_mu_forest_predictions_test_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
+extern "C" SEXP _stochtree_bcf_samples_mu_forest_predictions_test_cpp(SEXP samples) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_samples_mu_forest_predictions_test_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples)));
+  END_CPP11
+}
+// R_samples.cpp
+cpp11::writable::doubles bcf_samples_tau_forest_predictions_test_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
+extern "C" SEXP _stochtree_bcf_samples_tau_forest_predictions_test_cpp(SEXP samples) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_samples_tau_forest_predictions_test_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples)));
+  END_CPP11
+}
+// R_samples.cpp
+cpp11::writable::doubles bcf_samples_variance_forest_predictions_test_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
+extern "C" SEXP _stochtree_bcf_samples_variance_forest_predictions_test_cpp(SEXP samples) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_samples_variance_forest_predictions_test_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples)));
+  END_CPP11
+}
+// R_samples.cpp
+cpp11::writable::doubles bcf_samples_rfx_predictions_test_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
+extern "C" SEXP _stochtree_bcf_samples_rfx_predictions_test_cpp(SEXP samples) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_samples_rfx_predictions_test_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples)));
+  END_CPP11
+}
+// R_samples.cpp
 cpp11::external_pointer<StochTree::ForestContainer> bcf_samples_materialize_mu_forest_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
 extern "C" SEXP _stochtree_bcf_samples_materialize_mu_forest_cpp(SEXP samples) {
   BEGIN_CPP11
@@ -973,6 +1058,20 @@ cpp11::external_pointer<StochTree::ForestContainer> bcf_samples_materialize_vari
 extern "C" SEXP _stochtree_bcf_samples_materialize_variance_forest_cpp(SEXP samples) {
   BEGIN_CPP11
     return cpp11::as_sexp(bcf_samples_materialize_variance_forest_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples)));
+  END_CPP11
+}
+// R_samples.cpp
+cpp11::external_pointer<StochTree::RandomEffectsContainer> bcf_samples_materialize_rfx_container_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
+extern "C" SEXP _stochtree_bcf_samples_materialize_rfx_container_cpp(SEXP samples) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_samples_materialize_rfx_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples)));
+  END_CPP11
+}
+// R_samples.cpp
+cpp11::external_pointer<StochTree::LabelMapper> bcf_samples_materialize_rfx_label_mapper_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples);
+extern "C" SEXP _stochtree_bcf_samples_materialize_rfx_label_mapper_cpp(SEXP samples) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_samples_materialize_rfx_label_mapper_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples)));
   END_CPP11
 }
 // R_samples.cpp
@@ -2183,6 +2282,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_all_roots_active_forest_cpp",                            (DL_FUNC) &_stochtree_all_roots_active_forest_cpp,                             1},
     {"_stochtree_all_roots_forest_container_cpp",                         (DL_FUNC) &_stochtree_all_roots_forest_container_cpp,                          2},
     {"_stochtree_append_bart_samples_to_json_cpp",                        (DL_FUNC) &_stochtree_append_bart_samples_to_json_cpp,                         2},
+    {"_stochtree_append_bcf_samples_to_json_cpp",                         (DL_FUNC) &_stochtree_append_bcf_samples_to_json_cpp,                          2},
     {"_stochtree_average_max_depth_active_forest_cpp",                    (DL_FUNC) &_stochtree_average_max_depth_active_forest_cpp,                     1},
     {"_stochtree_average_max_depth_forest_container_cpp",                 (DL_FUNC) &_stochtree_average_max_depth_forest_container_cpp,                  1},
     {"_stochtree_bart_predict_cpp",                                       (DL_FUNC) &_stochtree_bart_predict_cpp,                                       18},
@@ -2229,6 +2329,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_bcf_samples_b0_samples_cpp",                             (DL_FUNC) &_stochtree_bcf_samples_b0_samples_cpp,                              1},
     {"_stochtree_bcf_samples_b1_samples_cpp",                             (DL_FUNC) &_stochtree_bcf_samples_b1_samples_cpp,                              1},
     {"_stochtree_bcf_samples_cpp",                                        (DL_FUNC) &_stochtree_bcf_samples_cpp,                                         0},
+    {"_stochtree_bcf_samples_from_json_cpp",                              (DL_FUNC) &_stochtree_bcf_samples_from_json_cpp,                               1},
     {"_stochtree_bcf_samples_global_var_samples_cpp",                     (DL_FUNC) &_stochtree_bcf_samples_global_var_samples_cpp,                      1},
     {"_stochtree_bcf_samples_has_mu_forest_cpp",                          (DL_FUNC) &_stochtree_bcf_samples_has_mu_forest_cpp,                           1},
     {"_stochtree_bcf_samples_has_rfx_cpp",                                (DL_FUNC) &_stochtree_bcf_samples_has_rfx_cpp,                                 1},
@@ -2237,17 +2338,29 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_bcf_samples_leaf_scale_mu_samples_cpp",                  (DL_FUNC) &_stochtree_bcf_samples_leaf_scale_mu_samples_cpp,                   1},
     {"_stochtree_bcf_samples_leaf_scale_tau_samples_cpp",                 (DL_FUNC) &_stochtree_bcf_samples_leaf_scale_tau_samples_cpp,                  1},
     {"_stochtree_bcf_samples_materialize_mu_forest_cpp",                  (DL_FUNC) &_stochtree_bcf_samples_materialize_mu_forest_cpp,                   1},
+    {"_stochtree_bcf_samples_materialize_rfx_container_cpp",              (DL_FUNC) &_stochtree_bcf_samples_materialize_rfx_container_cpp,               1},
+    {"_stochtree_bcf_samples_materialize_rfx_label_mapper_cpp",           (DL_FUNC) &_stochtree_bcf_samples_materialize_rfx_label_mapper_cpp,            1},
     {"_stochtree_bcf_samples_materialize_tau_forest_cpp",                 (DL_FUNC) &_stochtree_bcf_samples_materialize_tau_forest_cpp,                  1},
     {"_stochtree_bcf_samples_materialize_variance_forest_cpp",            (DL_FUNC) &_stochtree_bcf_samples_materialize_variance_forest_cpp,             1},
     {"_stochtree_bcf_samples_merge_cpp",                                  (DL_FUNC) &_stochtree_bcf_samples_merge_cpp,                                   2},
+    {"_stochtree_bcf_samples_mu_forest_predictions_test_cpp",             (DL_FUNC) &_stochtree_bcf_samples_mu_forest_predictions_test_cpp,              1},
+    {"_stochtree_bcf_samples_mu_forest_predictions_train_cpp",            (DL_FUNC) &_stochtree_bcf_samples_mu_forest_predictions_train_cpp,             1},
     {"_stochtree_bcf_samples_mu_forest_ptr_cpp",                          (DL_FUNC) &_stochtree_bcf_samples_mu_forest_ptr_cpp,                           1},
     {"_stochtree_bcf_samples_num_samples_cpp",                            (DL_FUNC) &_stochtree_bcf_samples_num_samples_cpp,                             1},
+    {"_stochtree_bcf_samples_rfx_predictions_test_cpp",                   (DL_FUNC) &_stochtree_bcf_samples_rfx_predictions_test_cpp,                    1},
+    {"_stochtree_bcf_samples_rfx_predictions_train_cpp",                  (DL_FUNC) &_stochtree_bcf_samples_rfx_predictions_train_cpp,                   1},
     {"_stochtree_bcf_samples_tau_0_samples_cpp",                          (DL_FUNC) &_stochtree_bcf_samples_tau_0_samples_cpp,                           1},
+    {"_stochtree_bcf_samples_tau_forest_predictions_test_cpp",            (DL_FUNC) &_stochtree_bcf_samples_tau_forest_predictions_test_cpp,             1},
+    {"_stochtree_bcf_samples_tau_forest_predictions_train_cpp",           (DL_FUNC) &_stochtree_bcf_samples_tau_forest_predictions_train_cpp,            1},
     {"_stochtree_bcf_samples_tau_forest_ptr_cpp",                         (DL_FUNC) &_stochtree_bcf_samples_tau_forest_ptr_cpp,                          1},
     {"_stochtree_bcf_samples_treatment_dim_cpp",                          (DL_FUNC) &_stochtree_bcf_samples_treatment_dim_cpp,                           1},
+    {"_stochtree_bcf_samples_variance_forest_predictions_test_cpp",       (DL_FUNC) &_stochtree_bcf_samples_variance_forest_predictions_test_cpp,        1},
+    {"_stochtree_bcf_samples_variance_forest_predictions_train_cpp",      (DL_FUNC) &_stochtree_bcf_samples_variance_forest_predictions_train_cpp,       1},
     {"_stochtree_bcf_samples_variance_forest_ptr_cpp",                    (DL_FUNC) &_stochtree_bcf_samples_variance_forest_ptr_cpp,                     1},
     {"_stochtree_bcf_samples_y_bar_cpp",                                  (DL_FUNC) &_stochtree_bcf_samples_y_bar_cpp,                                   1},
     {"_stochtree_bcf_samples_y_std_cpp",                                  (DL_FUNC) &_stochtree_bcf_samples_y_std_cpp,                                   1},
+    {"_stochtree_bcf_samples_yhat_test_cpp",                              (DL_FUNC) &_stochtree_bcf_samples_yhat_test_cpp,                               1},
+    {"_stochtree_bcf_samples_yhat_train_cpp",                             (DL_FUNC) &_stochtree_bcf_samples_yhat_train_cpp,                              1},
     {"_stochtree_combine_forests_forest_container_cpp",                   (DL_FUNC) &_stochtree_combine_forests_forest_container_cpp,                    2},
     {"_stochtree_compute_leaf_indices_cpp",                               (DL_FUNC) &_stochtree_compute_leaf_indices_cpp,                                3},
     {"_stochtree_create_column_vector_cpp",                               (DL_FUNC) &_stochtree_create_column_vector_cpp,                                1},

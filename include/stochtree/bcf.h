@@ -217,11 +217,10 @@ struct BCFSamples {
   // (x y_std) and its multivariate (treatment_dim>1) ravel-order are reconciled at the postprocess /
   // wiring boundary per the locked scale decision, not here. Random effects are not yet routed
   // through this path (guarded to avoid silent drops).
-  nlohmann::json ToJson() const {
+  void AppendToJson(nlohmann::json& obj) const {
     if (rfx_container != nullptr || rfx_label_mapper != nullptr) {
       Log::Fatal("BCFSamples::ToJson does not yet support random effects");
     }
-    nlohmann::json obj;
     // Forests, under the BCF self-describing named keys, with the num_forests counter
     nlohmann::json forests = nlohmann::json::object();
     int num_forests = 0;
@@ -237,8 +236,8 @@ struct BCFSamples {
       forests.emplace("variance_forest", variance_forests->to_json());
       num_forests++;
     }
-    obj.emplace("forests", forests);
-    obj.emplace("num_forests", num_forests);
+    obj["forests"] = forests;
+    obj["num_forests"] = num_forests;
     // Parameter traces, under the "parameters" subfolder (presence inferred from non-empty vectors)
     nlohmann::json parameters = nlohmann::json::object();
     if (!global_error_variance_samples.empty()) {
@@ -258,28 +257,33 @@ struct BCFSamples {
     }
     if (!tau_0_samples.empty()) {
       parameters.emplace("tau_0_samples", tau_0_samples);
+      obj.emplace("tau_0_dim", treatment_dim);
     }
     if (!parameters.empty()) {
-      obj.emplace("parameters", parameters);
+      obj["parameters"] = parameters;
     }
     // Intrinsic scalars (stored in user-facing scale, matching the existing wire format)
     obj.emplace("outcome_mean", y_bar);
     obj.emplace("outcome_scale", y_std);
     obj.emplace("num_samples", num_samples);
     obj.emplace("treatment_dim", treatment_dim);
-    // tau_0_dim mirrors the existing wire format (equals treatment_dim; only present with tau_0)
-    if (!tau_0_samples.empty()) {
-      obj.emplace("tau_0_dim", treatment_dim);
+    // Random effects
+    int num_random_effects = 0;
+    nlohmann::json rfx = nlohmann::json::object();
+    if (rfx_container != nullptr && rfx_label_mapper != nullptr) {
+      rfx.emplace("random_effect_container_0", rfx_container->to_json());
+      rfx.emplace("random_effect_label_mapper_0", rfx_label_mapper->to_json());
+      rfx.emplace("random_effect_groupids_0", rfx_label_mapper->Keys());
+      num_random_effects = 1;
     }
-    return obj;
+    obj["random_effects"] = rfx;
+    obj["num_random_effects"] = num_random_effects;
   }
 
   // Populate this BCFSamples from the samples-owned subtree of a parsed JSON object. Inverse of
   // ToJson(); presence inferred from structure rather than envelope booleans. See ToJson() re: scope.
   void FromJson(const nlohmann::json& obj) {
-    if (obj.contains("num_random_effects") && obj.at("num_random_effects").get<int>() > 0) {
-      Log::Fatal("BCFSamples::FromJson does not yet support random effects");
-    }
+    // Unpack forests if present, checking for the expected keys
     if (obj.contains("forests")) {
       const nlohmann::json& forests = obj.at("forests");
       if (forests.contains("prognostic_forest")) {
@@ -295,6 +299,7 @@ struct BCFSamples {
         variance_forests->from_json(forests.at("variance_forest"));
       }
     }
+    // Unpack parameters if present, checking for expected keys
     if (obj.contains("parameters")) {
       const nlohmann::json& parameters = obj.at("parameters");
       if (parameters.contains("sigma2_global_samples")) {
@@ -316,6 +321,14 @@ struct BCFSamples {
         tau_0_samples = parameters.at("tau_0_samples").get<std::vector<double>>();
       }
     }
+    // Unpack random effects if present, checking for expected keys
+    if (obj.contains("num_random_effects") && obj.at("num_random_effects").get<int>() > 0) {
+      rfx_container = std::make_unique<RandomEffectsContainer>();
+      rfx_label_mapper = std::make_unique<LabelMapper>();
+      rfx_container->from_json(obj.at("random_effects").at("random_effect_container_0"));
+      rfx_label_mapper->from_json(obj.at("random_effects").at("random_effect_label_mapper_0"));
+    }
+    // Unpack outcome statistics
     if (obj.contains("outcome_mean")) y_bar = obj.at("outcome_mean").get<double>();
     if (obj.contains("outcome_scale")) y_std = obj.at("outcome_scale").get<double>();
     if (obj.contains("num_samples")) num_samples = obj.at("num_samples").get<int>();
@@ -327,27 +340,44 @@ struct BCFSamples {
   // (same forests present, same standardization, same treatment_dim). Forests are deep-copied
   // sample-by-sample and parameter traces concatenated, preserving draw order.
   void Merge(const BCFSamples& other) {
-    if (rfx_container != nullptr || other.rfx_container != nullptr) {
-      Log::Fatal("BCFSamples::Merge does not yet support random effects");
-    }
+    // Runtime checks for samples objects to be combined
     if (y_bar != other.y_bar || y_std != other.y_std) {
       Log::Fatal("Cannot merge BCFSamples with different outcome standardization");
+    }
+    if (rfx_container != nullptr && other.rfx_container != nullptr) {
+      if (rfx_container->NumComponents() != other.rfx_container->NumComponents() ||
+          rfx_container->NumGroups() != other.rfx_container->NumGroups()) {
+        Log::Fatal("Cannot merge BARTSamples with different random effects structure");
+      }
+      if (rfx_label_mapper->Keys() != other.rfx_label_mapper->Keys()) {
+        Log::Fatal("Cannot merge BARTSamples with different random effects label mapping");
+      }
+      if (rfx_label_mapper->Map() != other.rfx_label_mapper->Map()) {
+        Log::Fatal("Cannot merge BARTSamples with different random effects label mapping");
+      }
     }
     if (treatment_dim != other.treatment_dim) {
       Log::Fatal("Cannot merge BCFSamples with different treatment_dim");
     }
+    // Append forests if they exist in the samples object
     AppendForestContainerSamples(mu_forests, other.mu_forests, "prognostic");
     AppendForestContainerSamples(tau_forests, other.tau_forests, "treatment");
     AppendForestContainerSamples(variance_forests, other.variance_forests, "variance");
-    auto append = [](std::vector<double>& dst, const std::vector<double>& src) {
+    // Append random effects if they exist in the samples object
+    AppendRandomEffectsContainerSamples(rfx_container, other.rfx_container);
+    // Append parameters samples
+    auto append = [](std::vector<double>& dst, const std::vector<double>& src, const std::string& name = "") {
+      if ((!dst.empty() && src.empty()) || (dst.empty() && !src.empty())) {
+        Log::Fatal("Cannot merge BARTSamples objects: %s samples present in one chain but not the other", name.c_str());
+      }
       dst.insert(dst.end(), src.begin(), src.end());
     };
-    append(global_error_variance_samples, other.global_error_variance_samples);
-    append(leaf_scale_mu_samples, other.leaf_scale_mu_samples);
-    append(leaf_scale_tau_samples, other.leaf_scale_tau_samples);
-    append(tau_0_samples, other.tau_0_samples);
-    append(b0_samples, other.b0_samples);
-    append(b1_samples, other.b1_samples);
+    append(global_error_variance_samples, other.global_error_variance_samples, "global error variance");
+    append(leaf_scale_mu_samples, other.leaf_scale_mu_samples, "leaf scale mu");
+    append(leaf_scale_tau_samples, other.leaf_scale_tau_samples, "leaf scale tau");
+    append(tau_0_samples, other.tau_0_samples, "tau_0");
+    append(b0_samples, other.b0_samples, "b0");
+    append(b1_samples, other.b1_samples, "b1");
     num_samples += other.num_samples;
   }
 };

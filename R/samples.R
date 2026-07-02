@@ -310,14 +310,64 @@ BCFSamples <- R6::R6Class(
       bcf_samples_leaf_scale_tau_samples_cpp(self$samples_ptr)
     },
 
-    #' @description Treatment intercept (tau_0) samples (flat).
-    tau_0_samples = function() bcf_samples_tau_0_samples_cpp(self$samples_ptr),
-
     #' @description Adaptive-coding b0 samples.
     b0_samples = function() bcf_samples_b0_samples_cpp(self$samples_ptr),
 
     #' @description Adaptive-coding b1 samples.
     b1_samples = function() bcf_samples_b1_samples_cpp(self$samples_ptr),
+
+    #' @description Treatment intercept (tau_0) samples (flat).
+    tau_0_samples = function() bcf_samples_tau_0_samples_cpp(self$samples_ptr),
+
+    #' @description Mean forest predictions for the training set (length `num_samples` * `num_train`, or empty).
+    y_hat_train = function() {
+      bcf_samples_yhat_train_cpp(self$samples_ptr)
+    },
+
+    #' @description Prognostic forest predictions for the training set (length `num_samples` * `num_train`, or empty).
+    mu_forest_predictions_train = function() {
+      bcf_samples_mu_forest_predictions_train_cpp(self$samples_ptr)
+    },
+
+    #' @description Treatment effect forest predictions for the training set (length `num_samples` * `num_treatment` * `num_train`, or `num_samples` * `num_train` if `num_treatment` <= 1, or empty).
+    tau_forest_predictions_train = function() {
+      bcf_samples_tau_forest_predictions_train_cpp(self$samples_ptr)
+    },
+
+    #' @description Variance forest predictions for the training set (length `num_samples` * `num_train`, or empty).
+    variance_forest_predictions_train = function() {
+      bcf_samples_variance_forest_predictions_train_cpp(self$samples_ptr)
+    },
+
+    #' @description Random effects predictions for the training set (length `num_samples` * `num_train`, or empty).
+    rfx_predictions_train = function() {
+      bcf_samples_rfx_predictions_train_cpp(self$samples_ptr)
+    },
+
+    #' @description Mean forest predictions for the test set (length `num_samples` * `num_test`, or empty).
+    y_hat_test = function() {
+      bcf_samples_yhat_test_cpp(self$samples_ptr)
+    },
+
+    #' @description Prognostic forest predictions for the test set (length `num_samples` * `num_test`, or empty).
+    mu_forest_predictions_test = function() {
+      bcf_samples_mu_forest_predictions_test_cpp(self$samples_ptr)
+    },
+
+    #' @description Treatment effect forest predictions for the test set (length `num_samples` * `num_treatment` * `num_test`, or `num_samples` * `num_test` if `num_treatment` <= 1, or empty).
+    tau_forest_predictions_test = function() {
+      bcf_samples_tau_forest_predictions_test_cpp(self$samples_ptr)
+    },
+
+    #' @description Variance forest predictions for the test set (length `num_samples` * `num_test`, or empty).
+    variance_forest_predictions_test = function() {
+      bcf_samples_variance_forest_predictions_test_cpp(self$samples_ptr)
+    },
+
+    #' @description Random effects predictions for the test set (length `num_samples` * `num_test`, or empty).
+    rfx_predictions_test = function() {
+      bcf_samples_rfx_predictions_test_cpp(self$samples_ptr)
+    },
 
     #' @description Materialize a deep copy of the prognostic forest as a `ForestSamples`.
     materialize_mu_forest = function() {
@@ -350,6 +400,22 @@ BCFSamples <- R6::R6Class(
       }
       fc <- ForestSamples$new(0, 1, FALSE, FALSE)
       fc$forest_container_ptr <- bcf_samples_materialize_variance_forest_cpp(
+        self$samples_ptr
+      )
+      fc
+    },
+
+    #' @description Materialize a standalone deep copy of the random effects samples as a `RandomEffectSamples`
+    #' (or NULL if absent).
+    materialize_rfx = function() {
+      if (!self$has_rfx()) {
+        return(NULL)
+      }
+      fc <- RandomEffectSamples$new()
+      fc$rfx_container_ptr <- bcf_samples_materialize_rfx_container_cpp(
+        self$samples_ptr
+      )
+      fc$label_mapper_ptr <- bcf_samples_materialize_rfx_label_mapper_cpp(
         self$samples_ptr
       )
       fc

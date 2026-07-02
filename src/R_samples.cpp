@@ -267,6 +267,18 @@ cpp11::external_pointer<StochTree::BCFSamples> bcf_samples_cpp() {
 }
 
 [[cpp11::register]]
+cpp11::external_pointer<StochTree::BCFSamples> bcf_samples_from_json_cpp(cpp11::external_pointer<nlohmann::json> json) {
+  auto samples = std::make_unique<StochTree::BCFSamples>();
+  samples->FromJson(*json);
+  return cpp11::external_pointer<StochTree::BCFSamples>(samples.release());
+}
+
+[[cpp11::register]]
+void append_bcf_samples_to_json_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples, cpp11::external_pointer<nlohmann::json> json) {
+  samples->AppendToJson(*json);
+}
+
+[[cpp11::register]]
 int bcf_samples_num_samples_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
   return samples->num_samples;
 }
@@ -323,7 +335,11 @@ cpp11::writable::doubles bcf_samples_leaf_scale_tau_samples_cpp(cpp11::external_
 
 [[cpp11::register]]
 cpp11::writable::doubles bcf_samples_tau_0_samples_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
-  return vec_to_doubles(samples->tau_0_samples);
+  if (samples->treatment_dim <= 1) {
+    return vec_to_doubles(samples->tau_0_samples);
+  } else {
+    return vec_to_doubles_reshape(samples->tau_0_samples, {samples->treatment_dim, samples->num_samples});
+  }
 }
 
 [[cpp11::register]]
@@ -334,6 +350,64 @@ cpp11::writable::doubles bcf_samples_b0_samples_cpp(cpp11::external_pointer<Stoc
 [[cpp11::register]]
 cpp11::writable::doubles bcf_samples_b1_samples_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
   return vec_to_doubles(samples->b1_samples);
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles bcf_samples_yhat_train_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  return vec_to_doubles_reshape(samples->y_hat_train, {samples->num_train, samples->num_samples});
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles bcf_samples_mu_forest_predictions_train_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  return vec_to_doubles_reshape(samples->mu_forest_predictions_train, {samples->num_train, samples->num_samples});
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles bcf_samples_tau_forest_predictions_train_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  if (samples->treatment_dim <= 1) {
+    return vec_to_doubles_reshape(samples->tau_forest_predictions_train, {samples->num_train, samples->num_samples});
+  } else {
+    return vec_to_doubles_reshape(samples->tau_forest_predictions_train, {samples->num_train, samples->treatment_dim, samples->num_samples});
+  }
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles bcf_samples_variance_forest_predictions_train_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  return vec_to_doubles_reshape(samples->variance_forest_predictions_train, {samples->num_train, samples->num_samples});
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles bcf_samples_rfx_predictions_train_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  return vec_to_doubles_reshape(samples->rfx_predictions_train, {samples->num_train, samples->num_samples});
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles bcf_samples_yhat_test_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  return vec_to_doubles_reshape(samples->y_hat_test, {samples->num_test, samples->num_samples});
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles bcf_samples_mu_forest_predictions_test_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  return vec_to_doubles_reshape(samples->mu_forest_predictions_test, {samples->num_test, samples->num_samples});
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles bcf_samples_tau_forest_predictions_test_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  if (samples->treatment_dim <= 1) {
+    return vec_to_doubles_reshape(samples->tau_forest_predictions_test, {samples->num_test, samples->num_samples});
+  } else {
+    return vec_to_doubles_reshape(samples->tau_forest_predictions_test, {samples->num_test, samples->treatment_dim, samples->num_samples});
+  }
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles bcf_samples_variance_forest_predictions_test_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  return vec_to_doubles_reshape(samples->variance_forest_predictions_test, {samples->num_test, samples->num_samples});
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles bcf_samples_rfx_predictions_test_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  return vec_to_doubles_reshape(samples->rfx_predictions_test, {samples->num_test, samples->num_samples});
 }
 
 [[cpp11::register]]
@@ -352,6 +426,20 @@ cpp11::external_pointer<StochTree::ForestContainer> bcf_samples_materialize_tau_
 cpp11::external_pointer<StochTree::ForestContainer> bcf_samples_materialize_variance_forest_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
   auto copy = clone_forest_container(samples->variance_forests.get());
   return cpp11::external_pointer<StochTree::ForestContainer>(copy.release());
+}
+
+// Materialize a standalone deep copy of the random effects container.
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::RandomEffectsContainer> bcf_samples_materialize_rfx_container_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  auto copy = clone_rfx_container(samples->rfx_container.get());
+  return cpp11::external_pointer<StochTree::RandomEffectsContainer>(copy.release());
+}
+
+// Materialize a standalone deep copy of the random effects label mapper.
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::LabelMapper> bcf_samples_materialize_rfx_label_mapper_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples) {
+  auto copy = clone_label_mapper(samples->rfx_label_mapper.get());
+  return cpp11::external_pointer<StochTree::LabelMapper>(copy.release());
 }
 
 // Borrowed (non-owning) pointers to the samples-owned forest containers, for read-through predict.
