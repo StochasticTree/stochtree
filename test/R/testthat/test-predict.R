@@ -1115,7 +1115,7 @@ test_that("BART cloglog ordinal: probability transform correctness (K=4)", {
     p_manual
   }
 
-  gamma_samples <- bart_model$cloglog_cutpoint_samples # (K-1) x num_mcmc
+  gamma_samples <- bart_model$samples$cloglog_cutpoint_samples() # (K-1) x num_mcmc
   expect_equal(dim(gamma_samples), c(n_categories - 1L, num_mcmc))
 
   f_hat <- predict(
