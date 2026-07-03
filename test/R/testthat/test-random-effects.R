@@ -374,20 +374,20 @@ test_that("Random Effects BART with Offset Numbering", {
     mean_forest_params = mean_forest_param_list,
     random_effects_params = rfx_param_list
   )
-  rfx_output <- capture.output(print(bart_model$rfx_samples))
+  rfx_output <- capture.output(print(bart_model$samples$materialize_rfx()))
   expect_true(any(grepl("Random effects container", rfx_output, fixed = TRUE)))
   expect_true(any(grepl(
-    bart_model$rfx_samples$num_samples(),
+    bart_model$samples$materialize_rfx()$num_samples(),
     rfx_output,
     fixed = TRUE
   )))
   expect_true(any(grepl(
-    bart_model$rfx_samples$num_components(),
+    bart_model$samples$materialize_rfx()$num_components(),
     rfx_output,
     fixed = TRUE
   )))
   expect_true(any(grepl(
-    bart_model$rfx_samples$num_groups(),
+    bart_model$samples$materialize_rfx()$num_groups(),
     rfx_output,
     fixed = TRUE
   )))
@@ -583,20 +583,20 @@ test_that("Random Effects BCF with Default Numbering", {
     num_mcmc = 10,
     random_effects_params = rfx_param_list
   )
-  rfx_output <- capture.output(print(bcf_model$rfx_samples))
+  rfx_output <- capture.output(print(bcf_model$samples$materialize_rfx()))
   expect_true(any(grepl("Random effects container", rfx_output, fixed = TRUE)))
   expect_true(any(grepl(
-    bcf_model$rfx_samples$num_samples(),
+    bcf_model$samples$materialize_rfx()$num_samples(),
     rfx_output,
     fixed = TRUE
   )))
   expect_true(any(grepl(
-    bcf_model$rfx_samples$num_components(),
+    bcf_model$samples$materialize_rfx()$num_components(),
     rfx_output,
     fixed = TRUE
   )))
   expect_true(any(grepl(
-    bcf_model$rfx_samples$num_groups(),
+    bcf_model$samples$materialize_rfx()$num_groups(),
     rfx_output,
     fixed = TRUE
   )))
@@ -792,20 +792,20 @@ test_that("Random Effects BCF with Offset Numbering", {
     num_mcmc = 10,
     random_effects_params = rfx_param_list
   )
-  rfx_output <- capture.output(print(bcf_model$rfx_samples))
+  rfx_output <- capture.output(print(bcf_model$samples$materialize_rfx()))
   expect_true(any(grepl("Random effects container", rfx_output, fixed = TRUE)))
   expect_true(any(grepl(
-    bcf_model$rfx_samples$num_samples(),
+    bcf_model$samples$materialize_rfx()$num_samples(),
     rfx_output,
     fixed = TRUE
   )))
   expect_true(any(grepl(
-    bcf_model$rfx_samples$num_components(),
+    bcf_model$samples$materialize_rfx()$num_components(),
     rfx_output,
     fixed = TRUE
   )))
   expect_true(any(grepl(
-    bcf_model$rfx_samples$num_groups(),
+    bcf_model$samples$materialize_rfx()$num_groups(),
     rfx_output,
     fixed = TRUE
   )))

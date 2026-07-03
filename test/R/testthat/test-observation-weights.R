@@ -44,8 +44,8 @@ test_that("BART: uniform weights produce identical predictions to no weights", {
     general_params = list(random_seed = 1L)
   )
 
-  expect_equal(m1$y_hat_train, m2$y_hat_train)
-  expect_equal(m1$y_hat_test, m2$y_hat_test)
+  expect_equal(m1$samples$y_hat_train(), m2$samples$y_hat_train())
+  expect_equal(m1$samples$y_hat_test(), m2$samples$y_hat_test())
 })
 
 test_that("BART: non-uniform weights run and produce correct output shape", {
@@ -61,8 +61,8 @@ test_that("BART: non-uniform weights run and produce correct output shape", {
       num_gfr = 0, num_burnin = 0, num_mcmc = num_mcmc
     )
   )
-  expect_equal(dim(m$y_hat_train), c(d$n_train, num_mcmc))
-  expect_equal(dim(m$y_hat_test), c(d$n_test, num_mcmc))
+  expect_equal(dim(m$samples$y_hat_train()), c(d$n_train, num_mcmc))
+  expect_equal(dim(m$samples$y_hat_test()), c(d$n_test, num_mcmc))
 })
 
 test_that("BART: all-zero weights (prior mode) run with num_gfr = 0", {
@@ -77,7 +77,7 @@ test_that("BART: all-zero weights (prior mode) run with num_gfr = 0", {
       num_gfr = 0, num_burnin = 0, num_mcmc = num_mcmc
     )
   )
-  expect_equal(dim(m$y_hat_train), c(d$n_train, num_mcmc))
+  expect_equal(dim(m$samples$y_hat_train()), c(d$n_train, num_mcmc))
 })
 
 test_that("BART: non-numeric observation_weights_train raises error", {
@@ -187,8 +187,8 @@ test_that("BCF: uniform weights produce identical predictions to no weights", {
     general_params = list(random_seed = 1L)
   )
 
-  expect_equal(m1$y_hat_train, m2$y_hat_train)
-  expect_equal(m1$tau_hat_train, m2$tau_hat_train)
+  expect_equal(m1$samples$y_hat_train(), m2$samples$y_hat_train())
+  expect_equal(m1$samples$tau_forest_predictions_train(), m2$samples$tau_forest_predictions_train())
 })
 
 test_that("BCF: non-uniform weights run and produce correct output shape", {
@@ -206,10 +206,10 @@ test_that("BCF: non-uniform weights run and produce correct output shape", {
       num_gfr = 0, num_burnin = 0, num_mcmc = num_mcmc
     )
   )
-  expect_equal(dim(m$y_hat_train), c(d$n_train, num_mcmc))
-  expect_equal(dim(m$tau_hat_train), c(d$n_train, num_mcmc))
-  expect_equal(dim(m$y_hat_test), c(d$n_test, num_mcmc))
-  expect_equal(dim(m$tau_hat_test), c(d$n_test, num_mcmc))
+  expect_equal(dim(m$samples$y_hat_train()), c(d$n_train, num_mcmc))
+  expect_equal(dim(m$samples$tau_forest_predictions_train()), c(d$n_train, num_mcmc))
+  expect_equal(dim(m$samples$y_hat_test()), c(d$n_test, num_mcmc))
+  expect_equal(dim(m$samples$tau_forest_predictions_test()), c(d$n_test, num_mcmc))
 })
 
 test_that("BCF: negative observation_weights_train raises error", {
@@ -280,5 +280,5 @@ test_that("BART: deprecated observation_weights alias still works and warns", {
     "deprecated"
   )
   # Deprecated alias must produce the same result as the new parameter.
-  expect_equal(m_new$y_hat_test, m_old$y_hat_test)
+  expect_equal(m_new$samples$y_hat_test(), m_old$samples$y_hat_test())
 })

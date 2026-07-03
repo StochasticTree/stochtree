@@ -126,7 +126,8 @@ TEST(Json, BARTSamplesRoundTrip) {
   samples.num_samples = 2;
 
   // Round-trip through the samples-owned subtree
-  nlohmann::json obj = samples.ToJson();
+  nlohmann::json obj;
+  samples.AppendToJson(obj);
   StochTree::BARTSamples restored;
   restored.FromJson(obj);
 
@@ -180,7 +181,8 @@ TEST(Json, BCFSamplesRoundTrip) {
   samples.treatment_dim = 1;
 
   // Round-trip through the samples-owned subtree
-  nlohmann::json obj = samples.ToJson();
+  nlohmann::json obj;
+  samples.AppendToJson(obj);
   StochTree::BCFSamples restored;
   restored.FromJson(obj);
 

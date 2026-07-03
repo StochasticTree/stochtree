@@ -229,7 +229,7 @@ computeForestLeafVariances <- function(
           "Leaf scale parameter was not sampled for the mean forest in the bart model provided"
         )
       }
-      leaf_scale_vector <- model_object$sigma2_leaf_samples
+      leaf_scale_vector <- model_object$samples$leaf_scale_samples()
     } else if (forest_type == "variance") {
       if (!model_object$model_params$include_variance_forest) {
         stop(
@@ -248,14 +248,14 @@ computeForestLeafVariances <- function(
           "Leaf scale parameter was not sampled for the prognostic forest in the bcf model provided"
         )
       }
-      leaf_scale_vector <- model_object$sigma2_leaf_mu_samples
+      leaf_scale_vector <- model_object$samples$leaf_scale_mu_samples()
     } else if (forest_type == "treatment") {
       if (!model_object$model_params$sample_sigma2_leaf_tau) {
         stop(
           "Leaf scale parameter was not sampled for the treatment effect forest in the bcf model provided"
         )
       }
-      leaf_scale_vector <- model_object$sigma2_leaf_tau_samples
+      leaf_scale_vector <- model_object$samples$leaf_scale_tau_samples()
     } else if (forest_type == "variance") {
       if (!model_object$model_params$include_variance_forest) {
         stop(

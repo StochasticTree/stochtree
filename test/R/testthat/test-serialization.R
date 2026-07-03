@@ -209,7 +209,7 @@ test_that("BCF JSON uses canonical field names (sigma2_init, b1_samples, b0_samp
   expect_false(grepl('"b_0_samples"', json_string))
 })
 
-test_that("BCF JSON deserialization handles legacy field names with warnings", {
+test_that("BCF pre-v1 (v0) JSON is migrated to canonical field names before parsing", {
   skip_on_cran()
 
   set.seed(2)
@@ -230,28 +230,27 @@ test_that("BCF JSON deserialization handles legacy field names with warnings", {
   )
   preds_orig <- predict(bcf_model, X_test, Z_test, pi_test)
 
-  # Simulate a legacy JSON by replacing canonical names with old names
-  json_new <- saveBCFModelToJsonString(bcf_model)
-  json_legacy <- gsub('"sigma2_init"', '"initial_sigma2"', json_new, fixed = TRUE)
-  json_legacy <- gsub('"b1_samples"', '"b_1_samples"', json_legacy, fixed = TRUE)
-  json_legacy <- gsub('"b0_samples"', '"b_0_samples"', json_legacy, fixed = TRUE)
+  # Synthesize a pre-v1 (schema_version 0) JSON: legacy parameter-trace field names
+  # (initial_sigma2, b_0_samples, b_1_samples) plus a v0 schema stamp. The v0 -> v1
+  # migration owns renaming these back to the canonical names *before* the C++ layer
+  # parses them -- there is no read-time fallback, so the reloaded model must simply
+  # predict identically to the original.
+  json_v1 <- saveBCFModelToJsonString(bcf_model)
+  json_v0 <- gsub('"sigma2_init"', '"initial_sigma2"', json_v1, fixed = TRUE)
+  json_v0 <- gsub('"b1_samples"', '"b_1_samples"', json_v0, fixed = TRUE)
+  json_v0 <- gsub('"b0_samples"', '"b_0_samples"', json_v0, fixed = TRUE)
+  json_v0 <- gsub('"schema_version":1', '"schema_version":0', json_v0, fixed = TRUE)
 
-  # Loading a legacy JSON should emit deprecation warnings for all renamed fields
-  all_warnings <- character(0)
-  withCallingHandlers(
-    bcf_legacy <- createBCFModelFromJsonString(json_legacy),
-    warning = function(w) {
-      all_warnings <<- c(all_warnings, conditionMessage(w))
-      invokeRestart("muffleWarning")
-    }
-  )
-  expect_true(any(grepl("initial_sigma2.*deprecated|deprecated.*initial_sigma2", all_warnings)))
-  expect_true(any(grepl("b_1_samples.*deprecated|b_0_samples.*deprecated|deprecated.*b_[01]_samples", all_warnings)))
+  bcf_migrated <- createBCFModelFromJsonString(json_v0)
 
-  # Predictions must still match
-  preds_legacy <- predict(bcf_legacy, X_test, Z_test, pi_test)
-  expect_equal(rowMeans(preds_legacy[["y_hat"]]), rowMeans(preds_orig[["y_hat"]]))
-  expect_equal(rowMeans(preds_legacy[["tau_hat"]]), rowMeans(preds_orig[["tau_hat"]]))
+  # Migration must have restored the canonical adaptive-coding traces (else the C++
+  # layer would see empty b0/b1 arrays and predict would read out of bounds).
+  expect_length(bcf_migrated$samples$b0_samples(), bcf_model$model_params$num_samples)
+  expect_length(bcf_migrated$samples$b1_samples(), bcf_model$model_params$num_samples)
+
+  preds_migrated <- predict(bcf_migrated, X_test, Z_test, pi_test)
+  expect_equal(rowMeans(preds_migrated[["y_hat"]]), rowMeans(preds_orig[["y_hat"]]))
+  expect_equal(rowMeans(preds_migrated[["tau_hat"]]), rowMeans(preds_orig[["tau_hat"]]))
 })
 
 # Fields that the BCF JSON contract must preserve across a round-trip. These are

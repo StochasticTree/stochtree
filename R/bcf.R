@@ -2558,7 +2558,7 @@ summary.bcfmodel <- function(object, ...) {
 
   # Global error scale
   if (object$model_params$sample_sigma2_global) {
-    sigma2_samples <- object$sigma2_global_samples
+    sigma2_samples <- object$samples$global_var_samples()
     n_samples <- length(sigma2_samples)
     mean_sigma2 <- mean(sigma2_samples)
     sd_sigma2 <- sd(sigma2_samples)
@@ -2577,7 +2577,7 @@ summary.bcfmodel <- function(object, ...) {
 
   # Leaf scale for the prognostic forest
   if (object$model_params$sample_sigma2_leaf_mu) {
-    sigma2_leaf_samples <- object$sigma2_leaf_mu_samples
+    sigma2_leaf_samples <- object$samples$leaf_scale_mu_samples()
     n_samples <- length(sigma2_leaf_samples)
     mean_sigma2 <- mean(sigma2_leaf_samples)
     sd_sigma2 <- sd(sigma2_leaf_samples)
@@ -2596,7 +2596,7 @@ summary.bcfmodel <- function(object, ...) {
 
   # Leaf scale for the treatment effect forest
   if (object$model_params$sample_sigma2_leaf_tau) {
-    sigma2_leaf_samples <- object$sigma2_leaf_tau_samples
+    sigma2_leaf_samples <- object$samples$leaf_scale_tau_samples()
     n_samples <- length(sigma2_leaf_samples)
     mean_sigma2 <- mean(sigma2_leaf_samples)
     sd_sigma2 <- sd(sigma2_leaf_samples)
@@ -2615,8 +2615,8 @@ summary.bcfmodel <- function(object, ...) {
 
   # Adaptive coding parameters
   if (object$model_params$adaptive_coding) {
-    b0_samples <- object$b_0_samples
-    b1_samples <- object$b_1_samples
+    b0_samples <- object$samples$b0_samples()
+    b1_samples <- object$samples$b1_samples()
     n_samples <- length(b0_samples)
     mean_b0 <- mean(b0_samples)
     mean_b1 <- mean(b1_samples)
@@ -2645,9 +2645,14 @@ summary.bcfmodel <- function(object, ...) {
   }
 
   # Treatment effect intercept (tau_0)
-  if (object$model_params$sample_tau_0 && !is.null(object$tau_0_samples)) {
-    tau_0_vec <- as.numeric(object$tau_0_samples)
-    n_samples <- ncol(object$tau_0_samples)
+  tau_0_samples <- object$samples$tau_0_samples()
+  if (object$model_params$sample_tau_0 && length(tau_0_samples) > 0) {
+    tau_0_vec <- as.numeric(tau_0_samples)
+    n_samples <- if (is.matrix(tau_0_samples)) {
+      ncol(tau_0_samples)
+    } else {
+      length(tau_0_samples)
+    }
     mean_tau_0 <- mean(tau_0_vec)
     sd_tau_0 <- sd(tau_0_vec)
     quantiles_tau_0 <- quantile(
@@ -2664,8 +2669,9 @@ summary.bcfmodel <- function(object, ...) {
   }
 
   # In-sample predictions
-  if (!is.null(object$y_hat_train)) {
-    y_hat_train_mean <- rowMeans(object$y_hat_train)
+  y_hat_train <- object$samples$y_hat_train()
+  if (length(y_hat_train) > 0) {
+    y_hat_train_mean <- rowMeans(y_hat_train)
     n_y_hat_train <- length(y_hat_train_mean)
     mean_y_hat_train <- mean(y_hat_train_mean)
     sd_y_hat_train <- sd(y_hat_train_mean)
@@ -2683,8 +2689,9 @@ summary.bcfmodel <- function(object, ...) {
   }
 
   # Test-set predictions
-  if (!is.null(object$y_hat_test)) {
-    y_hat_test_mean <- rowMeans(object$y_hat_test)
+  y_hat_test <- object$samples$y_hat_test()
+  if (length(y_hat_test) > 0) {
+    y_hat_test_mean <- rowMeans(y_hat_test)
     n_y_hat_test <- length(y_hat_test_mean)
     mean_y_hat_test <- mean(y_hat_test_mean)
     sd_y_hat_test <- sd(y_hat_test_mean)
@@ -2702,9 +2709,10 @@ summary.bcfmodel <- function(object, ...) {
   }
 
   # In-sample treatment effect function estimates
-  if (!is.null(object$tau_hat_train)) {
+  tau_hat_train <- object$samples$tau_forest_predictions_train()
+  if (length(tau_hat_train) > 0) {
     if (!object$model_params$multivariate_treatment) {
-      tau_hat_train_mean <- rowMeans(object$tau_hat_train)
+      tau_hat_train_mean <- rowMeans(tau_hat_train)
       n_tau_hat_train <- length(tau_hat_train_mean)
       mean_tau_hat_train <- mean(tau_hat_train_mean)
       sd_tau_hat_train <- sd(tau_hat_train_mean)
@@ -2723,9 +2731,10 @@ summary.bcfmodel <- function(object, ...) {
   }
 
   # Test set treatment effect function estimates
-  if (!is.null(object$tau_hat_test)) {
+  tau_hat_test <- object$samples$tau_forest_predictions_test()
+  if (length(tau_hat_test) > 0) {
     if (!object$model_params$multivariate_treatment) {
-      tau_hat_test_mean <- rowMeans(object$tau_hat_test)
+      tau_hat_test_mean <- rowMeans(tau_hat_test)
       n_tau_hat_test <- length(tau_hat_test_mean)
       mean_tau_hat_test <- mean(tau_hat_test_mean)
       sd_tau_hat_test <- sd(tau_hat_test_mean)
@@ -2797,20 +2806,20 @@ summary.bcfmodel <- function(object, ...) {
 plot.bcfmodel <- function(x, ...) {
   # Check if model has global error scale samples
   has_sigma2_samples <- x$model_params$sample_sigma2_global
-  has_mean_forest_preds <- !is.null(x$y_hat_train)
+  has_mean_forest_preds <- length(x$samples$y_hat_train()) > 0
 
   # First try combinations of sigma2 and mean forest predictions
   if (has_sigma2_samples || has_mean_forest_preds) {
     if (has_sigma2_samples) {
       plot(
-        x$sigma2_global_samples,
+        x$samples$global_var_samples(),
         type = "l",
         ylab = "Sigma^2",
         main = "Global error scale traceplot"
       )
     } else if (has_mean_forest_preds) {
       plot(
-        x$y_hat_train[1, ],
+        x$samples$y_hat_train()[1, ],
         type = "l",
         ylab = "Predictions",
         main = "In-sample mean function trace for the first train set observation"
@@ -3330,6 +3339,19 @@ saveBCFModelToJsonString <- function(object) {
   # R's legacy preprocessor key -> unified v1 key (no-op for Python v0 JSON,
   # which already uses `covariate_preprocessor`).
   json_object$rename_field("preprocessor_metadata", "covariate_preprocessor")
+  # Legacy parameter-trace field names -> canonical v1 names. All no-ops when the
+  # field is absent (e.g. non-adaptive-coding models have no b0/b1 samples).
+  json_object$rename_field("initial_sigma2", "sigma2_init")
+  json_object$rename_field(
+    "b_0_samples",
+    "b0_samples",
+    subfolder_name = "parameters"
+  )
+  json_object$rename_field(
+    "b_1_samples",
+    "b1_samples",
+    subfolder_name = "parameters"
+  )
   # Relocate R's top-level rfx unique group ids into the random_effects subfolder
   # (no-op for Python v0 JSON, which never wrote this field).
   if (json_object$contains("rfx_unique_group_ids")) {
@@ -3378,15 +3400,9 @@ createBCFModelFromJson <- function(json_object) {
   model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
   model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
   model_params[["standardize"]] <- json_object$get_boolean("standardize")
-  if (has_field("sigma2_init")) {
-    model_params[["initial_sigma2"]] <- json_object$get_scalar("sigma2_init")
-  } else {
-    model_params[["initial_sigma2"]] <- json_object$get_scalar("initial_sigma2")
-    warning(sprintf(
-      "JSON field 'initial_sigma2' is deprecated; please re-save the model to use 'sigma2_init' (inferred version: %s).",
-      .ver
-    ))
-  }
+  # Legacy `initial_sigma2` -> `sigma2_init` is handled by the v0 -> v1 migration
+  # (.migrateBcfJsonV0ToV1), so by this point the canonical key is always present.
+  model_params[["initial_sigma2"]] <- json_object$get_scalar("sigma2_init")
   model_params[["sample_sigma2_global"]] <- json_object$get_boolean(
     "sample_sigma2_global"
   )
@@ -3657,19 +3673,11 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   model_params[["standardize"]] <- json_object_default$get_boolean(
     "standardize"
   )
-  if (has_field("sigma2_init")) {
-    model_params[["initial_sigma2"]] <- json_object_default$get_scalar(
-      "sigma2_init"
-    )
-  } else {
-    model_params[["initial_sigma2"]] <- json_object_default$get_scalar(
-      "initial_sigma2"
-    )
-    warning(sprintf(
-      "JSON field 'initial_sigma2' is deprecated; please re-save the model to use 'sigma2_init' (inferred version: %s).",
-      .ver
-    ))
-  }
+  # Legacy `initial_sigma2` -> `sigma2_init` is handled by the v0 -> v1 migration
+  # (.migrateBcfJsonV0ToV1), so by this point the canonical key is always present.
+  model_params[["initial_sigma2"]] <- json_object_default$get_scalar(
+    "sigma2_init"
+  )
   model_params[["sample_sigma2_global"]] <- json_object_default$get_boolean(
     "sample_sigma2_global"
   )

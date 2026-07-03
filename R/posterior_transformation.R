@@ -973,7 +973,7 @@ posterior_predictive_heuristic_multiplier <- function(
 #'
 #'   The treatment effect terms follow a three-level hierarchy:
 #'   \itemize{
-#'     \item `"tau"` returns `tau_0 + tau(X)`: the parametric treatment intercept (if sampled) plus the treatment forest. This matches `model$tau_hat_train` / `model$tau_hat_test`.
+#'     \item `"tau"` returns `tau_0 + tau(X)`: the parametric treatment intercept (if sampled) plus the treatment forest. This matches `extractParameter(model, "tau_hat_train")` / `extractParameter(model, "tau_hat_test")`.
 #'     \item `"cate"` additionally folds in the random slope on treatment when random effects are fit with `rfx_model_spec = "intercept_plus_treatment"`; otherwise it is identical to `"tau"`.
 #'     \item The raw forest-only component (without `tau_0`) is not directly returned by this method; extract the treatment forest with `model$samples$materialize_tau_forest()` to access it.
 #'   }

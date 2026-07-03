@@ -47,7 +47,7 @@ test_that("BART honors user-supplied var_forest_leaf_init", {
       mean_forest_params = list(num_trees = 50),
       variance_forest_params = variance_forest_params
     )
-    m$sigma2_x_hat_test
+    m$samples$variance_forest_predictions_test()
   }
   # Same seed; differing only by the variance-forest leaf init must change output.
   expect_false(isTRUE(all.equal(fit(0.05), fit(2.0))))
@@ -106,7 +106,7 @@ test_that("BART honors observation_weights", {
       num_gfr = 0, num_burnin = 0, num_mcmc = 5,
       general_params = list(standardize = FALSE, random_seed = 1),
       observation_weights_train = weights
-    )$y_hat_test
+    )$samples$y_hat_test()
   }
   # Non-uniform observation weights must change the fit (same seed).
   expect_false(isTRUE(all.equal(fit(NULL), fit(w))))
@@ -129,7 +129,7 @@ test_that("BCF honors observation_weights", {
       num_gfr = 0, num_burnin = 0, num_mcmc = 5,
       general_params = list(standardize = FALSE, random_seed = 1),
       observation_weights_train = weights
-    )$y_hat_test
+    )$samples$y_hat_test()
   }
   expect_false(isTRUE(all.equal(fit(NULL), fit(w))))
 })
@@ -148,7 +148,7 @@ test_that("BCF internal propensity model is reproducible with random_seed", {
       X_train = X, Z_train = Z, y_train = y,
       num_gfr = 0, num_burnin = 0, num_mcmc = 10,
       general_params = list(random_seed = 99)
-    )$y_hat_train
+    )$samples$y_hat_train()
   }
   # With a fixed random_seed, the internally-estimated propensity (and hence the
   # full fit) must be reproducible across runs.
