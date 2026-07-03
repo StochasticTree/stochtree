@@ -493,16 +493,15 @@ BCFPredictionResult predict_bcf_model(BCFData& data, BCFSamples& samples, BCFPre
     // Add tau_0 to the treatment effect function predictions if it was sampled.
     // tau_0_samples layout: col-major (treatment dim k, sample j) -> j * treatment_dim + k.
     // For treatment_dim==1 this collapses to samples.tau_0_samples[j].
-    // NOTE: tau_0_samples is stored in original (unstandardized) scale; tau_x from PredictRaw
-    // is in standardized scale. Divide by y_std to convert tau_0 to standardized scale
-    // before adding, so the y_std scale step applied later gives the right result.
+    // NOTE: tau_0_samples is stored in STANDARDIZED scale (matching the sampler and the R main-branch
+    // convention), same as tau_x from PredictRaw, so we add it directly here; the y_std scale step
+    // applied later (location_scale_adjust_predictions) then scales the full CATE tau_0 + tau(x).
     if (metadata.sample_tau_0) {
-      const double inv_y_std = 1.0 / metadata.y_std;
       for (int j = 0; j < num_samples; j++) {
         for (int k = 0; k < num_treatment; k++) {
           for (int i = 0; i < num_obs; i++) {
             const int idx = j * num_obs * num_treatment + k * num_obs + i;
-            tau_x[idx] += samples.tau_0_samples[j * num_treatment + k] * inv_y_std;
+            tau_x[idx] += samples.tau_0_samples[j * num_treatment + k];
           }
         }
       }

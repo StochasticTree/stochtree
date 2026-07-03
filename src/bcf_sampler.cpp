@@ -798,6 +798,21 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
     double y_std2 = samples.y_std * samples.y_std;
     for (double& v : samples.global_error_variance_samples) v *= y_std2;
   }
+
+  // Convert the cached prognostic / treatment-effect / random-effects predictions from standardized
+  // space to the original outcome scale, matching the R main-branch cached attributes and predict():
+  // the prognostic function mu(x) carries the location shift (y_bar); the treatment effect tau(x)
+  // (already the full CATE tau_0 + tau(x), with any adaptive-coding (b1 - b0) factor folded in during
+  // sampling) and the random effects carry only the scale factor (y_std). y_hat_train / y_hat_test
+  // were already placed on the original scale above, computed from these caches while still standardized.
+  for (double& v : samples.mu_forest_predictions_train) v = v * samples.y_std + samples.y_bar;
+  for (double& v : samples.mu_forest_predictions_test)  v = v * samples.y_std + samples.y_bar;
+  for (double& v : samples.tau_forest_predictions_train) v *= samples.y_std;
+  for (double& v : samples.tau_forest_predictions_test)  v *= samples.y_std;
+  if (has_random_effects_) {
+    for (double& v : samples.rfx_predictions_train) v *= samples.y_std;
+    for (double& v : samples.rfx_predictions_test)  v *= samples.y_std;
+  }
 }
 
 void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample, bool write_snapshot) {

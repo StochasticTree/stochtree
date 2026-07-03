@@ -2994,7 +2994,7 @@ extractParameter.bcfmodel <- function(object, term) {
     }
   }
 
-  if (term %in% c("sigma2_x_train", "var_x_train")) {
+  if (term %in% c("sigma2_x_train", "sigma2_x_hat_train", "var_x_train")) {
     preds <- object$samples$variance_forest_predictions_train()
     if (length(preds) > 0) {
       return(preds)
@@ -3003,7 +3003,7 @@ extractParameter.bcfmodel <- function(object, term) {
     }
   }
 
-  if (term %in% c("sigma2_x_test", "var_x_test")) {
+  if (term %in% c("sigma2_x_test", "sigma2_x_hat_test", "var_x_test")) {
     preds <- object$samples$variance_forest_predictions_test()
     if (length(preds) > 0) {
       return(preds)

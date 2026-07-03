@@ -660,7 +660,7 @@ test_that("BCF Predictions", {
   train_preds_mean_recomputed <- train_preds$y_hat
   train_preds_variance_cached <- extractParameter(
     bcf_model,
-    "sigma2_x_hat_train"
+    "sigma2_x_train"
   )
   train_preds_variance_recomputed <- train_preds$variance_forest_predictions
 
