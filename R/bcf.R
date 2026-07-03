@@ -2887,16 +2887,18 @@ plot.bcfmodel <- function(x, ...) {
 #' sigma2_samples <- extractParameter(bcf_model, "sigma2")
 extractParameter.bcfmodel <- function(object, term) {
   if (term %in% c("sigma2", "global_error_scale", "sigma2_global")) {
-    if (!is.null(object$sigma2_global_samples)) {
-      return(object$sigma2_global_samples)
+    s <- object$samples$global_var_samples()
+    if (length(s) > 0) {
+      return(s)
     } else {
       stop("This model does not have global variance parameter samples")
     }
   }
 
   if (term %in% c("sigma2_leaf_mu", "leaf_scale_mu", "mu_leaf_scale")) {
-    if (!is.null(object$sigma2_leaf_mu_samples)) {
-      return(object$sigma2_leaf_mu_samples)
+    s <- object$samples$leaf_scale_mu_samples()
+    if (length(s) > 0) {
+      return(s)
     } else {
       stop(
         "This model does not have prognostic forest leaf variance parameter samples"
@@ -2905,8 +2907,9 @@ extractParameter.bcfmodel <- function(object, term) {
   }
 
   if (term %in% c("sigma2_leaf_tau", "leaf_scale_tau", "tau_leaf_scale")) {
-    if (!is.null(object$sigma2_leaf_tau_samples)) {
-      return(object$sigma2_leaf_tau_samples)
+    s <- object$samples$leaf_scale_tau_samples()
+    if (length(s) > 0) {
+      return(s)
     } else {
       stop(
         "This model does not have treatment effect forest leaf variance parameter samples"
@@ -2916,8 +2919,8 @@ extractParameter.bcfmodel <- function(object, term) {
 
   if (term %in% c("adaptive_coding")) {
     if (object$model_params$adaptive_coding) {
-      b0_samples <- object$b_0_samples
-      b1_samples <- object$b_1_samples
+      b0_samples <- object$samples$b0_samples()
+      b1_samples <- object$samples$b1_samples()
       return(unname(rbind(b0_samples, b1_samples)))
     } else {
       stop("This model does not have adaptive coding parameter samples")
@@ -2925,8 +2928,9 @@ extractParameter.bcfmodel <- function(object, term) {
   }
 
   if (term %in% c("y_hat_train")) {
-    if (!is.null(object$y_hat_train)) {
-      return(object$y_hat_train)
+    preds <- object$samples$y_hat_train()
+    if (length(preds) > 0) {
+      return(preds)
     } else {
       stop(
         "This model does not have in-sample mean function prediction samples"
@@ -2935,16 +2939,18 @@ extractParameter.bcfmodel <- function(object, term) {
   }
 
   if (term %in% c("y_hat_test")) {
-    if (!is.null(object$y_hat_test)) {
-      return(object$y_hat_test)
+    preds <- object$samples$y_hat_test()
+    if (length(preds) > 0) {
+      return(preds)
     } else {
       stop("This model does not have test set mean function prediction samples")
     }
   }
 
   if (term %in% c("mu_hat_train", "prognostic_function_train")) {
-    if (!is.null(object$mu_hat_train)) {
-      return(object$mu_hat_train)
+    preds <- object$samples$mu_forest_predictions_train()
+    if (length(preds) > 0) {
+      return(preds)
     } else {
       stop(
         "This model does not have in-sample prognostic function predictions"
@@ -2953,8 +2959,9 @@ extractParameter.bcfmodel <- function(object, term) {
   }
 
   if (term %in% c("mu_hat_test", "prognostic_function_test")) {
-    if (!is.null(object$mu_hat_test)) {
-      return(object$mu_hat_test)
+    preds <- object$samples$mu_forest_predictions_test()
+    if (length(preds) > 0) {
+      return(preds)
     } else {
       stop(
         "This model does not have test set prognostic function predictions"
@@ -2962,9 +2969,13 @@ extractParameter.bcfmodel <- function(object, term) {
     }
   }
 
+  # tau_hat / cate is the FULL CATE: the sampler folds tau_0 (and the adaptive-coding
+  # (b1 - b0) scaling) into tau_forest_predictions before caching, so these accessors already
+  # return tau_0 + tau(x) -- do NOT add tau_0 again here (see bcf_sampler.cpp postprocess / GH #376).
   if (term %in% c("tau_hat_train", "cate_train")) {
-    if (!is.null(object$tau_hat_train)) {
-      return(object$tau_hat_train)
+    preds <- object$samples$tau_forest_predictions_train()
+    if (length(preds) > 0) {
+      return(preds)
     } else {
       stop(
         "This model does not have in-sample treatment effect forest predictions"
@@ -2973,8 +2984,9 @@ extractParameter.bcfmodel <- function(object, term) {
   }
 
   if (term %in% c("tau_hat_test", "cate_test")) {
-    if (!is.null(object$tau_hat_test)) {
-      return(object$tau_hat_test)
+    preds <- object$samples$tau_forest_predictions_test()
+    if (length(preds) > 0) {
+      return(preds)
     } else {
       stop(
         "This model does not have test set treatment effect forest predictions"
@@ -2983,24 +2995,27 @@ extractParameter.bcfmodel <- function(object, term) {
   }
 
   if (term %in% c("sigma2_x_train", "var_x_train")) {
-    if (!is.null(object$sigma2_x_hat_train)) {
-      return(object$sigma2_x_hat_train)
+    preds <- object$samples$variance_forest_predictions_train()
+    if (length(preds) > 0) {
+      return(preds)
     } else {
       stop("This model does not have in-sample variance forest predictions")
     }
   }
 
   if (term %in% c("sigma2_x_test", "var_x_test")) {
-    if (!is.null(object$sigma2_x_hat_test)) {
-      return(object$sigma2_x_hat_test)
+    preds <- object$samples$variance_forest_predictions_test()
+    if (length(preds) > 0) {
+      return(preds)
     } else {
       stop("This model does not have test set variance forest predictions")
     }
   }
 
   if (term %in% c("tau_0", "treatment_intercept", "tau_intercept")) {
-    if (!is.null(object$tau_0_samples)) {
-      return(object$tau_0_samples)
+    s <- object$samples$tau_0_samples()
+    if (length(s) > 0) {
+      return(s)
     } else {
       stop(
         "This model does not have treatment effect intercept (tau_0) samples"
