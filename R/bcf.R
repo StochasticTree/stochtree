@@ -2257,7 +2257,7 @@ predict.bcfmodel <- function(
 
   output <- bcf_predict_cpp(
     bcf_samples_ptr = bcf_samples$samples_ptr,
-    bcf_metadata_list = bcf_metadata_list,
+    bcf_model_metadata = bcf_metadata_list,
     X = X_combined,
     Z = Z,
     n = n,

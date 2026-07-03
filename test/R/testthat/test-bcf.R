@@ -656,9 +656,12 @@ test_that("BCF Predictions", {
     Z = Z_train,
     propensity = pi_train
   )
-  train_preds_mean_cached <- bcf_model$y_hat_train
+  train_preds_mean_cached <- extractParameter(bcf_model, "y_hat_train")
   train_preds_mean_recomputed <- train_preds$y_hat
-  train_preds_variance_cached <- bcf_model$sigma2_x_hat_train
+  train_preds_variance_cached <- extractParameter(
+    bcf_model,
+    "sigma2_x_hat_train"
+  )
   train_preds_variance_recomputed <- train_preds$variance_forest_predictions
 
   # Assertion
@@ -844,8 +847,10 @@ test_that("BCF internal propensity model works with data frame covariates", {
       num_mcmc = 5
     )
   )
-  expect_true(!is.null(bcf_model$tau_hat_train))
-  expect_true(!is.null(bcf_model$tau_hat_test))
+  tau_hat_train <- extractParameter(bcf_model, "tau_hat_train")
+  tau_hat_test <- extractParameter(bcf_model, "tau_hat_test")
+  expect_true(!is.null(tau_hat_train))
+  expect_true(!is.null(tau_hat_test))
 })
 
 test_that("BCF JSON serialization roundtrip covers all deserialization paths", {
@@ -946,8 +951,13 @@ test_that("BCF factor-valued treatment handling", {
   # Factor treatment should run without error and emit an informative message
   expect_message(
     suppressWarnings(bcf(
-      X_train = X, y_train = y, Z_train = Z_factor_binary,
-      propensity_train = pi_X, num_gfr = 0, num_burnin = 5, num_mcmc = 5
+      X_train = X,
+      y_train = y,
+      Z_train = Z_factor_binary,
+      propensity_train = pi_X,
+      num_gfr = 0,
+      num_burnin = 5,
+      num_mcmc = 5
     )),
     regexp = "Z_train is a factor"
   )
@@ -961,8 +971,13 @@ test_that("BCF factor-valued treatment handling", {
 
   expect_message(
     suppressWarnings(bcf(
-      X_train = X, y_train = y, Z_train = Z_factor_logical,
-      propensity_train = pi_X, num_gfr = 0, num_burnin = 5, num_mcmc = 5
+      X_train = X,
+      y_train = y,
+      Z_train = Z_factor_logical,
+      propensity_train = pi_X,
+      num_gfr = 0,
+      num_burnin = 5,
+      num_mcmc = 5
     )),
     regexp = "Z_train is a factor"
   )
@@ -971,8 +986,13 @@ test_that("BCF factor-valued treatment handling", {
   Z_factor_categorical <- factor(sample(c("A", "B", "C"), n, replace = TRUE))
   expect_error(
     bcf(
-      X_train = X, y_train = y, Z_train = Z_factor_categorical,
-      propensity_train = pi_X, num_gfr = 0, num_burnin = 5, num_mcmc = 5
+      X_train = X,
+      y_train = y,
+      Z_train = Z_factor_categorical,
+      propensity_train = pi_X,
+      num_gfr = 0,
+      num_burnin = 5,
+      num_mcmc = 5
     ),
     regexp = "exactly 2 levels"
   )
@@ -980,8 +1000,13 @@ test_that("BCF factor-valued treatment handling", {
   # predict.bcfmodel should also handle factor Z, raising a warning
   suppressMessages(
     bcf_model <- bcf(
-      X_train = X, y_train = y, Z_train = Z_numeric,
-      propensity_train = pi_X, num_gfr = 0, num_burnin = 5, num_mcmc = 5
+      X_train = X,
+      y_train = y,
+      Z_train = Z_numeric,
+      propensity_train = pi_X,
+      num_gfr = 0,
+      num_burnin = 5,
+      num_mcmc = 5
     )
   )
   expect_warning(
@@ -1014,40 +1039,62 @@ test_that("Warmstart BCF reuses internal propensity model", {
   test_inds <- (n_train + 1):n
 
   X_train <- X[train_inds, ]
-  X_test  <- X[test_inds, ]
+  X_test <- X[test_inds, ]
   Z_train <- Z[train_inds]
-  Z_test  <- Z[test_inds]
+  Z_test <- Z[test_inds]
   y_train <- y[train_inds]
 
   # Fit first model without propensity — triggers internal propensity BART
   m1 <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train,
-    X_test = X_test, Z_test = Z_test,
-    num_gfr = 5, num_burnin = 0, num_mcmc = 10
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    num_gfr = 5,
+    num_burnin = 0,
+    num_mcmc = 10
   )
   expect_true(m1$model_params$internal_propensity_model)
 
   # Propensity predictions from the first model's propensity BART
-  pi_train_m1 <- predict(m1$bart_propensity_model, X = X_train, terms = "y_hat", type = "mean")
+  pi_train_m1 <- predict(
+    m1$bart_propensity_model,
+    X = X_train,
+    terms = "y_hat",
+    type = "mean"
+  )
 
   # Warm-start second model from first — propensity model should be reused
   m1_json <- saveBCFModelToJsonString(m1)
   m2 <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train,
-    X_test = X_test, Z_test = Z_test,
-    num_gfr = 0, num_burnin = 0, num_mcmc = 10,
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    num_gfr = 0,
+    num_burnin = 0,
+    num_mcmc = 10,
     previous_model_json = m1_json,
     previous_model_warmstart_sample_num = 10L
   )
   expect_true(m2$model_params$internal_propensity_model)
 
   # Propensity model reused: predictions on train set should be identical
-  pi_train_m2 <- predict(m2$bart_propensity_model, X = X_train, terms = "y_hat", type = "mean")
+  pi_train_m2 <- predict(
+    m2$bart_propensity_model,
+    X = X_train,
+    terms = "y_hat",
+    type = "mean"
+  )
   expect_equal(pi_train_m1, pi_train_m2)
 
   # Output shapes should be correct
-  expect_equal(dim(m2$y_hat_train), c(n_train, 10))
-  expect_equal(dim(m2$y_hat_test),  c(n_test, 10))
+  y_hat_train <- extractParameter(m2, "y_hat_train")
+  y_hat_test <- extractParameter(m2, "y_hat_test")
+  expect_equal(dim(y_hat_train), c(n_train, 10))
+  expect_equal(dim(y_hat_test), c(n_test, 10))
 })
 
 test_that("predict.bcfmodel works with data frame X when internal propensity model is used", {
@@ -1068,9 +1115,9 @@ test_that("predict.bcfmodel works with data frame X when internal propensity mod
   test_inds <- 1:40
   train_inds <- 41:n
   X_train <- as.data.frame(X[train_inds, ])
-  X_test  <- as.data.frame(X[test_inds, ])
+  X_test <- as.data.frame(X[test_inds, ])
   Z_train <- Z[train_inds]
-  Z_test  <- Z[test_inds]
+  Z_test <- Z[test_inds]
   y_train <- y[train_inds]
 
   # No propensity_train provided — internal propensity model is fitted
@@ -1105,48 +1152,92 @@ test_that("predict(terms='tau') == tau_hat_test, tau==cate without treatment RFX
 
   n_train <- 160
   train_inds <- seq_len(n_train)
-  test_inds  <- seq(n_train + 1, n)
-  X_train <- X[train_inds, ]; X_test <- X[test_inds, ]
-  Z_train <- Z[train_inds];   Z_test <- Z[test_inds]
+  test_inds <- seq(n_train + 1, n)
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  Z_train <- Z[train_inds]
+  Z_test <- Z[test_inds]
   y_train <- y[train_inds]
-  pi_train <- pi_x[train_inds]; pi_test <- pi_x[test_inds]
+  pi_train <- pi_x[train_inds]
+  pi_test <- pi_x[test_inds]
 
   # Fit BCF with sample_intercept = TRUE (default)
   bcf_model <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train,
-    propensity_train = pi_train, X_test = X_test, Z_test = Z_test,
-    propensity_test = pi_test, num_gfr = 5, num_burnin = 0, num_mcmc = 10
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    num_gfr = 5,
+    num_burnin = 0,
+    num_mcmc = 10
   )
 
   # predict(terms = "tau") must match tau_hat_test exactly
-  tau_from_predict <- predict(bcf_model, X = X_test, Z = Z_test,
-                              propensity = pi_test, terms = "tau")
-  expect_equal(tau_from_predict, bcf_model$tau_hat_test)
+  tau_from_predict <- predict(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    terms = "tau"
+  )
+  tau_hat_test <- extractParameter(bcf_model, "tau_hat_test")
+  expect_equal(tau_from_predict, tau_hat_test)
 
   # predict(terms = "tau") == predict(terms = "cate") when no treatment RFX
-  cate_from_predict <- predict(bcf_model, X = X_test, Z = Z_test,
-                               propensity = pi_test, terms = "cate")
+  cate_from_predict <- predict(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    terms = "cate"
+  )
   expect_equal(tau_from_predict, cate_from_predict)
 
   # y_hat_test = mu_hat_test + Z_test * tau_hat_test (stored attributes decompose)
-  expected_y <- bcf_model$mu_hat_test + sweep(bcf_model$tau_hat_test, 1, as.numeric(Z_test), "*")
-  expect_equal(bcf_model$y_hat_test, expected_y)
+  tau_hat_test <- extractParameter(bcf_model, "tau_hat_test")
+  y_hat_test <- extractParameter(bcf_model, "y_hat_test")
+  mu_hat_test <- extractParameter(bcf_model, "mu_hat_test")
+  expected_y <- mu_hat_test +
+    sweep(tau_hat_test, 1, as.numeric(Z_test), "*")
+  expect_equal(y_hat_test, expected_y)
 
   # y_hat_train = mu_hat_train + Z_train * tau_hat_train
-  expected_y_train <- bcf_model$mu_hat_train + sweep(bcf_model$tau_hat_train, 1, as.numeric(Z_train), "*")
-  expect_equal(bcf_model$y_hat_train, expected_y_train)
+  tau_hat_train <- extractParameter(bcf_model, "tau_hat_train")
+  y_hat_train <- extractParameter(bcf_model, "y_hat_train")
+  mu_hat_train <- extractParameter(bcf_model, "mu_hat_train")
+  expected_y_train <- mu_hat_train +
+    sweep(tau_hat_train, 1, as.numeric(Z_train), "*")
+  expect_equal(y_hat_train, expected_y_train)
 
   # With sample_intercept = FALSE, tau includes only the forest; decomposition still holds
   bcf_no_int <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train,
-    propensity_train = pi_train, X_test = X_test, Z_test = Z_test,
-    propensity_test = pi_test, num_gfr = 5, num_burnin = 0, num_mcmc = 10,
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    num_gfr = 5,
+    num_burnin = 0,
+    num_mcmc = 10,
     treatment_effect_forest_params = list(sample_intercept = FALSE)
   )
-  tau_no_int <- predict(bcf_no_int, X = X_test, Z = Z_test,
-                        propensity = pi_test, terms = "tau")
-  expect_equal(tau_no_int, bcf_no_int$tau_hat_test)
-  expected_y_no_int <- bcf_no_int$mu_hat_test +
-    sweep(bcf_no_int$tau_hat_test, 1, as.numeric(Z_test), "*")
-  expect_equal(bcf_no_int$y_hat_test, expected_y_no_int)
+  tau_no_int <- predict(
+    bcf_no_int,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    terms = "tau"
+  )
+  tau_hat_test <- extractParameter(bcf_no_int, "tau_hat_test")
+  mu_hat_test <- extractParameter(bcf_no_int, "mu_hat_test")
+  y_hat_test <- extractParameter(bcf_no_int, "y_hat_test")
+  expect_equal(tau_no_int, tau_hat_test)
+  expected_y_no_int <- mu_hat_test +
+    sweep(tau_hat_test, 1, as.numeric(Z_test), "*")
+  expect_equal(y_hat_test, expected_y_no_int)
 })
