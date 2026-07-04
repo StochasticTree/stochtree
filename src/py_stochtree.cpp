@@ -2263,7 +2263,7 @@ class BARTSamplesCpp {
   // Populate the samples-owned subtree from a parsed JSON object held by a JsonCpp (envelope already
   // resolved/migrated by the per-language caller). Inverse: AddToJson merges the subtree back in.
   void LoadFromJson(JsonCpp& json) { samples_->FromJson(json.GetJson()); }
-  void AddToJson(JsonCpp& json) { json.GetJson().update(samples_->ToJson()); }
+  void AddToJson(JsonCpp& json) { samples_->AppendToJson(json.GetJson()); }
 
   // Convenience string forms (used for isolated testing; the real save/load path uses JsonCpp).
   static std::unique_ptr<BARTSamplesCpp> FromJsonString(std::string json_string) {
@@ -2272,7 +2272,7 @@ class BARTSamplesCpp {
     wrapper->samples_->FromJson(obj);
     return wrapper;
   }
-  std::string ToJsonString() { return samples_->ToJson().dump(); }
+  std::string ToJsonString() { nlohmann::json obj; samples_->AppendToJson(obj); return obj.dump(); }
 
   // Build a BARTSamples by deep-copying existing forest containers and parameter arrays (the
   // "construct from components" path, #406). Lets the model assemble the single owned object from
@@ -2310,14 +2310,48 @@ class BARTSamplesCpp {
 
   py::array_t<double> GlobalVarSamples() { return samples_vec_to_numpy(samples_->global_error_variance_samples); }
   py::array_t<double> LeafScaleSamples() { return samples_vec_to_numpy(samples_->leaf_scale_samples); }
+  py::array_t<double> CloglogCutpointSamples() { return samples_vec_to_numpy(samples_->cloglog_cutpoint_samples); }
+
+  // Cached posterior prediction traces (flat, column-major n x num_samples). Empty when absent.
+  py::array_t<double> MeanForestPredictionsTrain() { return samples_vec_to_numpy(samples_->mean_forest_predictions_train); }
+  py::array_t<double> MeanForestPredictionsTest() { return samples_vec_to_numpy(samples_->mean_forest_predictions_test); }
+  py::array_t<double> VarianceForestPredictionsTrain() { return samples_vec_to_numpy(samples_->variance_forest_predictions_train); }
+  py::array_t<double> VarianceForestPredictionsTest() { return samples_vec_to_numpy(samples_->variance_forest_predictions_test); }
+  py::array_t<double> RfxPredictionsTrain() { return samples_vec_to_numpy(samples_->rfx_predictions_train); }
+  py::array_t<double> RfxPredictionsTest() { return samples_vec_to_numpy(samples_->rfx_predictions_test); }
+  // Outcome (y_hat) = mean forest + rfx contributions, assembled by the core helper.
+  py::array_t<double> YHatTrain() { return samples_vec_to_numpy(samples_->OutcomePredictionsTrain()); }
+  py::array_t<double> YHatTest() { return samples_vec_to_numpy(samples_->OutcomePredictionsTest()); }
 
   bool HasMeanForest() { return samples_->mean_forests != nullptr; }
   bool HasVarianceForest() { return samples_->variance_forests != nullptr; }
+  bool HasRfx() { return samples_->rfx_container != nullptr; }
+  bool HasGlobalVarSamples() { return !samples_->global_error_variance_samples.empty(); }
+  bool HasLeafScaleSamples() { return !samples_->leaf_scale_samples.empty(); }
+  bool HasCloglogCutpointSamples() { return !samples_->cloglog_cutpoint_samples.empty(); }
+  bool HasMeanForestPredictionsTrain() { return !samples_->mean_forest_predictions_train.empty(); }
+  bool HasVarianceForestPredictionsTrain() { return !samples_->variance_forest_predictions_train.empty(); }
+  bool HasVarianceForestPredictionsTest() { return !samples_->variance_forest_predictions_test.empty(); }
 
   // Materialize a standalone deep copy of a forest container, wrapped in ForestContainerCpp, for the
   // (deprecated) direct forest accessor. Returns None when the forest is absent.
   std::unique_ptr<ForestContainerCpp> MaterializeMeanForest() { return materialize_forest_container(samples_->mean_forests); }
   std::unique_ptr<ForestContainerCpp> MaterializeVarianceForest() { return materialize_forest_container(samples_->variance_forests); }
+
+  // Standalone deep copies of the random effects container / label mapper (JSON round-trip), for the
+  // rfx extraction path. Return nullptr (-> None) when absent. Mirrors R materialize_rfx.
+  std::unique_ptr<RandomEffectsContainerCpp> MaterializeRfxContainer() {
+    if (samples_->rfx_container == nullptr) return nullptr;
+    auto c = std::make_unique<StochTree::RandomEffectsContainer>();
+    c->from_json(samples_->rfx_container->to_json());
+    return std::make_unique<RandomEffectsContainerCpp>(std::move(c));
+  }
+  std::unique_ptr<RandomEffectsLabelMapperCpp> MaterializeRfxLabelMapper() {
+    if (samples_->rfx_label_mapper == nullptr) return nullptr;
+    auto m = std::make_unique<StochTree::LabelMapper>();
+    m->from_json(samples_->rfx_label_mapper->to_json());
+    return std::make_unique<RandomEffectsLabelMapperCpp>(std::move(m));
+  }
 
  private:
   std::unique_ptr<StochTree::BARTSamples> samples_;
@@ -2336,14 +2370,14 @@ class BCFSamplesCpp {
   StochTree::BCFSamples* GetPtr() { return samples_.get(); }
 
   void LoadFromJson(JsonCpp& json) { samples_->FromJson(json.GetJson()); }
-  void AddToJson(JsonCpp& json) { json.GetJson().update(samples_->ToJson()); }
+  void AddToJson(JsonCpp& json) { samples_->AppendToJson(json.GetJson()); }
   static std::unique_ptr<BCFSamplesCpp> FromJsonString(std::string json_string) {
     auto wrapper = std::make_unique<BCFSamplesCpp>();
     nlohmann::json obj = nlohmann::json::parse(json_string);
     wrapper->samples_->FromJson(obj);
     return wrapper;
   }
-  std::string ToJsonString() { return samples_->ToJson().dump(); }
+  std::string ToJsonString() { nlohmann::json obj; samples_->AppendToJson(obj); return obj.dump(); }
 
   // Build a BCFSamples by deep-copying existing forest containers and parameter arrays (#406 BCF
   // mirror). mu/tau forests are required; variance_forest and the parameter arrays are optional.
@@ -2388,13 +2422,47 @@ class BCFSamplesCpp {
   py::array_t<double> B0Samples() { return samples_vec_to_numpy(samples_->b0_samples); }
   py::array_t<double> B1Samples() { return samples_vec_to_numpy(samples_->b1_samples); }
 
+  // Cached posterior prediction traces (flat, column-major). y_hat is stored directly by the BCF
+  // sampler (already on the original outcome scale); tau/mu/variance/rfx are the individual terms.
+  py::array_t<double> YHatTrain() { return samples_vec_to_numpy(samples_->y_hat_train); }
+  py::array_t<double> YHatTest() { return samples_vec_to_numpy(samples_->y_hat_test); }
+  py::array_t<double> MuForestPredictionsTrain() { return samples_vec_to_numpy(samples_->mu_forest_predictions_train); }
+  py::array_t<double> MuForestPredictionsTest() { return samples_vec_to_numpy(samples_->mu_forest_predictions_test); }
+  py::array_t<double> TauForestPredictionsTrain() { return samples_vec_to_numpy(samples_->tau_forest_predictions_train); }
+  py::array_t<double> TauForestPredictionsTest() { return samples_vec_to_numpy(samples_->tau_forest_predictions_test); }
+  py::array_t<double> VarianceForestPredictionsTrain() { return samples_vec_to_numpy(samples_->variance_forest_predictions_train); }
+  py::array_t<double> VarianceForestPredictionsTest() { return samples_vec_to_numpy(samples_->variance_forest_predictions_test); }
+  py::array_t<double> RfxPredictionsTrain() { return samples_vec_to_numpy(samples_->rfx_predictions_train); }
+  py::array_t<double> RfxPredictionsTest() { return samples_vec_to_numpy(samples_->rfx_predictions_test); }
+
   bool HasMuForest() { return samples_->mu_forests != nullptr; }
   bool HasTauForest() { return samples_->tau_forests != nullptr; }
   bool HasVarianceForest() { return samples_->variance_forests != nullptr; }
+  bool HasRfx() { return samples_->rfx_container != nullptr; }
+  bool HasGlobalVarSamples() { return !samples_->global_error_variance_samples.empty(); }
+  bool HasLeafScaleMuSamples() { return !samples_->leaf_scale_mu_samples.empty(); }
+  bool HasLeafScaleTauSamples() { return !samples_->leaf_scale_tau_samples.empty(); }
+  bool HasVarianceForestPredictionsTrain() { return !samples_->variance_forest_predictions_train.empty(); }
+  bool HasVarianceForestPredictionsTest() { return !samples_->variance_forest_predictions_test.empty(); }
+  bool HasYhatTest() { return !samples_->y_hat_test.empty(); }
 
   std::unique_ptr<ForestContainerCpp> MaterializeMuForest() { return materialize_forest_container(samples_->mu_forests); }
   std::unique_ptr<ForestContainerCpp> MaterializeTauForest() { return materialize_forest_container(samples_->tau_forests); }
   std::unique_ptr<ForestContainerCpp> MaterializeVarianceForest() { return materialize_forest_container(samples_->variance_forests); }
+
+  // Standalone deep copies of the random effects container / label mapper (JSON round-trip).
+  std::unique_ptr<RandomEffectsContainerCpp> MaterializeRfxContainer() {
+    if (samples_->rfx_container == nullptr) return nullptr;
+    auto c = std::make_unique<StochTree::RandomEffectsContainer>();
+    c->from_json(samples_->rfx_container->to_json());
+    return std::make_unique<RandomEffectsContainerCpp>(std::move(c));
+  }
+  std::unique_ptr<RandomEffectsLabelMapperCpp> MaterializeRfxLabelMapper() {
+    if (samples_->rfx_label_mapper == nullptr) return nullptr;
+    auto m = std::make_unique<StochTree::LabelMapper>();
+    m->from_json(samples_->rfx_label_mapper->to_json());
+    return std::make_unique<RandomEffectsLabelMapperCpp>(std::move(m));
+  }
 
  private:
   std::unique_ptr<StochTree::BCFSamples> samples_;
@@ -2729,6 +2797,7 @@ void add_config_to_bart_result_dict(py::dict& result, StochTree::BARTConfig& con
 }
 
 py::dict bart_sample_cpp(
+    BARTSamplesCpp& samples,
     py::object X_train,
     py::object y_train,
     py::object X_test,
@@ -2758,35 +2827,30 @@ py::dict bart_sample_cpp(
   // Unpack pointers to input data to BARTData object
   StochTree::BARTData bart_data = convert_numpy_to_bart_data(X_train, y_train, X_test, n_train, n_test, p, basis_train, basis_test, basis_dim, obs_weights_train, obs_weights_test, rfx_group_ids_train, rfx_group_ids_test, rfx_basis_train, rfx_basis_test, rfx_num_groups, rfx_basis_dim);
 
-  // Create outcome object
-  StochTree::BARTSamples bart_results_raw = StochTree::BARTSamples();
+  // Single-owner (mirrors R bart_sample_cpp): the C++ sampler populates the caller-owned BARTSamples
+  // in place; this function only returns metadata that is NOT part of the samples object.
+  StochTree::BARTSamples& bart_samples = *samples.GetPtr();
 
   // Initialize a BART sampler
-  StochTree::BARTSampler bart_sampler(bart_results_raw, bart_config, bart_data);
+  StochTree::BARTSampler bart_sampler(bart_samples, bart_config, bart_data);
 
   // Run the sampler
-  bart_sampler.run_gfr(bart_results_raw, num_gfr, bart_config.keep_gfr, num_chains);
+  bart_sampler.run_gfr(bart_samples, num_gfr, bart_config.keep_gfr, num_chains);
   if (num_chains > 1) {
-    bart_sampler.run_mcmc_chains(bart_results_raw, num_chains, num_burnin, keep_every, num_mcmc);
+    bart_sampler.run_mcmc_chains(bart_samples, num_chains, num_burnin, keep_every, num_mcmc);
   } else {
-    bart_sampler.run_mcmc(bart_results_raw, num_burnin, keep_every, num_mcmc);
+    bart_sampler.run_mcmc(bart_samples, num_burnin, keep_every, num_mcmc);
   }
-  bart_sampler.postprocess_samples(bart_results_raw);
+  bart_sampler.postprocess_samples(bart_samples);
 
-  // Convert results to Python dictionary
-  py::dict bart_results = convert_bart_results_to_dict(bart_results_raw, bart_config);
-  add_config_to_bart_result_dict(bart_results, bart_config);
-  // Persist the final RNG state so continue_sampling() can resume the random stream
-  // for bit-identical continuation. Only meaningful for single-chain runs; multi-chain
-  // runs use one RNG per chain, so there is no single stream to resume.
-  if (num_chains <= 1) {
-    bart_results["rng_state"] = bart_sampler.GetRngState();
-    bart_results["leaf_normal_cache"] = bart_sampler.GetLeafNormalCache();
-  } else {
-    bart_results["rng_state"] = py::none();
-    bart_results["leaf_normal_cache"] = py::none();
-  }
-  return bart_results;
+  // Metadata: config-derived init scalars and the final RNG state (for continue_sampling). Everything
+  // else is read off the caller's samples object.
+  py::dict metadata;
+  add_config_to_bart_result_dict(metadata, bart_config);
+  // Persist the final RNG state so continue_sampling() can resume the random stream (statistical
+  // equivalence). Only meaningful for single-chain runs; multi-chain uses one RNG per chain.
+  metadata["rng_state"] = (num_chains <= 1) ? py::object(py::cast(bart_sampler.GetRngState())) : py::object(py::none());
+  return metadata;
 }
 
 // Continue (warm-start) sampling from an already-fit BART model.
@@ -3565,6 +3629,7 @@ void add_config_to_bcf_result_dict(py::dict& result, StochTree::BCFConfig& confi
 }
 
 py::dict bcf_sample_cpp(
+    BCFSamplesCpp& samples,
     py::object X_train,
     py::object Z_train,
     py::object y_train,
@@ -3595,35 +3660,28 @@ py::dict bcf_sample_cpp(
   // Unpack pointers to input data to BCFData object
   StochTree::BCFData bcf_data = convert_numpy_to_bcf_data(X_train, Z_train, y_train, X_test, Z_test, n_train, n_test, p, treatment_dim, obs_weights_train, obs_weights_test, rfx_group_ids_train, rfx_group_ids_test, rfx_basis_train, rfx_basis_test, rfx_num_groups, rfx_basis_dim);
 
-  // Create outcome object
-  StochTree::BCFSamples bcf_results_raw = StochTree::BCFSamples();
+  // Single-owner (mirrors R bcf_sample_cpp): the C++ sampler populates the caller-owned BCFSamples in
+  // place; this function only returns metadata that is NOT part of the samples object.
+  StochTree::BCFSamples& bcf_samples = *samples.GetPtr();
 
   // Initialize a BCF sampler
-  StochTree::BCFSampler bcf_sampler(bcf_results_raw, bcf_config, bcf_data);
+  StochTree::BCFSampler bcf_sampler(bcf_samples, bcf_config, bcf_data);
 
   // Run the sampler
-  bcf_sampler.run_gfr(bcf_results_raw, num_gfr, bcf_config.keep_gfr, num_chains);
+  bcf_sampler.run_gfr(bcf_samples, num_gfr, bcf_config.keep_gfr, num_chains);
   if (num_chains > 1) {
-    bcf_sampler.run_mcmc_chains(bcf_results_raw, num_chains, num_burnin, keep_every, num_mcmc);
+    bcf_sampler.run_mcmc_chains(bcf_samples, num_chains, num_burnin, keep_every, num_mcmc);
   } else {
-    bcf_sampler.run_mcmc(bcf_results_raw, num_burnin, keep_every, num_mcmc);
+    bcf_sampler.run_mcmc(bcf_samples, num_burnin, keep_every, num_mcmc);
   }
-  bcf_sampler.postprocess_samples(bcf_results_raw);
+  bcf_sampler.postprocess_samples(bcf_samples);
 
-  // Convert results to Python dictionary
-  py::dict bcf_results = convert_bcf_results_to_dict(bcf_results_raw, bcf_config);
-  add_config_to_bcf_result_dict(bcf_results, bcf_config);
-  // Persist the final RNG + leaf-cache state so continue_sampling() can resume the random stream
-  // for bit-identical continuation. Only meaningful for single-chain runs; multi-chain runs use
-  // one RNG per chain, so there is no single stream to resume.
-  if (num_chains <= 1) {
-    bcf_results["rng_state"] = bcf_sampler.GetRngState();
-    bcf_results["leaf_normal_cache"] = bcf_sampler.GetLeafNormalCache();
-  } else {
-    bcf_results["rng_state"] = py::none();
-    bcf_results["leaf_normal_cache"] = py::none();
-  }
-  return bcf_results;
+  // Metadata: config-derived init scalars and the final RNG state (for continue_sampling). Everything
+  // else is read off the caller's samples object.
+  py::dict metadata;
+  add_config_to_bcf_result_dict(metadata, bcf_config);
+  metadata["rng_state"] = (num_chains <= 1) ? py::object(py::cast(bcf_sampler.GetRngState())) : py::object(py::none());
+  return metadata;
 }
 
 // Continue (warm-start) sampling from an already-fit BCF model.
@@ -4022,6 +4080,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
   m.def("cppComputeForestContainerLeafIndices", &cppComputeForestContainerLeafIndices, "Compute leaf indices of the forests in a forest container");
   m.def("cppComputeForestMaxLeafIndex", &cppComputeForestMaxLeafIndex, "Compute max leaf index of a forest in a forest container");
   m.def("bart_sample_cpp", &bart_sample_cpp, "Run BART sampler in C++ implementation",
+        py::arg("samples"),
         py::arg("X_train"),
         py::arg("y_train"),
         py::arg("X_test") = py::none(),
@@ -4078,6 +4137,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
         py::arg("config_input"));
 
   m.def("bcf_sample_cpp", &bcf_sample_cpp, "Run BCF sampler in C++ implementation",
+        py::arg("samples"),
         py::arg("X_train"),
         py::arg("Z_train"),
         py::arg("y_train"),
@@ -4261,10 +4321,28 @@ PYBIND11_MODULE(stochtree_cpp, m) {
       .def("num_test", &BARTSamplesCpp::NumTest)
       .def("global_var_samples", &BARTSamplesCpp::GlobalVarSamples)
       .def("leaf_scale_samples", &BARTSamplesCpp::LeafScaleSamples)
+      .def("cloglog_cutpoint_samples", &BARTSamplesCpp::CloglogCutpointSamples)
+      .def("mean_forest_predictions_train", &BARTSamplesCpp::MeanForestPredictionsTrain)
+      .def("mean_forest_predictions_test", &BARTSamplesCpp::MeanForestPredictionsTest)
+      .def("variance_forest_predictions_train", &BARTSamplesCpp::VarianceForestPredictionsTrain)
+      .def("variance_forest_predictions_test", &BARTSamplesCpp::VarianceForestPredictionsTest)
+      .def("rfx_predictions_train", &BARTSamplesCpp::RfxPredictionsTrain)
+      .def("rfx_predictions_test", &BARTSamplesCpp::RfxPredictionsTest)
+      .def("y_hat_train", &BARTSamplesCpp::YHatTrain)
+      .def("y_hat_test", &BARTSamplesCpp::YHatTest)
       .def("has_mean_forest", &BARTSamplesCpp::HasMeanForest)
       .def("has_variance_forest", &BARTSamplesCpp::HasVarianceForest)
+      .def("has_rfx", &BARTSamplesCpp::HasRfx)
+      .def("has_global_var_samples", &BARTSamplesCpp::HasGlobalVarSamples)
+      .def("has_leaf_scale_samples", &BARTSamplesCpp::HasLeafScaleSamples)
+      .def("has_cloglog_cutpoint_samples", &BARTSamplesCpp::HasCloglogCutpointSamples)
+      .def("has_mean_forest_predictions_train", &BARTSamplesCpp::HasMeanForestPredictionsTrain)
+      .def("has_variance_forest_predictions_train", &BARTSamplesCpp::HasVarianceForestPredictionsTrain)
+      .def("has_variance_forest_predictions_test", &BARTSamplesCpp::HasVarianceForestPredictionsTest)
       .def("materialize_mean_forest", &BARTSamplesCpp::MaterializeMeanForest)
-      .def("materialize_variance_forest", &BARTSamplesCpp::MaterializeVarianceForest);
+      .def("materialize_variance_forest", &BARTSamplesCpp::MaterializeVarianceForest)
+      .def("materialize_rfx_container", &BARTSamplesCpp::MaterializeRfxContainer)
+      .def("materialize_rfx_label_mapper", &BARTSamplesCpp::MaterializeRfxLabelMapper);
 
   py::class_<BCFSamplesCpp>(m, "BCFSamplesCpp")
       .def(py::init<>())
@@ -4286,12 +4364,31 @@ PYBIND11_MODULE(stochtree_cpp, m) {
       .def("tau_0_samples", &BCFSamplesCpp::Tau0Samples)
       .def("b0_samples", &BCFSamplesCpp::B0Samples)
       .def("b1_samples", &BCFSamplesCpp::B1Samples)
+      .def("y_hat_train", &BCFSamplesCpp::YHatTrain)
+      .def("y_hat_test", &BCFSamplesCpp::YHatTest)
+      .def("mu_forest_predictions_train", &BCFSamplesCpp::MuForestPredictionsTrain)
+      .def("mu_forest_predictions_test", &BCFSamplesCpp::MuForestPredictionsTest)
+      .def("tau_forest_predictions_train", &BCFSamplesCpp::TauForestPredictionsTrain)
+      .def("tau_forest_predictions_test", &BCFSamplesCpp::TauForestPredictionsTest)
+      .def("variance_forest_predictions_train", &BCFSamplesCpp::VarianceForestPredictionsTrain)
+      .def("variance_forest_predictions_test", &BCFSamplesCpp::VarianceForestPredictionsTest)
+      .def("rfx_predictions_train", &BCFSamplesCpp::RfxPredictionsTrain)
+      .def("rfx_predictions_test", &BCFSamplesCpp::RfxPredictionsTest)
       .def("has_mu_forest", &BCFSamplesCpp::HasMuForest)
       .def("has_tau_forest", &BCFSamplesCpp::HasTauForest)
       .def("has_variance_forest", &BCFSamplesCpp::HasVarianceForest)
+      .def("has_rfx", &BCFSamplesCpp::HasRfx)
+      .def("has_global_var_samples", &BCFSamplesCpp::HasGlobalVarSamples)
+      .def("has_leaf_scale_mu_samples", &BCFSamplesCpp::HasLeafScaleMuSamples)
+      .def("has_leaf_scale_tau_samples", &BCFSamplesCpp::HasLeafScaleTauSamples)
+      .def("has_variance_forest_predictions_train", &BCFSamplesCpp::HasVarianceForestPredictionsTrain)
+      .def("has_variance_forest_predictions_test", &BCFSamplesCpp::HasVarianceForestPredictionsTest)
+      .def("has_yhat_test", &BCFSamplesCpp::HasYhatTest)
       .def("materialize_mu_forest", &BCFSamplesCpp::MaterializeMuForest)
       .def("materialize_tau_forest", &BCFSamplesCpp::MaterializeTauForest)
-      .def("materialize_variance_forest", &BCFSamplesCpp::MaterializeVarianceForest);
+      .def("materialize_variance_forest", &BCFSamplesCpp::MaterializeVarianceForest)
+      .def("materialize_rfx_container", &BCFSamplesCpp::MaterializeRfxContainer)
+      .def("materialize_rfx_label_mapper", &BCFSamplesCpp::MaterializeRfxLabelMapper);
 
   py::class_<ForestContainerCpp>(m, "ForestContainerCpp")
       .def(py::init<int, int, bool, bool>())
