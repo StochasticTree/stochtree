@@ -131,6 +131,46 @@ class TestBARTContinuation:
         with pytest.raises(ValueError):
             m.continue_sampling(X_train=X, y_train=y, num_mcmc=5)  # missing rfx_group_ids_train
 
+    def test_continuation_supports_test_data(self):
+        # A model fit with no test set can be given one on continuation. Test predictions are
+        # recomputed in full from all retained forests, so the stored trace covers every sample and
+        # is bit-identical to a fresh predict() on the same X_test.
+        X, y = _make_data(seed=7)
+        rng = np.random.default_rng(8)
+        X_test = rng.uniform(0, 1, (50, X.shape[1]))
+
+        m = BARTModel()
+        m.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=5, num_mcmc=10,
+                 general_params={"random_seed": 7})
+        m.continue_sampling(X_train=X, y_train=y, X_test=X_test, num_mcmc=8)
+
+        assert m.num_samples == 18
+        assert m.has_test
+        stored = m.y_hat_test
+        assert stored.shape == (50, 18)
+        np.testing.assert_allclose(
+            stored, m.predict(X_test, terms="y_hat"), atol=1e-10, rtol=0
+        )
+
+    def test_continuation_drops_stale_test_data_with_warning(self):
+        # Fit WITH a test set, then continue WITHOUT re-supplying it: the stale test predictions are
+        # dropped (they would otherwise cover only the pre-continuation draws) and a warning is raised.
+        X, y = _make_data(seed=7)
+        rng = np.random.default_rng(8)
+        X_test = rng.uniform(0, 1, (50, X.shape[1]))
+
+        m = BARTModel()
+        m.sample(X_train=X, y_train=y, X_test=X_test, num_gfr=0, num_burnin=5, num_mcmc=10,
+                 general_params={"random_seed": 7})
+        assert m.has_test
+
+        with pytest.warns(UserWarning, match="test-set predictions are stale"):
+            m.continue_sampling(X_train=X, y_train=y, num_mcmc=8)
+
+        assert not m.has_test
+        assert m.y_hat_test is None
+        assert m.num_samples == 18
+
 
 class TestBCFContinuation:
     def test_continue_matches_one_shot(self):

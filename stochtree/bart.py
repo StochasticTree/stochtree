@@ -1570,6 +1570,12 @@ class BARTModel:
         leaf_basis_train: np.array = None,
         rfx_group_ids_train: np.array = None,
         rfx_basis_train: np.array = None,
+        X_test: Optional[Union[np.array, pd.DataFrame]] = None,
+        leaf_basis_test: np.array = None,
+        rfx_group_ids_test: np.array = None,
+        rfx_basis_test: np.array = None,
+        observation_weights_train: np.array = None,
+        observation_weights: np.array = None,
         random_seed: int = None,
     ):
         """Continue (warm-start) sampling from an already-fit BART model, appending
@@ -1613,6 +1619,20 @@ class BARTModel:
         rfx_basis_train : np.array, optional
             Training random effects basis (required if the model was fit with a non-intercept-only
             random effects model).
+        X_test : np.array or pd.DataFrame, optional
+            Optional test-set covariates. Test predictions are recomputed in full from all retained
+            forests, so the test set need not match any test set used in the original fit (the model
+            may have been fit with none).
+        leaf_basis_test : np.array, optional
+            Test leaf basis (required if the model was fit with a leaf basis and ``X_test`` is provided).
+        rfx_group_ids_test : np.array, optional
+            Test random effects group labels; every label must be present in ``rfx_group_ids_train``.
+        rfx_basis_test : np.array, optional
+            Test random effects basis (required for a non-intercept-only model when ``X_test`` is provided).
+        observation_weights_train : np.array, optional
+            Case weights for the training observations. Not compatible with a variance forest.
+        observation_weights : np.array, optional
+            Deprecated alias for ``observation_weights_train``; will be removed in a future release.
         random_seed : int, optional
             If supplied, re-seeds the sampler RNG for the continued draws. By default
             (``None``), the RNG state from the prior run is resumed.
@@ -1636,6 +1656,35 @@ class BARTModel:
                 "Continued sampling is not yet supported for probit or cloglog link functions"
             )
 
+        # `observation_weights` is a deprecated alias for `observation_weights_train` (mirrors sample()).
+        if observation_weights is not None:
+            warnings.warn(
+                "`observation_weights` is deprecated and will be removed in a future "
+                "release; use `observation_weights_train` instead.",
+                DeprecationWarning,
+            )
+            if observation_weights_train is None:
+                observation_weights_train = observation_weights
+        # Observation-weight compatibility checks (mirror sample()). Weights are incompatible with a
+        # variance forest, and all-zero weights (prior-sampling mode) are incompatible with GFR draws.
+        if observation_weights_train is not None:
+            if self.include_variance_forest:
+                raise ValueError(
+                    "observation_weights_train are not compatible with a variance forest model. "
+                    "Use either observation_weights_train or a variance forest, not both."
+                )
+            observation_weights_train = np.asarray(observation_weights_train).astype(np.float64)
+            observation_weights_train = np.squeeze(observation_weights_train)
+            if observation_weights_train.ndim != 1:
+                raise ValueError("observation_weights_train must be a 1-dimensional numpy array")
+            if np.any(observation_weights_train < 0):
+                raise ValueError("observation_weights_train cannot have any negative values")
+            if num_gfr > 0 and np.all(observation_weights_train == 0):
+                raise ValueError(
+                    "observation_weights_train are all zero (prior sampling mode) but num_gfr > 0. "
+                    "Set num_gfr=0 when using all-zero observation_weights_train."
+                )
+
         # Preprocess the re-supplied covariates with the fitted preprocessor and validate structure
         X_train_processed = self._covariate_preprocessor.transform(X_train).astype(np.float64)
         if X_train_processed.shape[1] != self.num_covariates:
@@ -1646,6 +1695,11 @@ class BARTModel:
         y_train = np.asarray(y_train).astype(np.float64).reshape(-1)
         if X_train_processed.shape[0] != y_train.shape[0]:
             raise ValueError("X_train and y_train have differing numbers of observations")
+        if (
+            observation_weights_train is not None
+            and observation_weights_train.shape[0] != X_train_processed.shape[0]
+        ):
+            raise ValueError("observation_weights_train must have length equal to nrow(X_train)")
 
         if self.has_basis and leaf_basis_train is None:
             raise ValueError(
@@ -1688,6 +1742,63 @@ class BARTModel:
         rfx_num_groups = self.rfx_container.num_groups() if self.has_rfx else 0
         rfx_basis_dim = int(self.num_rfx_basis) if self.has_rfx else 0
 
+        # Re-supplied test data (optional). Test predictions are recomputed in full from all retained
+        # forests (postprocess assigns, not appends), so the test set need not match any test set used
+        # in the original fit. Preprocess with the fitted preprocessor, mirroring sample().
+        has_rfx_test = False
+        X_test_cpp = None
+        n_test = 0
+        basis_test_cpp = None
+        rfx_group_ids_test_cpp = None
+        rfx_basis_test_cpp = None
+        if X_test is not None:
+            X_test_processed = self._covariate_preprocessor.transform(X_test).astype(np.float64)
+            if X_test_processed.shape[1] != self.num_covariates:
+                raise ValueError("X_test and X_train must have the same number of columns")
+            n_test = X_test_processed.shape[0]
+            X_test_cpp = np.asfortranarray(X_test_processed)
+            if self.has_basis:
+                if leaf_basis_test is None:
+                    raise ValueError(
+                        "This model was fit with a leaf basis; leaf_basis_test must be supplied when X_test is provided"
+                    )
+                leaf_basis_test = np.atleast_2d(leaf_basis_test)
+                if leaf_basis_test.shape[1] != self.num_basis:
+                    raise ValueError(
+                        "leaf_basis_train and leaf_basis_test must have the same number of columns"
+                    )
+                if leaf_basis_test.shape[0] != n_test:
+                    raise ValueError("leaf_basis_test and X_test must have the same number of rows")
+                basis_test_cpp = np.asfortranarray(leaf_basis_test.astype(np.float64))
+            if self.has_rfx and rfx_group_ids_test is not None:
+                rfx_group_ids_test = np.asarray(rfx_group_ids_test).reshape(-1)
+                if not np.all(np.isin(rfx_group_ids_test, np.asarray(rfx_group_ids_train).reshape(-1))):
+                    raise ValueError(
+                        "All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train"
+                    )
+                rfx_group_ids_test_cpp = rfx_group_ids_test.astype(np.int32)
+                if rfx_intercept:
+                    rfx_basis_test = np.ones((n_test, 1))
+                elif rfx_basis_test is None:
+                    raise ValueError(
+                        "rfx_basis_test must be supplied for a non-intercept-only random effects model when rfx_group_ids_test is provided"
+                    )
+                rfx_basis_test_cpp = np.asfortranarray(np.atleast_2d(rfx_basis_test).astype(np.float64))
+                has_rfx_test = True
+        elif rfx_group_ids_test is not None:
+            raise ValueError("X_test must be supplied when rfx_group_ids_test is provided")
+
+        # If the model carries cached test-set predictions but no test set is re-supplied, those
+        # predictions become stale on continuation (they cover only the pre-continuation draws). Warn;
+        # the sampler drops them (postprocess clears test predictions when no test set is present) and
+        # the test flags are reset below so the y_hat_test property reflects the cleared state.
+        if X_test is None and getattr(self, "has_test", False):
+            warnings.warn(
+                "Continuing without X_test: the model's existing test-set predictions are stale and "
+                "will be dropped. Re-supply X_test to retain test-set predictions.",
+                UserWarning,
+            )
+
         # RNG continuation: by default resume the saved stream. If the user supplies a new seed,
         # override the cached config seed and tell the binding to keep the fresh seed instead of
         # restoring the saved state.
@@ -1703,19 +1814,19 @@ class BARTModel:
             samples=self._samples,
             X_train=X_train_cpp,
             y_train=y_train_cpp,
-            X_test=None,
+            X_test=X_test_cpp,
             n_train=X_train_cpp.shape[0],
-            n_test=0,
+            n_test=n_test,
             p=X_train_cpp.shape[1],
             basis_train=basis_train_cpp,
-            basis_test=None,
+            basis_test=basis_test_cpp,
             basis_dim=self.num_basis if self.has_basis else 0,
-            obs_weights_train=None,
+            obs_weights_train=observation_weights_train,
             obs_weights_test=None,
             rfx_group_ids_train=rfx_group_ids_cpp,
-            rfx_group_ids_test=None,
+            rfx_group_ids_test=rfx_group_ids_test_cpp,
             rfx_basis_train=rfx_basis_cpp,
-            rfx_basis_test=None,
+            rfx_basis_test=rfx_basis_test_cpp,
             rfx_num_groups=rfx_num_groups,
             rfx_basis_dim=rfx_basis_dim,
             num_gfr=num_gfr,
@@ -1727,6 +1838,16 @@ class BARTModel:
             override_seed=override_seed,
             config_input=cfg,
         )
+
+        # A supplied test set produces a full recomputed test-prediction trace on self._samples;
+        # update the flags the y_hat_test / variance_forest_predictions_test properties gate on. When
+        # no test set is supplied, the sampler cleared any stale trace, so reset the flags to match.
+        if X_test is not None:
+            self.has_test = True
+            self.n_test = n_test
+        else:
+            self.has_test = False
+            self.n_test = 0
 
         self.num_mcmc = (self.num_mcmc or 0) + num_mcmc
         if keep_gfr:

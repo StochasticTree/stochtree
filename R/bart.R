@@ -2182,6 +2182,18 @@ continueSampling.bartmodel <- function(
     has_rfx_test <- TRUE
   }
 
+  # If the model carries cached test-set predictions but no test set is re-supplied, those
+  # predictions become stale on continuation (they cover only the pre-continuation draws). Warn and
+  # let the sampler drop them (postprocess_samples clears test predictions when no test set is present).
+  if (is.null(X_test) &&
+        (object$samples$has_mean_forest_predictions_test() ||
+           object$samples$has_variance_forest_predictions_test())) {
+    warning(
+      "Continuing without X_test: the model's existing test-set predictions are stale and will be ",
+      "dropped. Re-supply X_test to retain test-set predictions."
+    )
+  }
+
   # RNG state can be overriden by a new (non-default) user-provided seed, otherwise it resumes from the model's available RNG state.
   override_seed <- !is.null(general_params$random_seed)
   rng_state_in <- if (

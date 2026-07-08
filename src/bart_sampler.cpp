@@ -611,6 +611,14 @@ void BARTSampler::postprocess_samples(BARTSamples& samples, int start_sample) {
       for (double& v : rfx_test) v *= y_std;
       samples.rfx_predictions_test = std::move(rfx_test);
     }
+  } else {
+    // No test set for this run. On a continuation that did not re-supply a test set, any test
+    // predictions still on the samples object are from a prior run and are now stale (they cover
+    // only the pre-continuation draws), so drop them. num_test was already reset in InitializeState.
+    // (On an initial run without a test set these are already empty, so this is a no-op.)
+    samples.mean_forest_predictions_test.clear();
+    samples.variance_forest_predictions_test.clear();
+    samples.rfx_predictions_test.clear();
   }
 
   // Train predictions + scalar params: scale only the newly-appended range [start_sample, end).

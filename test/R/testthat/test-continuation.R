@@ -250,3 +250,29 @@ test_that("BART continuation supports test data", {
   expect_equal(dim(stored), c(n_test, 18))
   expect_equal(stored, predict(m, X_test)$y_hat, tolerance = 1e-10)
 })
+
+test_that("BART continuation drops stale test predictions with a warning", {
+  skip_on_cran()
+
+  n <- 200
+  p <- 4
+  X <- matrix(runif(n * p), ncol = p)
+  y <- 2 * X[, 1] - 1 + rnorm(n, 0, 0.3)
+  X_test <- matrix(runif(50 * p), ncol = p)
+
+  # Fit WITH a test set, then continue WITHOUT re-supplying it.
+  m <- bart(
+    X_train = X, y_train = y, X_test = X_test,
+    num_gfr = 0, num_burnin = 5, num_mcmc = 10,
+    general_params = list(random_seed = 7)
+  )
+  expect_true(m$samples$has_mean_forest_predictions_test())
+
+  expect_warning(
+    m <- continueSampling(m, X_train = X, y_train = y, num_mcmc = 8),
+    "test-set predictions are stale"
+  )
+  # Stale test predictions were dropped, and the accessor reflects the cleared state.
+  expect_false(m$samples$has_mean_forest_predictions_test())
+  expect_equal(m$model_params$num_samples, 18)
+})
