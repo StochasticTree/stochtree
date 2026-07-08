@@ -225,3 +225,28 @@ test_that("BART continuation applies keep_every without a spurious warning", {
   # retained and appended to the original 6.
   expect_equal(m2$model_params$num_samples, 14)
 })
+
+test_that("BART continuation supports test data", {
+  skip_on_cran()
+
+  n <- 200
+  p <- 4
+  X <- matrix(runif(n * p), ncol = p)
+  y <- 2 * X[, 1] - 1 + rnorm(n, 0, 0.3)
+  n_test <- 50
+  X_test <- matrix(runif(n_test * p), ncol = p)
+
+  # Fit with no test set, then supply one on continuation.
+  m <- bart(
+    X_train = X, y_train = y, num_gfr = 0, num_burnin = 5, num_mcmc = 10,
+    general_params = list(random_seed = 7)
+  )
+  m <- continueSampling(m, X_train = X, y_train = y, X_test = X_test, num_mcmc = 8)
+
+  expect_equal(m$model_params$num_samples, 18)
+  # Test predictions are recomputed from ALL retained forests, so the stored test-pred trace covers
+  # every sample and is bit-identical to a fresh predict() on the same X_test.
+  stored <- m$samples$y_hat_test()
+  expect_equal(dim(stored), c(n_test, 18))
+  expect_equal(stored, predict(m, X_test)$y_hat, tolerance = 1e-10)
+})

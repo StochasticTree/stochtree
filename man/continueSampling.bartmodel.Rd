@@ -11,6 +11,12 @@
   leaf_basis_train = NULL,
   rfx_group_ids_train = NULL,
   rfx_basis_train = NULL,
+  X_test = NULL,
+  leaf_basis_test = NULL,
+  rfx_group_ids_test = NULL,
+  rfx_basis_test = NULL,
+  observation_weights_train = NULL,
+  observation_weights = NULL,
   num_gfr = 0,
   num_burnin = 0,
   num_mcmc = 100,
@@ -22,61 +28,105 @@
 )
 }
 \arguments{
-\item{object}{Fitted model object to continue sampling. Must be of class \code{bartmodel} and must be an
-in-memory model (continuation is unavailable for models deserialized from JSON).}
+\item{object}{Fitted model object to continue sampling. Must be of class \code{bartmodel} and must be have been obtained by running the \code{bart()} function in session (this function is unavailable for models deserialized from JSON).}
 
-\item{X_train}{Training covariates, re-supplied. Must match the structure used to fit the model. May
-be provided as a dataframe or a matrix.}
+\item{X_train}{Covariates used to split trees in the ensemble. May be provided either as a dataframe or a matrix.
+Matrix covariates will be assumed to be all numeric. Covariates passed as a dataframe will be
+preprocessed based on the variable types (e.g. categorical columns stored as unordered factors will be one-hot encoded,
+categorical columns stored as ordered factors will passed as integers to the core algorithm, along with the metadata
+that the column is ordered categorical).}
 
-\item{y_train}{Training outcome, re-supplied.}
+\item{y_train}{Outcome to be modeled by the ensemble.}
 
-\item{leaf_basis_train}{(Optional) Training leaf regression basis. Required if the model was fit with
-a leaf regression basis.}
+\item{leaf_basis_train}{(Optional) Bases used to define a regression model \code{y ~ W} in
+each leaf of each regression tree. By default, BART assumes constant leaf node
+parameters, implicitly regressing on a constant basis of ones (i.e. \code{y ~ 1}).}
 
-\item{rfx_group_ids_train}{(Optional) Training random effects group labels. Required if the model was
-fit with random effects; must use the same group labels as the original fit.}
+\item{rfx_group_ids_train}{(Optional) Group labels used for an additive random effects model.}
 
-\item{rfx_basis_train}{(Optional) Training random effects basis. Required if the model was fit with a
-non-intercept-only random effects model.}
+\item{rfx_basis_train}{(Optional) Basis for "random-slope" regression in an additive random effects model.
+If \code{rfx_group_ids_train} is provided with a regression basis, an intercept-only random effects model
+will be estimated.}
 
-\item{num_gfr}{Number of additional "grow-from-root" (GFR) warm-start draws to append before the MCMC
-draws. Default: \code{0} (MCMC-only append). When \verb{> 0}, \code{keep_gfr} (in \code{general_params}) controls whether
-these draws are retained.}
+\item{X_test}{(Optional) Test set of covariates used to define "out of sample" evaluation data.
+May be provided either as a dataframe or a matrix, but the format of \code{X_test} must be consistent with
+that of \code{X_train}.}
 
-\item{num_burnin}{Number of additional "burn-in" iterations to discard before retaining. Default: \code{0}.}
+\item{leaf_basis_test}{(Optional) Test set of bases used to define "out of sample" evaluation data.
+While a test set is optional, the structure of any provided test set must match that
+of the training set (i.e. if both \code{X_train} and \code{leaf_basis_train} are provided, then a test set must
+consist of \code{X_test} and \code{leaf_basis_test} with the same number of columns).}
 
-\item{num_mcmc}{Number of additional retained MCMC samples. Default: \code{100}.}
+\item{rfx_group_ids_test}{(Optional) Test set group labels used for an additive random effects model.
+We do not currently support (but plan to in the near future), test set evaluation for group labels
+that were not in the training set.}
 
-\item{general_params}{(Optional) A list of general (non-forest-specific) parameters to change for the
-continued draws. Only the following changeable keys are honored; any other key triggers a warning and
-is ignored. Unspecified keys inherit the model's fitted values.
+\item{rfx_basis_test}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
+
+\item{observation_weights_train}{(Optional) Numeric vector of observation weights of length \code{nrow(X_train)}. Weights are
+applied as \code{y_i | - ~ N(mu(X_i), sigma^2 / w_i)}, so larger weights increase an observation's influence on the fit.
+All weights must be non-negative. Default: \code{NULL} (all observations equally weighted). Compatible with Gaussian
+(continuous/identity) and probit outcome models; not compatible with cloglog link functions. Note: these are
+referred to internally in the C++ layer as "variance weights" (\code{var_weights}), since they scale the residual variance.}
+
+\item{observation_weights}{Deprecated alias for \code{observation_weights_train}; will be removed in a future release.}
+
+\item{num_gfr}{Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.}
+
+\item{num_burnin}{Number of "burn-in" iterations of the MCMC sampler. Default: 0.}
+
+\item{num_mcmc}{Number of "retained" iterations of the MCMC sampler. Default: 100.}
+
+\item{general_params}{(Optional) A list of general (non-forest-specific) model parameters. Only the following keys can be modified by \code{continueSampling}; any other parameters specified
+prompt a warning and are ignored. Unspecified keys default to their value set in \code{bart()}.
 \itemize{
-\item \code{random_seed} Re-seed the sampler RNG for the continued draws. By default (unset), the RNG state from the prior run is resumed.
-\item \code{keep_gfr} Whether to retain the \code{num_gfr} GFR draws. Default: \code{TRUE} (extend the chain with retained warm-start draws). Set \code{FALSE} to re-anneal with GFR draws that are then discarded.
-\item \code{keep_burnin} Whether to retain the continuation's burn-in draws. Default: \code{FALSE}.
-\item \code{keep_every} Thinning interval for the continued draws. Default: \code{1}.
-\item \code{cutpoint_grid_size} Maximum size of the grid of candidate cutpoints in the GFR algorithm (only relevant when \code{num_gfr > 0}).
-\item \code{sigma2_global_shape}, \code{sigma2_global_scale} Shape / scale of the \code{IG} global error variance prior.
-\item \code{variable_weights} Per-variable split-selection weights (length \code{ncol(X_train)}). Changing these re-weights split-variable selection for the continued draws.
-\item \code{num_threads} Number of threads to use.
-\item \code{verbose} Whether to print sampler progress.
+\item \code{cutpoint_grid_size} Maximum size of the "grid" of potential cutpoints to consider in the GFR algorithm. Default: \code{100}.
+\item \code{sigma2_global_shape} Shape parameter in the \code{IG(sigma2_global_shape, sigma2_global_scale)} global error variance model. Default: \code{0}.
+\item \code{sigma2_global_scale} Scale parameter in the \code{IG(sigma2_global_shape, sigma2_global_scale)} global error variance model. Default: \code{0}.
+\item \code{variable_weights} Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to \code{1/ncol(X_train)}.
+\item \code{random_seed} Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to \code{std::random_device}.
+\item \code{keep_burnin} Whether or not "burnin" samples should be included in the stored samples of forests and other parameters. Default \code{FALSE}. Ignored if \code{num_mcmc = 0}.
+\item \code{keep_gfr} Whether or not "grow-from-root" samples should be included in the stored samples of forests and other parameters. Default \code{FALSE}. Ignored if \code{num_mcmc = 0}.
+\item \code{keep_every} How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default \code{1}. Setting \code{keep_every <- k} for some \code{k > 1} will "thin" the MCMC samples by retaining every \code{k}-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
+\item \code{num_chains} How many independent MCMC chains should be sampled. If \code{num_mcmc = 0}, this is ignored. If \code{num_gfr = 0}, then each chain is run from root for \code{num_mcmc * keep_every + num_burnin} iterations, with \code{num_mcmc} samples retained. If \code{num_gfr > 0}, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that \code{num_gfr >= num_chains}. Default: \code{1}. Note that if \code{num_chains > 1}, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BART models, see \href{https://stochtree.ai/vignettes/multi-chain.html}{the multi chain vignette}.
+\item \code{verbose} Whether or not to print progress during the sampling loops. Default: \code{FALSE}.
+\item \code{num_threads} Number of threads to use in the GFR and MCMC algorithms, as well as prediction. Defaults to \code{1} (single-threaded). Set to \code{-1} to use the maximum number of available threads, or a positive integer for a specific count. OpenMP must be available for values other than \code{1}.
 }}
 
-\item{mean_forest_params}{(Optional) A list of mean forest parameters to change for the continued
-draws. Changeable keys: \code{alpha}, \code{beta}, \code{min_samples_leaf}, \code{max_depth}, \code{num_features_subsample}
-(tree-growth prior / sampling knobs), \code{sigma2_leaf_shape}, \code{sigma2_leaf_scale} (leaf-scale \code{IG}
-prior), and \code{keep_vars} / \code{drop_vars} (restrict which variables the mean forest may split on for the
-continued draws). Any other key triggers a warning and is ignored.}
+\item{mean_forest_params}{(Optional) A list of mean forest model parameters. Only the following keys can be modified by \code{continueSampling}; any other parameters specified
+prompt a warning and are ignored. Unspecified keys default to their value set in \code{bart()}.
+\itemize{
+\item \code{alpha} Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{0.95}.
+\item \code{beta} Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{2}.
+\item \code{min_samples_leaf} Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: \code{5}.
+\item \code{max_depth} Maximum depth of any tree in the ensemble in the mean model. Default: \code{10}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
+\item \code{sigma2_leaf_shape} Shape parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Default: \code{3}.
+\item \code{sigma2_leaf_scale} Scale parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees} if not set here.
+\item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
+\item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
+\item \code{num_features_subsample} How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
+}}
 
-\item{variance_forest_params}{(Optional) A list of variance forest parameters to change for the
-continued draws. Changeable keys: \code{alpha}, \code{beta}, \code{min_samples_leaf}, \code{max_depth},
-\code{num_features_subsample}, \code{var_forest_prior_shape}, \code{var_forest_prior_scale}, and \code{keep_vars} /
-\code{drop_vars} (restrict which variables the variance forest may split on for the continued draws). Any
-other key triggers a warning and is ignored.}
+\item{variance_forest_params}{(Optional) A list of variance forest model parameters. Only the following keys can be modified by \code{continueSampling}; any other parameters specified
+prompt a warning and are ignored. Unspecified keys default to their value set in \code{bart()}.
+\itemize{
+\item \code{alpha} Prior probability of splitting for a tree of depth 0 in the variance model. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{0.95}.
+\item \code{beta} Exponent that decreases split probabilities for nodes of depth > 0 in the variance model. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{2}.
+\item \code{min_samples_leaf} Minimum allowable size of a leaf, in terms of training samples, in the variance model. Default: \code{5}.
+\item \code{max_depth} Maximum depth of any tree in the ensemble in the variance model. Default: \code{10}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
+\item \code{var_forest_prior_shape} Shape parameter in the \code{IG(var_forest_prior_shape, var_forest_prior_scale)} conditional error variance model (which is only sampled if \code{num_trees > 0}). Calibrated internally as \code{num_trees / leaf_prior_calibration_param^2 + 0.5} if not set.
+\item \code{var_forest_prior_scale} Scale parameter in the \code{IG(var_forest_prior_shape, var_forest_prior_scale)} conditional error variance model (which is only sampled if \code{num_trees > 0}). Calibrated internally as \code{num_trees / leaf_prior_calibration_param^2} if not set.
+\item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
+\item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
+\item \code{num_features_subsample} How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
+}}
 
-\item{random_effects_params}{(Optional) A list of random effects parameters to change for the
-continued draws. Changeable keys: \code{variance_prior_shape}, \code{variance_prior_scale} (the \code{IG} prior on
-the group-parameter variance). Any other key triggers a warning and is ignored.}
+\item{random_effects_params}{(Optional) A list of random effects model parameters. Only the following keys can be modified by \code{continueSampling}; any other parameters specified
+prompt a warning and are ignored. Unspecified keys default to their value set in \code{bart()}.
+\itemize{
+\item \code{variance_prior_shape} Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
+\item \code{variance_prior_scale} Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
+}}
 
 \item{...}{Other parameters (ignored).}
 }
@@ -84,25 +134,19 @@ the group-parameter variance). Any other key triggers a warning and is ignored.}
 List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
 }
 \description{
-Continue (warm-start) sampling from an already-fit BART model, appending additional sampler
-iterations to the model's existing posterior draws. The mean forest, variance forest, and random
-effects models are each warm-started from their last retained sample, so the new draws form a
-continuous chain with the existing ones. The training data must be re-supplied (it is not retained
-on the model), and continuation is only available for in-memory models (not models deserialized
-from JSON).
+Continue sampling from an already-fit BART model, adding more draws of the posterior to the \code{bartmodel} object.
+Model terms (mean forest, variance forest, random effects, parametric terms) are initialized from their last retained sample.
+Training data must be passed anew to this function as the \code{bartmodel} object does not retain it.
+This function can only run on a model that has been sampled in session via the \code{bart()} function.
+Models that have been serialized to JSON can be passed directly to the \code{bart()} function to achieve a similar goal of drawing
+more posterior samples from a given model, though in that workflow the JSON samples are not included in the resulting \code{bartmodel} object.
 
-Continuation resumes the sampler's random number stream but not its pre-drawn leaf-normal cache, so
-the continued draws are \emph{statistically equivalent} to (not bit-identical with) a single run of the
-combined length: the retained history is preserved exactly, while new draws are a different valid
-realization of the same posterior.
-
-The model's structure is fixed at continuation. Parameters that define term structure, tree count,
-trace columns, the outcome transform, or an initialization (e.g. \code{num_trees}, \code{sample_sigma2_global},
-\code{sample_sigma2_leaf}, \code{sigma2_global_init}, \code{sigma2_leaf_init}, \code{standardize}, \code{outcome_model},
-\code{num_chains}) cannot be changed; passing them triggers a warning and they are ignored. Prior and
-sampling parameters that only influence future draws \emph{can} be changed (see the config lists below);
-note that changing a prior mid-chain means the continued draws target a different posterior than the
-history, which is intended for warm-start / annealing / prior-sensitivity workflows.
+The model specification interface mirrors that of \code{bart()}, but some parameters are considered fixed and thus cannot be changed in the user-provided parameter lists (i.e., \code{global_params},
+\code{mean_forest_params}, \code{variance_forest_params}, \code{rfx_params}). Any model specifications that define the relevant models terms, number of trees, outcome scale and distribution, or
+calibration / initialization (e.g. \code{num_trees}, \code{sample_sigma2_global}, \code{sample_sigma2_leaf}, \code{sigma2_global_init}, \code{sigma2_leaf_init}, \code{standardize}, \code{outcome_model}, \code{num_chains})
+cannot be changed. Specifying any of these components in a parameter list triggers a warning and will be ignored. Prior hyperparameters and sampling knobs that only impact future draws
+\emph{can} be modified (see the parameter lists below), though this means the continued draws target a slightly different posterior. This may be desirable in some use cases, but it's important
+to be thoughtful about any such parameter changes.
 }
 \examples{
 n <- 100

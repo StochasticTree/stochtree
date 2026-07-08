@@ -1854,11 +1854,9 @@ continueSampling.bartmodel <- function(
   rfx_basis_test = NULL,
   observation_weights_train = NULL,
   observation_weights = NULL,
-  num_gfr = 5,
+  num_gfr = 0,
   num_burnin = 0,
   num_mcmc = 100,
-  previous_model_json = NULL,
-  previous_model_warmstart_sample_num = NULL,
   general_params = list(),
   mean_forest_params = list(),
   variance_forest_params = list(),
@@ -1883,6 +1881,16 @@ continueSampling.bartmodel <- function(
     stop(
       "Continued sampling is not yet supported for probit or cloglog link functions"
     )
+  }
+
+  # `observation_weights` is a deprecated alias for `observation_weights_train` (mirrors bart()).
+  if (!is.null(observation_weights)) {
+    warning(
+      "`observation_weights` is deprecated and will be removed in a future release; use `observation_weights_train` instead."
+    )
+    if (is.null(observation_weights_train)) {
+      observation_weights_train <- observation_weights
+    }
   }
 
   # Preprocessing user-supplied parameters for continuation and merging with existing config
@@ -2012,6 +2020,32 @@ continueSampling.bartmodel <- function(
     stop("X_train and y_train have differing numbers of observations")
   }
 
+  # Observation-weight compatibility checks (mirror bart()). Weights are incompatible with a variance
+  # forest, and all-zero weights (prior-sampling mode) are incompatible with GFR draws.
+  if (!is.null(observation_weights_train)) {
+    if (object$model_params$include_variance_forest) {
+      stop(
+        "observation_weights_train are not compatible with a variance forest model. ",
+        "Use either observation_weights_train or a variance forest, not both."
+      )
+    }
+    if (!is.numeric(observation_weights_train)) {
+      stop("observation_weights_train must be a numeric vector")
+    }
+    if (length(observation_weights_train) != nrow(X_train)) {
+      stop("length(observation_weights_train) must equal nrow(X_train)")
+    }
+    if (any(observation_weights_train < 0)) {
+      stop("observation_weights_train cannot have any negative values")
+    }
+    if (all(observation_weights_train == 0) && num_gfr > 0) {
+      stop(
+        "observation_weights_train are all zero (prior sampling mode) but num_gfr > 0. ",
+        "Set num_gfr = 0 when using all-zero observation_weights_train."
+      )
+    }
+  }
+
   # Update split-variable weights if variable_weights / keep_vars / drop_vars changed.
   cstate <- object$continuation_state
   if (is.null(cstate)) {
@@ -2105,6 +2139,49 @@ continueSampling.bartmodel <- function(
     rfx_basis_dim <- as.integer(object$model_params$num_rfx_basis)
   }
 
+  # Re-supplied test data (optional). Test predictions are recomputed in full from all retained
+  # forests (postprocess_samples assigns, not appends), so the test set need not match any test set
+  # used in the original fit -- the model may have been fit with none. Preprocess exactly as bart().
+  has_rfx_test <- FALSE
+  if (!is.null(X_test)) {
+    X_test <- preprocessPredictionData(X_test, train_set_metadata)
+    if (ncol(X_test) != object$model_params$num_covariates) {
+      stop("X_test and X_train must have the same number of columns")
+    }
+  }
+  if (!is.null(leaf_basis_test) && is.null(dim(leaf_basis_test))) {
+    leaf_basis_test <- as.matrix(leaf_basis_test)
+  }
+  if (!is.null(rfx_basis_test) && is.null(dim(rfx_basis_test))) {
+    rfx_basis_test <- as.matrix(rfx_basis_test)
+  }
+  if (object$model_params$has_basis && !is.null(X_test) && is.null(leaf_basis_test)) {
+    stop("This model was fit with a leaf basis; leaf_basis_test must be supplied when X_test is provided")
+  }
+  if (!is.null(leaf_basis_test) && !is.null(X_test) && nrow(leaf_basis_test) != nrow(X_test)) {
+    stop("leaf_basis_test and X_test must have the same number of rows")
+  }
+  if (!is.null(leaf_basis_test) && !is.null(leaf_basis_train) &&
+        ncol(leaf_basis_test) != ncol(leaf_basis_train)) {
+    stop("leaf_basis_train and leaf_basis_test must have the same number of columns")
+  }
+  if (has_rfx && !is.null(rfx_group_ids_test)) {
+    if (is.null(X_test)) {
+      stop("X_test must be supplied when rfx_group_ids_test is provided")
+    }
+    group_ids_factor_test <- factor(rfx_group_ids_test, levels = object$rfx_unique_group_ids)
+    if (any(is.na(group_ids_factor_test))) {
+      stop("rfx_group_ids_test contains group labels not present in the fitted model")
+    }
+    rfx_group_ids_test <- as.integer(group_ids_factor_test)
+    if (rfx_intercept) {
+      rfx_basis_test <- matrix(rep(1, nrow(X_test)), nrow = nrow(X_test), ncol = 1)
+    } else if (is.null(rfx_basis_test)) {
+      stop("rfx_basis_test must be supplied for a non-intercept-only random effects model when rfx_group_ids_test is provided")
+    }
+    has_rfx_test <- TRUE
+  }
+
   # RNG state can be overriden by a new (non-default) user-provided seed, otherwise it resumes from the model's available RNG state.
   override_seed <- !is.null(general_params$random_seed)
   rng_state_in <- if (
@@ -2122,19 +2199,19 @@ continueSampling.bartmodel <- function(
     samples = bart_samples$samples_ptr,
     X_train = X_train,
     y_train = y_train,
-    X_test = NULL,
+    X_test = X_test,
     n_train = nrow(X_train),
-    n_test = 0L,
+    n_test = if (!is.null(X_test)) nrow(X_test) else 0L,
     p = ncol(X_train),
     basis_train = leaf_basis_train,
-    basis_test = NULL,
+    basis_test = leaf_basis_test,
     basis_dim = if (!is.null(leaf_basis_train)) ncol(leaf_basis_train) else 0L,
-    obs_weights_train = NULL,
+    obs_weights_train = observation_weights_train,
     obs_weights_test = NULL,
     rfx_group_ids_train = if (has_rfx) rfx_group_ids_train else NULL,
-    rfx_group_ids_test = NULL,
+    rfx_group_ids_test = if (has_rfx_test) rfx_group_ids_test else NULL,
     rfx_basis_train = if (has_rfx && !rfx_intercept) rfx_basis_train else NULL,
-    rfx_basis_test = NULL,
+    rfx_basis_test = if (has_rfx_test && !rfx_intercept) rfx_basis_test else NULL,
     rfx_num_groups = as.integer(rfx_num_groups),
     rfx_basis_dim = as.integer(rfx_basis_dim),
     num_gfr = as.integer(num_gfr),
