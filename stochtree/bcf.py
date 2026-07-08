@@ -160,6 +160,28 @@ class BCFModel:
             f"Unknown forest '{forest}'; expected 'prognostic', 'treatment', or 'variance'."
         )
 
+    def extract_random_effect_samples(self) -> dict:
+        """Extract the sampled random-effects parameters, scaled to the original outcome scale.
+
+        Mirrors R ``extractRandomEffectSamples``. Returns a dict with ``beta_samples`` /
+        ``xi_samples`` / ``alpha_samples`` / ``sigma_samples`` (see
+        ``RandomEffectsContainer.extract_parameter_samples``). Returns an empty dict (with a
+        warning) if the model has no random effects term.
+        """
+        result = {}
+        if not self.has_rfx:
+            warnings.warn("This model has no RFX terms, returning an empty dict")
+            return result
+        rfx_view = RandomEffectsContainer()
+        rfx_view.rfx_container_cpp = self._samples.materialize_rfx_container()
+        result = rfx_view.extract_parameter_samples()
+        # Scale to the original outcome scale (mirrors R extractRandomEffectSamples).
+        result["beta_samples"] = result["beta_samples"] * self.y_std
+        result["xi_samples"] = result["xi_samples"] * self.y_std
+        result["alpha_samples"] = result["alpha_samples"] * self.y_std
+        result["sigma_samples"] = result["sigma_samples"] * (self.y_std ** 2)
+        return result
+
     @property
     def _forest_container_mu(self):
         # Internal cached deep copy for prediction / serialization (no borrowed-ptr accessor).
@@ -2214,19 +2236,6 @@ class BCFModel:
             else None
         )
 
-        # Predictions (mu/tau/y_hat/sigma2_x) and tau_0/b0/b1 traces live on self._samples and are
-        # surfaced through the read-through properties -- nothing to unpack or scale here.
-
-        # rfx: the canonical container/label mapper live on self._samples. Expose a user-facing
-        # RandomEffectsContainer convenience view (a detached deep copy) as model.rfx_container;
-        # internal code reads rfx through self._samples (see summary()), not this handle.
-        if self.has_rfx:
-            rfx_wrapper = RandomEffectsContainer()
-            rfx_wrapper.rfx_container_cpp = self._samples.materialize_rfx_container()
-            rfx_wrapper.rfx_label_mapper_cpp = self._samples.materialize_rfx_label_mapper()
-            rfx_wrapper.rfx_group_ids = rfx_wrapper.rfx_label_mapper_cpp.GetUniqueGroupIds()
-            self.rfx_container = rfx_wrapper
-
         # Persist the final RNG state so continue_sampling() can resume the random stream
         # (statistical-equivalence). Only populated for single-chain runs.
         self.rng_state = bcf_metadata.get("rng_state", None)
@@ -3419,14 +3428,6 @@ class BCFModel:
         self._set_samples(BCFSamplesCpp())
         self._samples.load_from_json(bcf_json.json_cpp)
 
-        # rfx: re-materialize a lightweight RandomEffectsContainer view off the loaded samples object
-        # for the rfx accessor + predict group recoding.
-        if self.has_rfx:
-            self.rfx_container = RandomEffectsContainer()
-            self.rfx_container.rfx_container_cpp = self._samples.materialize_rfx_container()
-            self.rfx_container.rfx_label_mapper_cpp = self._samples.materialize_rfx_label_mapper()
-            self.rfx_container.rfx_group_ids = self.rfx_container.rfx_label_mapper_cpp.GetUniqueGroupIds()
-
         # Unpack internal propensity model
         if self.internal_propensity_model:
             bart_propensity_string = bcf_json.get_string("bart_propensity_model")
@@ -3630,13 +3631,6 @@ class BCFModel:
             chain_i = BCFSamplesCpp()
             chain_i.load_from_json(json_object_list[i].json_cpp)
             self._samples.merge(chain_i)
-
-        # rfx: re-materialize a lightweight RandomEffectsContainer view off the merged samples object.
-        if self.has_rfx:
-            self.rfx_container = RandomEffectsContainer()
-            self.rfx_container.rfx_container_cpp = self._samples.materialize_rfx_container()
-            self.rfx_container.rfx_label_mapper_cpp = self._samples.materialize_rfx_label_mapper()
-            self.rfx_container.rfx_group_ids = self.rfx_container.rfx_label_mapper_cpp.GetUniqueGroupIds()
 
         # Unpack internal propensity model
         if self.internal_propensity_model:
@@ -3996,12 +3990,10 @@ class BCFModel:
                 for p, q in zip(probs, quantiles_tau_hat_test):
                     output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
-        # Random effects: read through the canonical single-owner samples object (materialize a
-        # transient RandomEffectsContainer view on demand) rather than the stored convenience handle.
+        # Random effects: read through the canonical extraction method (scaled to the original
+        # outcome scale, matching R's summary via extractRandomEffectSamples).
         if self.has_rfx:
-            rfx_view = RandomEffectsContainer()
-            rfx_view.rfx_container_cpp = self._samples.materialize_rfx_container()
-            rfx_samples = rfx_view.extract_parameter_samples()
+            rfx_samples = self.extract_random_effect_samples()
             rfx_beta_samples = rfx_samples["beta_samples"]
             if rfx_beta_samples.ndim > 2:
                 reduce_axes = tuple(range(1, rfx_beta_samples.ndim))

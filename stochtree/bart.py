@@ -147,6 +147,29 @@ class BARTModel:
             return fc
         raise ValueError(f"Unknown forest '{forest}'; expected 'mean' or 'variance'.")
 
+    def extract_random_effect_samples(self) -> dict:
+        """Extract the sampled random-effects parameters, scaled to the original outcome scale.
+
+        Mirrors R ``extractRandomEffectSamples``. Returns a dict with ``beta_samples`` /
+        ``xi_samples`` / ``alpha_samples`` / ``sigma_samples`` (see
+        ``RandomEffectsContainer.extract_parameter_samples``). Returns an empty dict (with a
+        warning) if the model has no random-effects term. Read on-demand from the single-owner
+        samples object.
+        """
+        result = {}
+        if not self.has_rfx:
+            warnings.warn("This model has no RFX terms, returning an empty dict")
+            return result
+        rfx_view = RandomEffectsContainer()
+        rfx_view.rfx_container_cpp = self._samples.materialize_rfx_container()
+        result = rfx_view.extract_parameter_samples()
+        # Scale to the original outcome scale (mirrors R extractRandomEffectSamples).
+        result["beta_samples"] = result["beta_samples"] * self.y_std
+        result["xi_samples"] = result["xi_samples"] * self.y_std
+        result["alpha_samples"] = result["alpha_samples"] * self.y_std
+        result["sigma_samples"] = result["sigma_samples"] * (self.y_std ** 2)
+        return result
+
     @property
     def _forest_container_mean(self):
         # Internal cached deep copy for prediction / serialization. The Python samples
@@ -1543,14 +1566,6 @@ class BARTModel:
             else None
         )
 
-        # rfx: the container/label mapper live on self._samples; keep a lightweight
-        # RandomEffectsContainer view (deep copies) for the rfx accessor + predict group recoding.
-        if self.has_rfx:
-            self.rfx_container = RandomEffectsContainer()
-            self.rfx_container.rfx_container_cpp = self._samples.materialize_rfx_container()
-            self.rfx_container.rfx_label_mapper_cpp = self._samples.materialize_rfx_label_mapper()
-            self.rfx_container.rfx_group_ids = self.rfx_container.rfx_label_mapper_cpp.GetUniqueGroupIds()
-
         if link_is_cloglog:
             self.cloglog_num_categories = cloglog_num_categories
 
@@ -1739,7 +1754,9 @@ class BARTModel:
             if (self.has_rfx and not rfx_intercept)
             else None
         )
-        rfx_num_groups = self.rfx_container.num_groups() if self.has_rfx else 0
+        rfx_num_groups = (
+            int(np.unique(rfx_group_ids_cpp).shape[0]) if self.has_rfx else 0
+        )
         rfx_basis_dim = int(self.num_rfx_basis) if self.has_rfx else 0
 
         # Re-supplied test data (optional). Test predictions are recomputed in full from all retained
@@ -2099,7 +2116,7 @@ class BARTModel:
             num_basis=num_basis,
             rfx_group_ids=rfx_group_ids.astype(np.int32) if rfx_group_ids is not None else None,
             rfx_basis=np.asfortranarray(rfx_basis) if rfx_basis is not None else None,
-            rfx_num_groups=self.rfx_container.num_groups() if has_rfx else 0,
+            rfx_num_groups=int(np.unique(rfx_group_ids).shape[0]) if (has_rfx and rfx_group_ids is not None) else 0,
             rfx_basis_dim=rfx_basis_dim,
             posterior=(type == "posterior"),
             scale=scale_int,
@@ -2894,13 +2911,6 @@ class BARTModel:
         self._set_samples(BARTSamplesCpp())
         self._samples.load_from_json(bart_json.json_cpp)
 
-        # rfx: the container/label mapper live on self._samples; keep a lightweight
-        # Python-side handle for accessors (mirrors sample()).
-        if self.has_rfx:
-            self.rfx_container = RandomEffectsContainer()
-            self.rfx_container.rfx_container_cpp = self._samples.materialize_rfx_container()
-            self.rfx_container.rfx_label_mapper_cpp = self._samples.materialize_rfx_label_mapper()
-
         # Unpack covariate preprocessor
         if cross_platform:
             # The foreign native preprocessor can't be reconstructed; the gate
@@ -2975,13 +2985,6 @@ class BARTModel:
                 f"Re-save your model to suppress this warning."
             )
 
-        if self.has_rfx:
-            self.rfx_container = RandomEffectsContainer()
-            for i in range(len(json_object_list)):
-                if i == 0:
-                    self.rfx_container.load_from_json(json_object_list[i], 0)
-                else:
-                    self.rfx_container.append_from_json(json_object_list[i], 0)
 
         # Unpack global parameters
         self.y_std = json_object_default.get_scalar("outcome_scale")
@@ -3070,13 +3073,6 @@ class BARTModel:
             chain_i = BARTSamplesCpp()
             chain_i.load_from_json(json_object_list[i].json_cpp)
             self._samples.merge(chain_i)
-
-        # rfx: the container/label mapper live on self._samples; keep a lightweight
-        # Python-side handle for accessors (mirrors sample()).
-        if self.has_rfx:
-            self.rfx_container = RandomEffectsContainer()
-            self.rfx_container.rfx_container_cpp = self._samples.materialize_rfx_container()
-            self.rfx_container.rfx_label_mapper_cpp = self._samples.materialize_rfx_label_mapper()
 
         # Unpack covariate preprocessor
         if cross_platform:
@@ -3296,7 +3292,7 @@ class BARTModel:
 
         # Random effects
         if self.has_rfx:
-            rfx_samples = self.rfx_container.extract_parameter_samples()
+            rfx_samples = self.extract_random_effect_samples()
             rfx_beta_samples = rfx_samples["beta_samples"]
             if rfx_beta_samples.ndim > 2:
                 reduce_axes = tuple(range(1, rfx_beta_samples.ndim))

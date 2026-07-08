@@ -2661,8 +2661,8 @@ plot.bartmodel <- function(x, ...) {
 #'                    rfx_basis_train = rfx_basis_train,
 #'                    rfx_basis_test = rfx_basis_test,
 #'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' rfx_samples <- getRandomEffectSamples(bart_model)
-getRandomEffectSamples.bartmodel <- function(object, ...) {
+#' rfx_samples <- extractRandomEffectSamples(bart_model)
+extractRandomEffectSamples.bartmodel <- function(object, ...) {
   result <- list()
 
   if (!object$model_params$has_rfx) {
@@ -2671,7 +2671,7 @@ getRandomEffectSamples.bartmodel <- function(object, ...) {
   }
 
   # Extract the samples
-  rfx_samples <- object$samples$materialize_rfx_samples()
+  rfx_samples <- object$samples$materialize_rfx()
   result <- rfx_samples$extract_parameter_samples()
 
   # Scale by sd(y_train)
@@ -2684,6 +2684,26 @@ getRandomEffectSamples.bartmodel <- function(object, ...) {
     (object$model_params$outcome_scale^2)
 
   return(result)
+}
+
+#' @title Extract Random Effects Samples from BART Model (legacy alias)
+#' @description Legacy alias for [extractRandomEffectSamples()]; delegates to it.
+#' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
+#' @param ... Other parameters to be used in random effects extraction
+#' @return List of random effect samples (see [extractRandomEffectSamples()]).
+#' @export
+#' @examples
+#' n <- 100
+#' p <- 10
+#' X <- matrix(runif(n*p), ncol = p)
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- rep(1.0, n)
+#' y <- (-5 + 10*(X[,1] > 0.5)) + (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
+#' bart_model <- bart(X_train=X, y_train=y, rfx_group_ids_train=rfx_group_ids,
+#'                    rfx_basis_train = rfx_basis, num_gfr=0, num_mcmc=10)
+#' rfx_samples <- getRandomEffectSamples(bart_model)
+getRandomEffectSamples.bartmodel <- function(object, ...) {
+  extractRandomEffectSamples(object, ...)
 }
 
 #' @title Extract BART Forests

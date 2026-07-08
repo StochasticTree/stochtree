@@ -3111,8 +3111,8 @@ extractParameter.bcfmodel <- function(object, term) {
 #'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10,
 #'                  prognostic_forest_params = mu_params,
 #'                  treatment_effect_forest_params = tau_params)
-#' rfx_samples <- getRandomEffectSamples(bcf_model)
-getRandomEffectSamples.bcfmodel <- function(object, ...) {
+#' rfx_samples <- extractRandomEffectSamples(bcf_model)
+extractRandomEffectSamples.bcfmodel <- function(object, ...) {
   result <- list()
 
   if (!object$model_params$has_rfx) {
@@ -3134,6 +3134,88 @@ getRandomEffectSamples.bcfmodel <- function(object, ...) {
     (object$model_params$outcome_scale^2)
 
   return(result)
+}
+
+#' @title Extract Random Effects Samples from BCF Model (legacy alias)
+#' @description Legacy alias for [extractRandomEffectSamples()]; delegates to it.
+#' @param object Object of type `bcfmodel` containing draws of a BCF model and associated sampling outputs.
+#' @param ... Other parameters to be used in random effects extraction
+#' @return List of random effect samples (see [extractRandomEffectSamples()]).
+#' @export
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' pi_x <- 0.25 + 0.5*X[,1]
+#' Z <- rbinom(n, 1, pi_x)
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- rep(1.0, n)
+#' mu_x <- X[,1]*2
+#' tau_x <- X[,2]*(-1)
+#' y <- mu_x + tau_x*Z + (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
+#' bcf_model <- bcf(X_train=X, Z_train=Z, y_train=y, propensity_train=pi_x,
+#'                  rfx_group_ids_train=rfx_group_ids, rfx_basis_train=rfx_basis,
+#'                  num_gfr=0, num_mcmc=10)
+#' rfx_samples <- getRandomEffectSamples(bcf_model)
+getRandomEffectSamples.bcfmodel <- function(object, ...) {
+  extractRandomEffectSamples(object, ...)
+}
+
+#' @title Extract BCF Forests
+#' @description Extract a forest from a BCF model by name.
+#' If the requested forest type is not found, an error is thrown.
+#' The following conventions are used for forest:
+#' - Prognostic (mu) forest: `"prognostic"`, `"prognostic_forest"`, `"mu"`
+#' - Treatment effect (tau) forest: `"treatment"`, `"treatment_forest"`, `"tau"`
+#' - Variance forest: `"variance"`, `"variance_forest"`
+#'
+#' The treatment forest is the raw treatment-effect forest tau(x) (without `tau_0` or any
+#' adaptive-coding scaling); for the full CATE use `extractParameter(object, "tau_hat_train")`.
+#'
+#' @param object Object of type `bcfmodel` containing draws of a BCF model and associated sampling outputs.
+#' @param term Name of the forest to extract (e.g., `"prognostic"`, `"treatment"`, `"variance"`).
+#' @return Object of class ForestSamples containing a deep copy of the requested forest samples.
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' pi_x <- 0.25 + 0.5*X[,1]
+#' Z <- rbinom(n, 1, pi_x)
+#' mu_x <- X[,1]*2
+#' tau_x <- X[,2]*(-1)
+#' y <- mu_x + tau_x*Z + rnorm(n)
+#' bcf_model <- bcf(X_train=X, Z_train=Z, y_train=y, propensity_train=pi_x,
+#'                  num_gfr=0, num_mcmc=10)
+#' prognostic_forest <- extractForest(bcf_model, "prognostic")
+#' treatment_forest <- extractForest(bcf_model, "treatment")
+extractForest.bcfmodel <- function(object, term) {
+  if (term %in% c("prognostic", "prognostic_forest", "mu")) {
+    if (object$samples$has_mu_forest()) {
+      return(object$samples$materialize_mu_forest())
+    } else {
+      stop("This model does not have a prognostic (mu) forest")
+    }
+  }
+
+  if (term %in% c("treatment", "treatment_forest", "tau")) {
+    if (object$samples$has_tau_forest()) {
+      return(object$samples$materialize_tau_forest())
+    } else {
+      stop("This model does not have a treatment effect (tau) forest")
+    }
+  }
+
+  if (term %in% c("variance", "variance_forest")) {
+    if (object$samples$has_variance_forest()) {
+      return(object$samples$materialize_variance_forest())
+    } else {
+      stop("This model does not have a variance forest")
+    }
+  }
+
+  stop(paste0("term ", term, " is not a valid BCF forest term"))
 }
 
 #' @title Convert BCF Model to JSON

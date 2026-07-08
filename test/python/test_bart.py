@@ -3,7 +3,16 @@ import pandas as pd
 import pytest
 from sklearn.model_selection import train_test_split
 
-from stochtree import BARTModel, OutcomeModel
+from stochtree import BARTModel, OutcomeModel, RandomEffectsContainer
+
+
+def _rfx_predict(model, group_labels, basis):
+    # model.rfx_container was removed (single-owner). Materialize the rfx container on demand from the
+    # canonical samples object; returns the same standardized rfx predictions the old accessor did.
+    rfx = RandomEffectsContainer()
+    rfx.rfx_container_cpp = model.samples.materialize_rfx_container()
+    rfx.rfx_label_mapper_cpp = model.samples.materialize_rfx_label_mapper()
+    return rfx.predict(group_labels, basis)
 
 
 class TestBART:
@@ -772,9 +781,7 @@ class TestBART:
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
             )
-        rfx_preds_train = bart_model.rfx_container.predict(
-            group_labels_train, rfx_basis_train
-        )
+        rfx_preds_train = _rfx_predict(bart_model, group_labels_train, rfx_basis_train)
 
         # Assertions
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -797,9 +804,7 @@ class TestBART:
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
             )
-        rfx_preds_train_2 = bart_model_2.rfx_container.predict(
-            group_labels_train, rfx_basis_train
-        )
+        rfx_preds_train_2 = _rfx_predict(bart_model_2, group_labels_train, rfx_basis_train)
 
         # Assertions
         assert bart_model_2.y_hat_train.shape == (n_train, num_mcmc)
@@ -809,9 +814,7 @@ class TestBART:
         bart_models_json = [bart_model.to_json(), bart_model_2.to_json()]
         bart_model_3 = BARTModel()
         bart_model_3.from_json_string_list(bart_models_json)
-        rfx_preds_train_3 = bart_model_3.rfx_container.predict(
-            group_labels_train, rfx_basis_train
-        )
+        rfx_preds_train_3 = _rfx_predict(bart_model_3, group_labels_train, rfx_basis_train)
 
         # Assertions
         bart_preds_combined = bart_model_3.predict(
@@ -938,9 +941,7 @@ class TestBART:
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
             )
-        rfx_preds_train = bart_model.rfx_container.predict(
-            group_labels_train, rfx_basis_train
-        )
+        rfx_preds_train = _rfx_predict(bart_model, group_labels_train, rfx_basis_train)
 
         # Assertions
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -965,9 +966,7 @@ class TestBART:
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
             )
-        rfx_preds_train_2 = bart_model_2.rfx_container.predict(
-            group_labels_train, rfx_basis_train
-        )
+        rfx_preds_train_2 = _rfx_predict(bart_model_2, group_labels_train, rfx_basis_train)
 
         # Assertions
         assert bart_model_2.y_hat_train.shape == (n_train, num_mcmc)
@@ -977,9 +976,7 @@ class TestBART:
         bart_models_json = [bart_model.to_json(), bart_model_2.to_json()]
         bart_model_3 = BARTModel()
         bart_model_3.from_json_string_list(bart_models_json)
-        rfx_preds_train_3 = bart_model_3.rfx_container.predict(
-            group_labels_train, rfx_basis_train
-        )
+        rfx_preds_train_3 = _rfx_predict(bart_model_3, group_labels_train, rfx_basis_train)
 
         # Assertions
         bart_preds_combined = bart_model_3.predict(

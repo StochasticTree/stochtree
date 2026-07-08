@@ -576,3 +576,65 @@ class TestBCFExtractParameter:
         )
         with pytest.raises(ValueError, match="not a valid"):
             model.extract_parameter("not_a_real_term")
+
+
+class TestExtractRandomEffectSamples:
+    """extract_random_effect_samples() + legacy get_random_effect_samples() alias (R parity)."""
+
+    def _bart_rfx(self):
+        rng = np.random.default_rng(42)
+        n, p = 200, 5
+        X = rng.uniform(0, 1, (n, p))
+        g = rng.integers(0, 3, n).astype(np.int32)
+        rb = np.ones((n, 1))
+        y = 2.0 * X[:, 0] + (-2.0 * (g == 0) + 2.0 * (g == 1)) + rng.standard_normal(n)
+        m = BARTModel()
+        m.sample(X_train=X, y_train=y, rfx_group_ids_train=g, rfx_basis_train=rb,
+                 num_gfr=0, num_burnin=0, num_mcmc=10)
+        return m
+
+    def _bcf_rfx(self):
+        rng = np.random.default_rng(42)
+        n, p = 200, 5
+        X = rng.uniform(0, 1, (n, p))
+        pi = 0.2 + 0.6 * X[:, 0]
+        Z = rng.binomial(1, pi).astype(np.float64).reshape(-1, 1)
+        g = rng.integers(0, 3, n).astype(np.int32)
+        rb = np.ones((n, 1))
+        y = 5.0 * X[:, 0] + 2.0 * X[:, 1] * Z[:, 0] + (-2.0 * (g == 0) + 2.0 * (g == 1)) + rng.standard_normal(n)
+        m = BCFModel()
+        m.sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi.reshape(-1, 1),
+                 rfx_group_ids_train=g, rfx_basis_train=rb, num_gfr=0, num_burnin=0, num_mcmc=10)
+        return m
+
+    @pytest.mark.parametrize("builder", ["_bart_rfx", "_bcf_rfx"])
+    def test_keys_and_legacy_alias(self, builder):
+        m = getattr(self, builder)()
+        out = m.extract_random_effect_samples()
+        assert set(out.keys()) == {"beta_samples", "xi_samples", "alpha_samples", "sigma_samples"}
+        legacy = m.get_random_effect_samples()
+        for k in out:
+            np.testing.assert_array_equal(out[k], legacy[k])
+
+    @pytest.mark.parametrize("builder", ["_bart_rfx", "_bcf_rfx"])
+    def test_scaled_to_outcome_scale(self, builder):
+        # extract_* scales the raw container samples to the original outcome scale.
+        from stochtree import RandomEffectsContainer
+        m = getattr(self, builder)()
+        raw = RandomEffectsContainer()
+        raw.rfx_container_cpp = m.samples.materialize_rfx_container()
+        raw_samples = raw.extract_parameter_samples()
+        out = m.extract_random_effect_samples()
+        np.testing.assert_allclose(out["beta_samples"], raw_samples["beta_samples"] * m.y_std)
+        np.testing.assert_allclose(out["sigma_samples"], raw_samples["sigma_samples"] * (m.y_std ** 2))
+
+    def test_no_rfx_warns_empty(self):
+        rng = np.random.default_rng(1)
+        n, p = 100, 4
+        X = rng.uniform(0, 1, (n, p))
+        y = 2.0 * X[:, 0] + rng.standard_normal(n)
+        m = BARTModel()
+        m.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=5)
+        with pytest.warns(UserWarning, match="no RFX terms"):
+            out = m.extract_random_effect_samples()
+        assert out == {}
