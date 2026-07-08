@@ -86,24 +86,16 @@ class TestBARTSamplesCpp:
         assert a.materialize_mean_forest().NumSamples() == n_a + n_b
         np.testing.assert_allclose(a.global_var_samples(), np.concatenate([gv_a, gv_b]))
 
-    def test_from_components(self):
-        # Assemble the wrapper from a fitted model's existing forest container + parameter arrays
-        # (the construction path the model re-point will use), and check it matches the model.
+    def test_single_owner_construction(self):
+        # The single-owner samples object is populated in place by sample() (replacing the removed
+        # from_components path) and owns the forests + parameter traces; check it matches the model.
         model = self._fit()
-        samples = BARTSamplesCpp.from_components(
-            model.extract_forest('mean').forest_container_cpp,
-            None,  # no variance forest
-            model.global_var_samples if model.sample_sigma2_global else None,
-            model.leaf_scale_samples if model.sample_sigma2_leaf else None,
-            float(model.y_bar),
-            float(model.y_std),
-            int(model.num_samples),
-        )
+        samples = model.samples
         assert samples.num_samples() == model.num_samples
         assert np.isclose(samples.y_bar(), model.y_bar)
         if model.sample_sigma2_global:
             np.testing.assert_allclose(samples.global_var_samples(), model.global_var_samples)
-        # Deep-copied forest matches the source byte-for-byte
+        # Materialized forest matches an extracted deep copy byte-for-byte
         assert (
             samples.materialize_mean_forest().DumpJsonString()
             == model.extract_forest('mean').forest_container_cpp.DumpJsonString()
@@ -184,23 +176,11 @@ class TestBCFSamplesCpp:
         assert a.materialize_mu_forest().NumSamples() == n_a + n_b
         assert a.materialize_tau_forest().NumSamples() == n_a + n_b
 
-    def test_from_components(self):
+    def test_single_owner_construction(self):
+        # The single-owner samples object is populated in place by sample() (replacing the removed
+        # from_components path) and owns the forests + parameter traces; check it matches the model.
         model = self._fit()
-        samples = BCFSamplesCpp.from_components(
-            model.extract_forest('prognostic').forest_container_cpp,
-            model.extract_forest('treatment').forest_container_cpp,
-            None,  # no variance forest
-            model.global_var_samples if model.sample_sigma2_global else None,
-            model.leaf_scale_mu_samples if model.sample_sigma2_leaf_mu else None,
-            model.leaf_scale_tau_samples if model.sample_sigma2_leaf_tau else None,
-            getattr(model, "tau_0_samples", None),
-            model.b0_samples if model.adaptive_coding else None,
-            model.b1_samples if model.adaptive_coding else None,
-            float(model.y_bar),
-            float(model.y_std),
-            int(model.num_samples),
-            int(model.treatment_dim),
-        )
+        samples = model.samples
         assert samples.num_samples() == model.num_samples
         assert samples.treatment_dim() == model.treatment_dim
         if model.sample_sigma2_global:
