@@ -520,12 +520,13 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
 
   // Other internal model state
   if (continuation) {
-    // Warm-start the scalar state from the last retained sample. Within the sampler lifecycle
-    // all of these arrays hold STANDARDIZED values (postprocess_samples applies the y_std^2
-    // factor to global variance only at the very end; the continuation binding supplies
-    // standardized history), so read the last value directly here.
+    // Warm-start the scalar state from the last retained sample. Continuation now appends in place
+    // onto the model's samples object, whose global variance history is POST-PROCESSED (x y_std^2)
+    // and whose tau_0 history is scaled by y_std; the sampler works in standardized space, so divide
+    // those back out here. Leaf scales are stored standardized (postprocess does not touch them).
+    const double y_std2 = samples.y_std * samples.y_std;
     if (sample_sigma2_global_ && !samples.global_error_variance_samples.empty()) {
-      global_variance_ = samples.global_error_variance_samples.back();
+      global_variance_ = samples.global_error_variance_samples.back() / y_std2;
     } else {
       global_variance_ = config_.sigma2_global_init;
     }
@@ -548,7 +549,7 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
     // After the forest warm-starts above, residual_ = y_std - mu_last - Z*tau_last; the one-shot
     // sampler additionally carries -Z*tau_0_last at the start of the next iteration.
     if (sample_tau_0_ && !samples.tau_0_samples.empty()) {
-      tau_0_scalar_ = samples.tau_0_samples.back();
+      tau_0_scalar_ = samples.tau_0_samples.back() / samples.y_std;  // stored x y_std -> standardized
       double* resid_ptr = residual_->GetData().data();
       const double* basis = data_.treatment_train;  // adaptive coding is guarded off for continuation
       for (int i = 0; i < data_.n_train; i++) {
@@ -657,14 +658,18 @@ void BCFSampler::run_mcmc_chains(BCFSamples& samples, int num_chains, int num_bu
   }
 }
 
-void BCFSampler::postprocess_samples(BCFSamples& samples) {
+// `start_sample` is the first sample index to process: 0 for an initial run, or the pre-continuation
+// sample count for a continuation, so only the newly-appended draws are scaled (the history is
+// already on the original scale). Continuation supplies no test data (has_test_ == false), and the
+// test block is additionally guarded on start_sample == 0.
+void BCFSampler::postprocess_samples(BCFSamples& samples, int start_sample) {
   // Compute outcome predictions on the linear (link) scale: E[eta|X,Z] = mu(X) + Z*tau(X) + rfx
   // tau_forest_predictions stores raw tau(x) (no z multiplication), so we multiply by z here.
   // Callers that need probability-scale predictions (probit, cloglog) apply the inverse link themselves.
   samples.y_hat_train.resize(data_.n_train * samples.num_samples);
   double mu_term, tau_term, y_term;
   const int treatment_dim = data_.treatment_dim;
-  for (int j = 0; j < samples.num_samples; j++) {
+  for (int j = start_sample; j < samples.num_samples; j++) {
     for (int i = 0; i < data_.n_train; i++) {
       // Data index for the two terms that are guaranteed to be univariate - mu(x) and y_hat
       const int k = j * data_.n_train + i;
@@ -685,8 +690,10 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
     }
   }
 
-  // Unpack test set predictions for mean and variance forest
-  if (has_test_) {
+  // Unpack test set predictions for mean and variance forest. Guarded on start_sample == 0: the
+  // test block predicts from ALL retained forests and appends, so it only runs for an initial sample
+  // (continuation supplies no test data and re-derives test predictions via predict()).
+  if (has_test_ && start_sample == 0) {
     std::vector<double> mu_predictions = samples.mu_forests->Predict(*forest_dataset_test_);
     std::vector<double> tau_predictions = samples.tau_forests->PredictRaw(*forest_dataset_test_, /*row_major=*/false);
     // Add tau_0 to the treatment effect function predictions if it was sampled.
@@ -789,14 +796,20 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
   // - Test predictions come from ForestContainer::Predict() with is_exponentiated_=true,
   //   which already applies exp() internally, so just multiply by y_std^2.
   // - Global error variance samples are in standardized space; multiply by y_std^2.
+  // Train predictions + params are scaled only over the newly-appended range [start_sample, end);
+  // test arrays are full-range (populated only on an initial run, empty on continuation).
+  const size_t train_off = static_cast<size_t>(start_sample) * static_cast<size_t>(data_.n_train);
+  const size_t tau_train_off = train_off * static_cast<size_t>(treatment_dim);
   if (has_variance_forest_) {
     double y_std2 = samples.y_std * samples.y_std;
-    for (double& v : samples.variance_forest_predictions_train) v = std::exp(v) * y_std2;
+    for (size_t i = train_off; i < samples.variance_forest_predictions_train.size(); i++)
+      samples.variance_forest_predictions_train[i] = std::exp(samples.variance_forest_predictions_train[i]) * y_std2;
     for (double& v : samples.variance_forest_predictions_test)  v *= y_std2;
   }
   if (sample_sigma2_global_) {
     double y_std2 = samples.y_std * samples.y_std;
-    for (double& v : samples.global_error_variance_samples) v *= y_std2;
+    for (size_t i = static_cast<size_t>(start_sample); i < samples.global_error_variance_samples.size(); i++)
+      samples.global_error_variance_samples[i] *= y_std2;
   }
 
   // Convert the cached prognostic / treatment-effect / random-effects predictions from standardized
@@ -805,12 +818,15 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
   // (already the full CATE tau_0 + tau(x), with any adaptive-coding (b1 - b0) factor folded in during
   // sampling) and the random effects carry only the scale factor (y_std). y_hat_train / y_hat_test
   // were already placed on the original scale above, computed from these caches while still standardized.
-  for (double& v : samples.mu_forest_predictions_train) v = v * samples.y_std + samples.y_bar;
+  for (size_t i = train_off; i < samples.mu_forest_predictions_train.size(); i++)
+    samples.mu_forest_predictions_train[i] = samples.mu_forest_predictions_train[i] * samples.y_std + samples.y_bar;
   for (double& v : samples.mu_forest_predictions_test)  v = v * samples.y_std + samples.y_bar;
-  for (double& v : samples.tau_forest_predictions_train) v *= samples.y_std;
+  for (size_t i = tau_train_off; i < samples.tau_forest_predictions_train.size(); i++)
+    samples.tau_forest_predictions_train[i] *= samples.y_std;
   for (double& v : samples.tau_forest_predictions_test)  v *= samples.y_std;
   if (has_random_effects_) {
-    for (double& v : samples.rfx_predictions_train) v *= samples.y_std;
+    for (size_t i = train_off; i < samples.rfx_predictions_train.size(); i++)
+      samples.rfx_predictions_train[i] *= samples.y_std;
     for (double& v : samples.rfx_predictions_test)  v *= samples.y_std;
   }
 }

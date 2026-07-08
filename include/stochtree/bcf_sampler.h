@@ -46,7 +46,7 @@ class BCFSampler {
   void run_mcmc_chains(BCFSamples& samples, int num_chains, int num_burnin, int keep_every, int num_mcmc);
 
   // Post-process samples by extracting test set predictions and running any necessary transformations
-  void postprocess_samples(BCFSamples& samples);
+  void postprocess_samples(BCFSamples& samples, int start_sample = 0);
 
   // Serialize the internal RNG state to a string. std::mt19937 round-trips losslessly through
   // its stream operators, so this captures the exact position in the random stream -- used to

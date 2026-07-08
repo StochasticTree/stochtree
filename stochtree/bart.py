@@ -206,6 +206,47 @@ class BARTModel:
     def num_samples(self):
         return self._samples.num_samples() if self._samples is not None else None
 
+    def _reshape_pred(self, flat, n_obs):
+        # Reshape a flat (n_obs * num_samples, F-order) prediction trace to (n_obs, num_samples).
+        if flat is None or flat.size == 0:
+            return None
+        return flat.reshape(n_obs, self._samples.num_samples(), order="F")
+
+    @property
+    def y_hat_train(self):
+        if self._samples is None:
+            return None
+        return self._reshape_pred(self._samples.y_hat_train(), self.n_train)
+
+    @property
+    def y_hat_test(self):
+        if self._samples is None or not self.has_test:
+            return None
+        return self._reshape_pred(self._samples.y_hat_test(), self.n_test)
+
+    @property
+    def sigma2_x_train(self):
+        if self._samples is None:
+            return None
+        return self._reshape_pred(self._samples.variance_forest_predictions_train(), self.n_train)
+
+    @property
+    def sigma2_x_test(self):
+        if self._samples is None or not self.has_test:
+            return None
+        return self._reshape_pred(self._samples.variance_forest_predictions_test(), self.n_test)
+
+    @property
+    def cloglog_cutpoint_samples(self):
+        if self._samples is None:
+            return None
+        arr = self._samples.cloglog_cutpoint_samples()
+        if arr.size == 0:
+            return None
+        return arr.reshape(
+            self.cloglog_num_categories - 1, self._samples.num_samples(), order="F"
+        )
+
     def sample(
         self,
         X_train: Union[np.ndarray, pd.DataFrame],
@@ -1436,8 +1477,11 @@ class BARTModel:
             np.asfortranarray(rfx_basis_test.astype(np.float64)) if rfx_basis_test is not None else None
         )
 
-        # Run the BART sampler from C++
-        bart_results = bart_sample_cpp(
+        # Single-owner: the C++ sampler populates a BARTSamplesCpp in place (mirrors R). All forests,
+        # parameter traces, rfx and predictions live on it; bart_sample_cpp returns only metadata.
+        self._set_samples(BARTSamplesCpp())
+        bart_metadata = bart_sample_cpp(
+            samples=self._samples,
             X_train=X_train_cpp,
             y_train=y_train_cpp,
             X_test=X_test_cpp,
@@ -1465,7 +1509,7 @@ class BARTModel:
             config_input=bart_config,
         )
 
-        # Store high level model metadata from C++ results
+        # Store high level model metadata
         self.num_gfr = num_gfr
         self.num_burnin = num_burnin
         self.keep_every = keep_every
@@ -1474,115 +1518,42 @@ class BARTModel:
         self.sample_sigma2_global = sample_sigma2_global
         self.sample_sigma2_leaf = sample_sigma2_leaf
 
-        # Persist the final RNG state so continue_sampling() can resume the random
-        # stream for bit-identical continuation. Only populated for single-chain runs
-        # (multi-chain runs use one RNG per chain, so there is no single stream to resume).
-        self.rng_state = bart_results.get("rng_state", None)
-        # Persist the leaf normal sampler's cached spare value (Marsaglia-polar) so a
-        # continued chain reproduces the one-shot leaf draws exactly.
-        self.leaf_normal_cache = bart_results.get("leaf_normal_cache", None)
+        # Persist the final RNG state so continue_sampling() can resume the random stream
+        # (statistical-equivalence). Only populated for single-chain runs.
+        self.rng_state = bart_metadata.get("rng_state", None)
 
-        # Unpack standardization params computed by C++ sampler
-        self.y_bar = bart_results["y_bar"]
-        self.y_std = bart_results["y_std"]
-        self.sigma2_init = bart_results["sigma2_init"]
+        # Standardization is owned by the samples object; config-derived init scalars come as metadata.
+        self.y_bar = self._samples.y_bar()
+        self.y_std = self._samples.y_std()
+        self.sigma2_init = bart_metadata["sigma2_init"]
         self.sigma2_leaf_init = (
-            bart_results["sigma2_mean_init"] if self.include_mean_forest else None
+            bart_metadata["sigma2_mean_init"] if self.include_mean_forest else None
         )
         self.b_leaf = (
-            bart_results["b_sigma2_mean"] if self.include_mean_forest else None
+            bart_metadata["b_sigma2_mean"] if self.include_mean_forest else None
         )
         self.shape_variance_forest = (
-            bart_results["shape_variance_forest"]
+            bart_metadata["shape_variance_forest"]
             if self.include_variance_forest
             else None
         )
         self.scale_variance_forest = (
-            bart_results["scale_variance_forest"]
+            bart_metadata["scale_variance_forest"]
             if self.include_variance_forest
             else None
         )
 
-        # Unpack mean forest predictions. The forests themselves are owned by self._samples
-        # (assembled below); predictions are transient per-data outputs.
-        if self.include_mean_forest:
-            mean_forest_preds_train = bart_results[
-                "mean_forest_predictions_train"
-            ].reshape(self.n_train, bart_results["num_samples"], order="F")
-            self.y_hat_train = mean_forest_preds_train * self.y_std + self.y_bar
-            if self.has_test:
-                mean_forest_preds_test = bart_results[
-                    "mean_forest_predictions_test"
-                ].reshape(self.n_test, bart_results["num_samples"], order="F")
-                self.y_hat_test = mean_forest_preds_test * self.y_std + self.y_bar
-
-        # Unpack RFX results
+        # rfx: the container/label mapper live on self._samples; keep a lightweight
+        # RandomEffectsContainer view (deep copies) for the rfx accessor + predict group recoding.
         if self.has_rfx:
             self.rfx_container = RandomEffectsContainer()
-            self.rfx_container.rfx_container_cpp = bart_results["rfx_container"]
-            self.rfx_container.rfx_label_mapper_cpp = bart_results["rfx_label_mapper"]
-            self.rfx_container.rfx_group_ids = bart_results["rfx_label_mapper"].GetUniqueGroupIds()
-            rfx_preds_train = (
-                bart_results["rfx_predictions_train"].reshape(
-                    self.n_train, bart_results["num_samples"], order="F"
-                )
-                * self.y_std
-            )
-            self.y_hat_train = (
-                self.y_hat_train + rfx_preds_train
-                if self.include_mean_forest
-                else rfx_preds_train
-            )
-            if self.has_test:
-                rfx_preds_test = (
-                    bart_results["rfx_predictions_test"].reshape(
-                        self.n_test, bart_results["num_samples"], order="F"
-                    )
-                    * self.y_std
-                )
-                self.y_hat_test = (
-                    self.y_hat_test + rfx_preds_test
-                    if self.include_mean_forest
-                    else rfx_preds_test
-                )
+            self.rfx_container.rfx_container_cpp = self._samples.materialize_rfx_container()
+            self.rfx_container.rfx_label_mapper_cpp = self._samples.materialize_rfx_label_mapper()
+            self.rfx_container.rfx_group_ids = self.rfx_container.rfx_label_mapper_cpp.GetUniqueGroupIds()
 
-        # Unpack variance forest predictions (forest owned by self._samples, assembled below)
-        if self.include_variance_forest:
-            self.sigma2_x_train = bart_results[
-                "variance_forest_predictions_train"
-            ].reshape(self.n_train, bart_results["num_samples"], order="F")
-            if self.has_test:
-                self.sigma2_x_test = bart_results[
-                    "variance_forest_predictions_test"
-                ].reshape(self.n_test, bart_results["num_samples"], order="F")
-
-        # Parameter sampling flags (the param traces themselves are owned by self._samples).
-        self.sample_sigma2_global = sample_sigma2_global
-        self.sample_sigma2_leaf = sample_sigma2_leaf
-        # cloglog cutpoints are not routed through the samples wrapper yet (guarded there); keep
-        # them as a separate attribute.
         if link_is_cloglog:
             self.cloglog_num_categories = cloglog_num_categories
-            if not outcome_is_binary:
-                self.cloglog_cutpoint_samples = bart_results[
-                    "cloglog_cutpoint_samples"
-                ].reshape(
-                    cloglog_num_categories - 1, bart_results["num_samples"], order="F"
-                )
 
-        # Assemble the single source of truth: forests + parameter traces in one BARTSamplesCpp.
-        # forest_container_*/global_var_samples/leaf_scale_samples/num_samples are properties off it.
-        self._set_samples(
-            BARTSamplesCpp.from_components(
-                bart_results["forest_container_mean"] if self.include_mean_forest else None,
-                bart_results["forest_container_variance"] if self.include_variance_forest else None,
-                bart_results["global_var_samples"] if self.sample_sigma2_global else None,
-                bart_results["leaf_scale_samples"] if self.sample_sigma2_leaf else None,
-                float(self.y_bar),
-                float(self.y_std),
-                int(bart_results["num_samples"]),
-            )
-        )
         self.sampled = True
 
         return self
@@ -1591,22 +1562,29 @@ class BARTModel:
         self,
         X_train: Union[np.array, pd.DataFrame],
         y_train: np.array,
+        num_gfr: int = 0,
         num_mcmc: int = 100,
         num_burnin: int = 0,
         keep_every: int = 1,
+        keep_gfr: bool = True,
         leaf_basis_train: np.array = None,
+        rfx_group_ids_train: np.array = None,
+        rfx_basis_train: np.array = None,
         random_seed: int = None,
     ):
-        """Continue (warm-start) MCMC sampling from an already-fit BART model, appending
+        """Continue (warm-start) sampling from an already-fit BART model, appending
         additional samples to the existing posterior draws.
 
         The training data must be re-supplied (it is not retained on the model). The
         warm-start initializes the sampler from the last retained sample so that the new
-        draws form a continuous chain with the existing ones.
+        draws form a continuous chain with the existing ones. Mean forest, variance forest,
+        and random effects models are all warm-started from their last retained sample.
 
         .. note::
-            This is currently supported only for Gaussian (identity-link) models with a
-            mean forest and no variance forest or random effects.
+            Continuation resumes the RNG stream but not the sampler's pre-drawn leaf-normal
+            cache, so the continued draws are *statistically equivalent* to (not bit-identical
+            with) a single run of the combined length: the retained history is preserved
+            exactly, while new draws are a different valid realization of the same posterior.
 
         Parameters
         ----------
@@ -1614,18 +1592,30 @@ class BARTModel:
             Training covariates (re-supplied; must match the structure used to fit the model).
         y_train : np.array
             Training outcome (re-supplied).
+        num_gfr : int, optional
+            Number of additional "grow-from-root" (GFR) warm-start draws to append before the
+            MCMC draws. Defaults to ``0`` (MCMC-only append). When ``> 0``, ``keep_gfr`` controls
+            whether these draws are retained.
         num_mcmc : int, optional
             Number of additional retained MCMC samples. Defaults to ``100``.
         num_burnin : int, optional
             Number of additional burn-in iterations to discard before retaining. Defaults to ``0``.
         keep_every : int, optional
             Thinning interval for the additional samples. Defaults to ``1``.
+        keep_gfr : bool, optional
+            Whether to retain the ``num_gfr`` GFR draws. Defaults to ``True`` (extend the chain
+            with retained warm-start draws, e.g. grow 25 draws into 40). Set ``False`` to re-anneal
+            the chain with GFR draws that are then discarded before the MCMC draws.
         leaf_basis_train : np.array, optional
             Training leaf basis (required if the model was fit with a leaf regression basis).
+        rfx_group_ids_train : np.array, optional
+            Training random effects group labels (required if the model was fit with random effects).
+        rfx_basis_train : np.array, optional
+            Training random effects basis (required if the model was fit with a non-intercept-only
+            random effects model).
         random_seed : int, optional
             If supplied, re-seeds the sampler RNG for the continued draws. By default
-            (``None``), the RNG state from the prior run is resumed, so the continued chain
-            is bit-identical to a single run of the combined length.
+            (``None``), the RNG state from the prior run is resumed.
 
         Returns
         -------
@@ -1635,14 +1625,6 @@ class BARTModel:
             raise RuntimeError("Cannot continue sampling: this model has not been sampled yet")
         if not self.include_mean_forest:
             raise NotImplementedError("Continued sampling currently requires a mean forest")
-        if self.include_variance_forest:
-            raise NotImplementedError(
-                "Continued sampling is not yet supported for models with a variance forest"
-            )
-        if getattr(self, "has_rfx", False):
-            raise NotImplementedError(
-                "Continued sampling is not yet supported for models with random effects"
-            )
         cfg = getattr(self, "_cached_bart_config", None)
         if cfg is None:
             raise RuntimeError(
@@ -1683,21 +1665,42 @@ class BARTModel:
             np.asfortranarray(leaf_basis_train.astype(np.float64)) if self.has_basis else None
         )
 
-        # RNG continuation: by default resume the saved stream for bit-identical results.
-        # If the user supplies a new seed, override the cached config seed and tell the
-        # binding to keep the fresh seed instead of restoring the saved state.
+        # Random effects data (re-supplied). The C++ warm-start preserves the model's existing rfx
+        # container / label mapper and restores the last sample; the re-supplied group ids must
+        # match those used to fit the model. An intercept-only model dispatches a ones-basis in C++.
+        rfx_intercept = self.rfx_model_spec == "intercept_only"
+        if self.has_rfx and rfx_group_ids_train is None:
+            raise ValueError(
+                "This model was fit with random effects; rfx_group_ids_train must be supplied to continue sampling"
+            )
+        if self.has_rfx and rfx_basis_train is None and not rfx_intercept:
+            raise ValueError(
+                "This model was fit with a non-intercept-only random effects model; rfx_basis_train must be supplied to continue sampling"
+            )
+        rfx_group_ids_cpp = (
+            np.asarray(rfx_group_ids_train).astype(np.int32).reshape(-1) if self.has_rfx else None
+        )
+        rfx_basis_cpp = (
+            np.asfortranarray(np.atleast_2d(rfx_basis_train).astype(np.float64))
+            if (self.has_rfx and not rfx_intercept)
+            else None
+        )
+        rfx_num_groups = self.rfx_container.num_groups() if self.has_rfx else 0
+        rfx_basis_dim = int(self.num_rfx_basis) if self.has_rfx else 0
+
+        # RNG continuation: by default resume the saved stream. If the user supplies a new seed,
+        # override the cached config seed and tell the binding to keep the fresh seed instead of
+        # restoring the saved state.
         override_seed = random_seed is not None
         if override_seed:
             cfg = dict(cfg)
             cfg["random_seed"] = random_seed
         rng_state_in = self.rng_state if (not override_seed and self.rng_state is not None) else ""
-        leaf_normal_cache_in = (
-            self.leaf_normal_cache
-            if (not override_seed and getattr(self, "leaf_normal_cache", None) is not None)
-            else ""
-        )
 
+        # Continuation appends the new draws in place onto self._samples (mirrors R's
+        # run_gfr/run_mcmc(samples, ...)); the binding returns metadata (final RNG state) only.
         bart_results = bart_continue_sample_cpp(
+            samples=self._samples,
             X_train=X_train_cpp,
             y_train=y_train_cpp,
             X_test=None,
@@ -1709,50 +1712,29 @@ class BARTModel:
             basis_dim=self.num_basis if self.has_basis else 0,
             obs_weights_train=None,
             obs_weights_test=None,
-            rfx_group_ids_train=None,
+            rfx_group_ids_train=rfx_group_ids_cpp,
             rfx_group_ids_test=None,
-            rfx_basis_train=None,
+            rfx_basis_train=rfx_basis_cpp,
             rfx_basis_test=None,
-            rfx_num_groups=0,
-            rfx_basis_dim=0,
+            rfx_num_groups=rfx_num_groups,
+            rfx_basis_dim=rfx_basis_dim,
+            num_gfr=num_gfr,
             num_burnin=num_burnin,
             keep_every=keep_every,
             num_mcmc=num_mcmc,
-            mean_forest_container=self._forest_container_mean.forest_container_cpp,
-            global_var_samples=self.global_var_samples if self.sample_sigma2_global else None,
-            leaf_scale_samples=self.leaf_scale_samples if self.sample_sigma2_leaf else None,
-            y_bar=float(self.y_bar),
-            y_std=float(self.y_std),
+            keep_gfr=keep_gfr,
             rng_state_in=rng_state_in,
             override_seed=override_seed,
-            leaf_normal_cache_in=leaf_normal_cache_in,
             config_input=cfg,
         )
 
-        # Rebuild the single source of truth from the (history + new) continuation results.
-        # Continuation supports a mean forest only (no variance forest), so variance is None.
-        self._set_samples(
-            BARTSamplesCpp.from_components(
-                bart_results["forest_container_mean"],
-                None,
-                bart_results["global_var_samples"] if self.sample_sigma2_global else None,
-                bart_results["leaf_scale_samples"] if self.sample_sigma2_leaf else None,
-                float(self.y_bar),
-                float(self.y_std),
-                int(bart_results["num_samples"]),
-            )
-        )
         self.num_mcmc = (self.num_mcmc or 0) + num_mcmc
-        # Carry the new final RNG + leaf-cache state forward so further continuations stay bit-identical
+        if keep_gfr:
+            self.num_gfr = (self.num_gfr or 0) + num_gfr
+        # Carry the new final RNG state forward so further continuations stay statistically consistent
         self.rng_state = bart_results.get("rng_state", None)
-        self.leaf_normal_cache = bart_results.get("leaf_normal_cache", None)
-
-        # Recompute training predictions over the full (history + new) set of samples
-        self.y_hat_train = self.predict(
-            X_train,
-            leaf_basis=leaf_basis_train if self.has_basis else None,
-            terms="y_hat",
-        )
+        # y_hat_train is a read-through property over self._samples, whose train-prediction trace was
+        # extended in place by the continuation, so no manual recompute is needed here.
 
         return self
 
@@ -1965,14 +1947,9 @@ class BARTModel:
         #     cloglog_cutpoints = np.asfortranarray(cloglog_cutpoints)
 
         # Construct dictionary of model components to pass to C++ prediction function, with None for any components not present in the model
-        bart_model_dict = {
-            "mean_forests": self._forest_container_mean.forest_container_cpp if self.include_mean_forest else None,
-            "variance_forests": self._forest_container_variance.forest_container_cpp if self.include_variance_forest else None,
-            "rfx_container": self.rfx_container.rfx_container_cpp if has_rfx else None,
-            "rfx_label_mapper": self.rfx_container.rfx_label_mapper_cpp if has_rfx else None,
-            "sigma2_global_samples": getattr(self, 'global_var_samples', None),
-            "sigma2_leaf_samples": getattr(self, 'leaf_scale_samples', None),
-            "cloglog_cutpoint_samples": np.asfortranarray(self.cloglog_cutpoint_samples) if getattr(self, 'cloglog_cutpoint_samples', None) is not None else None,
+        # Forests / parameter traces / rfx / cloglog live on self._samples; predict reads them off
+        # the samples object and only needs scalar metadata + model flags.
+        bart_metadata = {
             "num_samples": int(self.num_samples),
             "y_bar": float(self.y_bar),
             "y_std": float(self.y_std),
@@ -1983,7 +1960,7 @@ class BARTModel:
             "outcome_type": self.outcome_model.outcome,
         }
         if is_cloglog:
-            bart_model_dict["cloglog_num_classes"] = int(self.cloglog_num_categories)
+            bart_metadata["cloglog_num_classes"] = int(self.cloglog_num_categories)
 
         # Data dimensions
         n, p = X_processed.shape
@@ -1992,7 +1969,8 @@ class BARTModel:
 
         # Call the C++ prediction function, returning results as a dictionary
         output = bart_predict_cpp(
-            bart_model_dict=bart_model_dict,
+            samples=self._samples,
+            metadata=bart_metadata,
             X=np.asfortranarray(X_processed),
             leaf_basis=np.asfortranarray(leaf_basis) if leaf_basis is not None else None,
             n=n,
@@ -2624,17 +2602,13 @@ class BARTModel:
         # Initialize JSONSerializer object
         bart_json = JSONSerializer()
 
-        # Add the forests under self-describing named keys
-        if self.include_mean_forest:
-            bart_json.add_forest(self._forest_container_mean, "mean_forest")
-        if self.include_variance_forest:
-            bart_json.add_forest(self._forest_container_variance, "variance_forest")
+        # Serialize forests + parameter traces + rfx through the single-owner samples object
+        # (mirrors R bart_samples$append_to_json), writing the shared cross-platform wire format.
+        self._samples.add_to_json(bart_json.json_cpp)
 
-        # Add the rfx
+        # Add the rfx cross-platform flag: Python rfx group ids are always integer-valued, so an
+        # rfx model is cross-platform compatible on the rfx axis.
         if self.has_rfx:
-            bart_json.add_random_effects(self.rfx_container)
-            # Python rfx group ids are always integer-valued, so an rfx model is
-            # cross-platform compatible on the rfx axis.
             bart_json.add_boolean(
                 "cross_platform_compatible", True, subfolder_name="random_effects"
             )
@@ -2671,26 +2645,10 @@ class BARTModel:
         bart_json.add_string("link", self.outcome_model.link, "outcome_model")
         bart_json.add_string("rfx_model_spec", self.rfx_model_spec)
 
-        # Add parameter samples
-        if self.sample_sigma2_global:
-            bart_json.add_numeric_vector(
-                "sigma2_global_samples", self.global_var_samples, "parameters"
-            )
-        if self.sample_sigma2_leaf:
-            bart_json.add_numeric_vector(
-                "sigma2_leaf_samples", self.leaf_scale_samples, "parameters"
-            )
-
-        # Add cloglog parameters (num_categories always, cutpoints only for ordinal)
+        # Parameter samples (sigma2_global/leaf, cloglog cutpoints) are serialized by add_to_json
+        # above; only the envelope-level cloglog category count is added here.
         if self.outcome_model.link == "cloglog":
             bart_json.add_integer("cloglog_num_categories", self.cloglog_num_categories)
-            if self.outcome_model.outcome == "ordinal":
-                for i in range(self.cloglog_num_categories - 1):
-                    bart_json.add_numeric_vector(
-                        f"cloglog_cutpoint_samples_{i + 1}",
-                        self.cloglog_cutpoint_samples[i, :],
-                        "parameters",
-                    )
 
         # Add covariate preprocessor
         covariate_preprocessor_string = self._covariate_preprocessor.to_json()
@@ -2733,25 +2691,8 @@ class BARTModel:
                 f"Re-save your model to suppress this warning."
             )
 
-        # v1 forests are stored under self-describing named keys. Load into temporary
-        # ForestContainer objects, then deep-copy into the single owned samples object below.
-        mean_forest_loaded = None
-        variance_forest_loaded = None
-        if self.include_mean_forest:
-            mean_forest_loaded = ForestContainer(0, 0, False, False)
-            mean_forest_loaded.forest_container_cpp.LoadFromJson(
-                bart_json.json_cpp, "mean_forest"
-            )
-        if self.include_variance_forest:
-            variance_forest_loaded = ForestContainer(0, 0, False, False)
-            variance_forest_loaded.forest_container_cpp.LoadFromJson(
-                bart_json.json_cpp, "variance_forest"
-            )
-
-        # Unpack random effects
-        if self.has_rfx:
-            self.rfx_container = RandomEffectsContainer()
-            self.rfx_container.load_from_json(bart_json, 0)
+        # Forests, parameter traces, rfx and cloglog cutpoints are all reconstructed inside the
+        # single owned samples object below (self._samples.load_from_json). No per-key load here.
 
         # Unpack global parameters
         self.y_std = bart_json.get_scalar("outcome_scale")
@@ -2820,45 +2761,24 @@ class BARTModel:
                     f"Re-save your model to suppress this warning."
                 )
 
-        # Unpack parameter samples (owned by self._samples, built below)
-        global_var_loaded = (
-            bart_json.get_numeric_vector("sigma2_global_samples", "parameters")
-            if self.sample_sigma2_global
-            else None
-        )
-        leaf_scale_loaded = (
-            bart_json.get_numeric_vector("sigma2_leaf_samples", "parameters")
-            if self.sample_sigma2_leaf
-            else None
-        )
-
-        # Unpack cloglog parameters (num_categories always, cutpoints only for ordinal); these stay
-        # a separate attribute (not routed through the samples wrapper yet).
+        # Unpack cloglog category count (envelope scalar; the cutpoint samples themselves live on
+        # self._samples and are exposed via the cloglog_cutpoint_samples property after load).
         if self.outcome_model.link == "cloglog":
             self.cloglog_num_categories = bart_json.get_integer(
                 "cloglog_num_categories"
             )
-            if self.outcome_model.outcome == "ordinal":
-                self.cloglog_cutpoint_samples = np.full(
-                    (self.cloglog_num_categories - 1, num_samples_loaded), np.nan
-                )
-                for i in range(self.cloglog_num_categories - 1):
-                    self.cloglog_cutpoint_samples[i, :] = bart_json.get_numeric_vector(
-                        f"cloglog_cutpoint_samples_{i + 1}", "parameters"
-                    )
 
-        # Assemble the single source of truth (forests + parameter traces) from the loaded parts.
-        self._set_samples(
-            BARTSamplesCpp.from_components(
-                mean_forest_loaded.forest_container_cpp if self.include_mean_forest else None,
-                variance_forest_loaded.forest_container_cpp if self.include_variance_forest else None,
-                global_var_loaded,
-                leaf_scale_loaded,
-                float(self.y_bar),
-                float(self.y_std),
-                int(num_samples_loaded),
-            )
-        )
+        # Reconstruct the single source of truth (forests + parameter traces + rfx + cloglog
+        # cutpoints + outcome scalars) directly from the JSON, mirroring the R single-owner load.
+        self._set_samples(BARTSamplesCpp())
+        self._samples.load_from_json(bart_json.json_cpp)
+
+        # rfx: the container/label mapper live on self._samples; keep a lightweight
+        # Python-side handle for accessors (mirrors sample()).
+        if self.has_rfx:
+            self.rfx_container = RandomEffectsContainer()
+            self.rfx_container.rfx_container_cpp = self._samples.materialize_rfx_container()
+            self.rfx_container.rfx_label_mapper_cpp = self._samples.materialize_rfx_label_mapper()
 
         # Unpack covariate preprocessor
         if cross_platform:
@@ -2915,32 +2835,9 @@ class BARTModel:
         self.include_variance_forest = json_object_default.get_boolean(
             "include_variance_forest"
         )
-        # Load each chain's forests into temporary containers (append across chains), then deep-copy
-        # the combined result into the single owned samples object below.
-        mean_forest_loaded = None
-        variance_forest_loaded = None
-        if self.include_mean_forest:
-            mean_forest_loaded = ForestContainer(0, 0, False, False)
-            for i in range(len(json_object_list)):
-                if i == 0:
-                    mean_forest_loaded.forest_container_cpp.LoadFromJson(
-                        json_object_list[i].json_cpp, "mean_forest"
-                    )
-                else:
-                    mean_forest_loaded.forest_container_cpp.AppendFromJson(
-                        json_object_list[i].json_cpp, "mean_forest"
-                    )
-        if self.include_variance_forest:
-            variance_forest_loaded = ForestContainer(0, 0, False, False)
-            for i in range(len(json_object_list)):
-                if i == 0:
-                    variance_forest_loaded.forest_container_cpp.LoadFromJson(
-                        json_object_list[i].json_cpp, "variance_forest"
-                    )
-                else:
-                    variance_forest_loaded.forest_container_cpp.AppendFromJson(
-                        json_object_list[i].json_cpp, "variance_forest"
-                    )
+        # Forests, parameter traces, rfx and cloglog cutpoints are reconstructed inside the single
+        # owned samples object below: load the first chain, then merge each subsequent chain
+        # (deep-copies forests sample-by-sample and concatenates parameter traces).
 
         # Unpack random effects
         self.has_rfx = json_object_default.get_boolean("has_rfx")
@@ -3037,66 +2934,28 @@ class BARTModel:
                     f"Re-save your model to suppress this warning."
                 )
 
-        # Combined number of samples across chains (owned by self._samples, built below)
-        num_samples_loaded = 0
-        for i in range(len(json_object_list)):
-            num_samples_loaded += json_object_list[i].get_integer("num_samples")
-
-        # Unpack parameter samples (concatenated across chains; owned by self._samples below)
-        global_var_loaded = None
-        if self.sample_sigma2_global:
-            for i in range(len(json_object_list)):
-                gv_i = json_object_list[i].get_numeric_vector(
-                    "sigma2_global_samples", "parameters"
-                )
-                global_var_loaded = (
-                    gv_i if i == 0 else np.concatenate((global_var_loaded, gv_i))
-                )
-
-        leaf_scale_loaded = None
-        if self.sample_sigma2_leaf:
-            for i in range(len(json_object_list)):
-                ls_i = json_object_list[i].get_numeric_vector(
-                    "sigma2_leaf_samples", "parameters"
-                )
-                leaf_scale_loaded = (
-                    ls_i if i == 0 else np.concatenate((leaf_scale_loaded, ls_i))
-                )
-
-        # Unpack cloglog parameters (num_categories always, cutpoints only for ordinal)
+        # Unpack cloglog category count (envelope scalar; cutpoint samples live on self._samples
+        # and are exposed via the cloglog_cutpoint_samples property after the load/merge below).
         if self.outcome_model.link == "cloglog":
             self.cloglog_num_categories = json_object_default.get_integer(
                 "cloglog_num_categories"
             )
-            if self.outcome_model.outcome == "ordinal":
-                for i in range(len(json_object_list)):
-                    num_samples_i = json_object_list[i].get_integer("num_samples")
-                    cutpoints_i = np.full(
-                        (self.cloglog_num_categories - 1, num_samples_i), np.nan
-                    )
-                    for k in range(self.cloglog_num_categories - 1):
-                        cutpoints_i[k, :] = json_object_list[i].get_numeric_vector(
-                            f"cloglog_cutpoint_samples_{k + 1}", "parameters"
-                        )
-                    if i == 0:
-                        self.cloglog_cutpoint_samples = cutpoints_i
-                    else:
-                        self.cloglog_cutpoint_samples = np.concatenate(
-                            (self.cloglog_cutpoint_samples, cutpoints_i), axis=1
-                        )
 
-        # Assemble the single source of truth from the combined (across-chain) parts.
-        self._set_samples(
-            BARTSamplesCpp.from_components(
-                mean_forest_loaded.forest_container_cpp if self.include_mean_forest else None,
-                variance_forest_loaded.forest_container_cpp if self.include_variance_forest else None,
-                global_var_loaded,
-                leaf_scale_loaded,
-                float(self.y_bar),
-                float(self.y_std),
-                int(num_samples_loaded),
-            )
-        )
+        # Reconstruct the combined single source of truth: load the first chain into self._samples,
+        # then merge each subsequent chain (deep-copies forests + concatenates parameter traces).
+        self._set_samples(BARTSamplesCpp())
+        self._samples.load_from_json(json_object_list[0].json_cpp)
+        for i in range(1, len(json_object_list)):
+            chain_i = BARTSamplesCpp()
+            chain_i.load_from_json(json_object_list[i].json_cpp)
+            self._samples.merge(chain_i)
+
+        # rfx: the container/label mapper live on self._samples; keep a lightweight
+        # Python-side handle for accessors (mirrors sample()).
+        if self.has_rfx:
+            self.rfx_container = RandomEffectsContainer()
+            self.rfx_container.rfx_container_cpp = self._samples.materialize_rfx_container()
+            self.rfx_container.rfx_label_mapper_cpp = self._samples.materialize_rfx_label_mapper()
 
         # Unpack covariate preprocessor
         if cross_platform:

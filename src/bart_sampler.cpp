@@ -51,18 +51,14 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
     }
   }
 
-  // Continued sampling currently supports only the basic Gaussian mean-forest case;
-  // reject configurations whose warm-start init is not yet implemented so that
-  // unsupported continuations fail loudly rather than silently re-initializing from root.
+  // Continued sampling warm-starts the mean forest, variance forest, and random effects from their
+  // last retained samples. Reject configurations whose warm-start init is not yet implemented so that
+  // unsupported continuations fail loudly rather than silently re-initializing from root. (Multivariate
+  // leaf regression and cloglog ordinal mean leaf models are additionally rejected in
+  // MeanForestContinuationInitVisitor.)
   if (continuation) {
     if (config_.num_trees_mean <= 0) {
       Log::Fatal("Continued sampling requires an existing mean forest");
-    }
-    if (config_.num_trees_variance > 0) {
-      Log::Fatal("Continued sampling is not yet supported for models with a variance forest");
-    }
-    if (config_.has_random_effects) {
-      Log::Fatal("Continued sampling is not yet supported for models with random effects");
     }
     if (config_.link_function != LinkFunction::Identity) {
       Log::Fatal("Continued sampling is not yet supported for probit or cloglog link functions");
@@ -254,7 +250,11 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
   if (config_.num_trees_variance > 0) {
     variance_leaf_model_ = LogLinearVarianceLeafModel(config_.shape_variance_forest, config_.scale_variance_forest);
     variance_forest_ = std::make_unique<TreeEnsemble>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
-    samples.variance_forests = std::make_unique<ForestContainer>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
+    // On continuation, preserve the existing sample container so new draws append to it;
+    // otherwise start a fresh empty container.
+    if (!continuation) {
+      samples.variance_forests = std::make_unique<ForestContainer>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
+    }
     variance_forest_tracker_ = std::make_unique<ForestTracker>(forest_dataset_->GetCovariates(), config_.feature_types, config_.num_trees_variance, data_.n_train);
     tree_prior_variance_ = std::make_unique<TreePrior>(config_.alpha_variance, config_.beta_variance, config_.min_samples_leaf_variance, config_.max_depth_variance);
     // Leaf values for the log-linear variance model are on the log scale; the ensemble sums
@@ -273,6 +273,16 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
     std::vector<double> initial_variance_preds(data_.n_train, init_val_variance_);
     forest_dataset_->AddVarianceWeights(initial_variance_preds.data(), data_.n_train);
     has_variance_forest_ = true;
+    // Continuation: warm-start the active variance forest from the last retained sample. The
+    // reconstitution (is_mean_model=false) swaps the flat-init leaves out of the variance-weight
+    // slot and the last forest's leaves in, so the slot lands at exp(sum of last-forest leaves) =
+    // the last sample's per-observation variance prediction. Mirrors the mean forest warm-start.
+    if (continuation) {
+      int last_var_idx = samples.variance_forests->NumSamples() - 1;
+      TreeEnsemble& last_variance_forest = *samples.variance_forests->GetEnsemble(last_var_idx);
+      variance_forest_->ReconstituteFromForest(last_variance_forest);
+      variance_forest_tracker_->ReconstituteFromForest(last_variance_forest, *forest_dataset_, *residual_, /*is_mean_model=*/false);
+    }
   }
 
   // Global error variance model
@@ -307,10 +317,13 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
     }
     // Tracking data structure for random effects groups
     random_effects_tracker_ = std::make_unique<RandomEffectsTracker>(data_.rfx_group_ids_train, data_.n_train);
-    // Container of random effects samples
-    samples.rfx_container = std::make_unique<RandomEffectsContainer>(data_.rfx_basis_dim, data_.rfx_num_groups);
-    // Mapping from RFX labels to 0-indexed group IDs for efficient lookup in the sampler; populated from the RFX dataset group labels
-    samples.rfx_label_mapper = std::make_unique<LabelMapper>(random_effects_tracker_->GetLabelMap());
+    // Container of random effects samples + label mapper. On continuation these already exist on the
+    // samples object (from the prior run); preserve them so new draws append to the existing container.
+    if (!continuation) {
+      samples.rfx_container = std::make_unique<RandomEffectsContainer>(data_.rfx_basis_dim, data_.rfx_num_groups);
+      // Mapping from RFX labels to 0-indexed group IDs for efficient lookup in the sampler; populated from the RFX dataset group labels
+      samples.rfx_label_mapper = std::make_unique<LabelMapper>(random_effects_tracker_->GetLabelMap());
+    }
 
     // Initialize random effects model object
     random_effects_model_ = std::make_unique<MultivariateRegressionRandomEffectsModel>(data_.rfx_basis_dim, data_.rfx_num_groups);
@@ -383,6 +396,18 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
 
     // Set has_random_effects_ flag to true so that the sampler will perform random effects updates at each iteration
     has_random_effects_ = true;
+
+    // Continuation: warm-start the rfx model from the last retained sample. ResetFromSample restores
+    // the SAMPLED state (working parameter alpha, group parameters xi, group-parameter covariance sigma)
+    // from the persisted container; the FIXED priors (working-parameter covariance, variance prior
+    // shape/scale) were just set above from config. The tracker ResetFromSample then swaps the
+    // last sample's rfx contribution into the residual (residual = y - f - rfx_last), mirroring the
+    // GFR-snapshot restore path.
+    if (continuation) {
+      int last_rfx_idx = samples.rfx_container->NumSamples() - 1;
+      random_effects_model_->ResetFromSample(*samples.rfx_container, last_rfx_idx);
+      random_effects_tracker_->ResetFromSample(*random_effects_model_, *random_effects_dataset_, *residual_);
+    }
   }
 
   // RNG
@@ -424,13 +449,12 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
 
   // Other internal model state
   if (continuation) {
-    // Warm-start the scalar variance state from the last retained sample.
-    // Within the sampler lifecycle both arrays hold STANDARDIZED values
-    // (postprocess_samples applies the y_std^2 factor to global variance only at
-    // the very end); the continuation binding supplies standardized history, so
-    // read the last value directly here.
+    // Warm-start the scalar variance state from the last retained sample. Continuation now appends
+    // in place onto the model's samples object, whose global variance history is POST-PROCESSED
+    // (x y_std^2, applied by postprocess_samples); the sampler works in standardized space, so
+    // divide it back out here. Leaf scale is stored standardized (postprocess does not touch it).
     if (sample_sigma2_global_ && !samples.global_error_variance_samples.empty()) {
-      global_variance_ = samples.global_error_variance_samples.back();
+      global_variance_ = samples.global_error_variance_samples.back() / (samples.y_std * samples.y_std);
     } else {
       global_variance_ = config_.sigma2_global_init;
     }
@@ -546,18 +570,32 @@ void BARTSampler::run_mcmc_chains(BARTSamples& samples, int num_chains, int num_
   }
 }
 
-void BARTSampler::postprocess_samples(BARTSamples& samples) {
-  // Unpack test set predictions for mean and variance forest
+// Post-process the retained samples from standardized to original outcome scale. `start_sample` is
+// the first sample index to process: 0 for an initial run, or the pre-continuation sample count for
+// a continuation (so only the newly-appended draws are scaled -- the history is already processed).
+// Train predictions + scalar params are accumulated per-iteration, so we scale only the new range;
+// test predictions are recomputed in full from ALL retained forests (assign, not append), which is
+// correct whether called after an initial run or a continuation.
+void BARTSampler::postprocess_samples(BARTSamples& samples, int start_sample) {
+  const int n_train = data_.n_train;
+  const double y_std = samples.y_std;
+  const double y_bar = samples.y_bar;
+  const double y_std2 = y_std * y_std;
+  const size_t train_off = static_cast<size_t>(start_sample) * static_cast<size_t>(n_train);
+
+  // Test set predictions: recompute from the full (history + new) forest containers and rescale.
   if (has_test_) {
     if (has_mean_forest_) {
-      std::vector<double> predictions = samples.mean_forests->Predict(*forest_dataset_test_);
-      samples.mean_forest_predictions_test.insert(samples.mean_forest_predictions_test.end(),
-                                                  predictions.data(), predictions.data() + predictions.size());
+      std::vector<double> preds = samples.mean_forests->Predict(*forest_dataset_test_);
+      for (double& v : preds) v = v * y_std + y_bar;
+      samples.mean_forest_predictions_test = std::move(preds);
     }
     if (has_variance_forest_) {
-      std::vector<double> predictions = samples.variance_forests->Predict(*forest_dataset_test_);
-      samples.variance_forest_predictions_test.insert(samples.variance_forest_predictions_test.end(),
-                                                      predictions.data(), predictions.data() + predictions.size());
+      // Test predictions come from ForestContainer::Predict() with is_exponentiated_=true (exp applied
+      // internally), so just multiply by y_std^2.
+      std::vector<double> preds = samples.variance_forests->Predict(*forest_dataset_test_);
+      for (double& v : preds) v *= y_std2;
+      samples.variance_forest_predictions_test = std::move(preds);
     }
     if (has_random_effects_) {
       RandomEffectsDataset rfx_dataset_test;
@@ -568,39 +606,33 @@ void BARTSampler::postprocess_samples(BARTSamples& samples) {
         std::vector<double> ones(data_.n_test, 1.0);
         rfx_dataset_test.AddBasis(ones.data(), data_.n_test, 1, /*row_major=*/false);
       }
-      samples.rfx_predictions_test.resize(data_.n_test * samples.num_samples);
-      samples.rfx_container->Predict(rfx_dataset_test, *samples.rfx_label_mapper, samples.rfx_predictions_test);
+      std::vector<double> rfx_test(static_cast<size_t>(data_.n_test) * samples.num_samples);
+      samples.rfx_container->Predict(rfx_dataset_test, *samples.rfx_label_mapper, rfx_test);
+      for (double& v : rfx_test) v *= y_std;
+      samples.rfx_predictions_test = std::move(rfx_test);
     }
   }
 
-  // Convert variance forest predictions and global error variance from
-  // standardized space to original outcome scale.
-  // - Train predictions come from ForestTracker::GetSumPredictions() (log-scale leaf sums),
-  //   so apply exp() then multiply by y_std^2.
-  // - Test predictions come from ForestContainer::Predict() with is_exponentiated_=true,
-  //   which already applies exp() internally, so just multiply by y_std^2.
-  // - Global error variance samples are in standardized space; multiply by y_std^2.
+  // Train predictions + scalar params: scale only the newly-appended range [start_sample, end).
+  // - Variance forest train predictions are log-scale leaf sums: exp() then x y_std^2.
+  // - Global error variance: x y_std^2.
+  // - Mean forest carries the location shift (y_bar); random effects carry only the scale (y_std).
+  // For probit/cloglog outcomes y_bar=0 and y_std=1, so these adjustments are the identity.
   if (has_variance_forest_) {
-    double y_std2 = samples.y_std * samples.y_std;
-    for (double& v : samples.variance_forest_predictions_train) v = std::exp(v) * y_std2;
-    for (double& v : samples.variance_forest_predictions_test)  v *= y_std2;
+    for (size_t i = train_off; i < samples.variance_forest_predictions_train.size(); i++)
+      samples.variance_forest_predictions_train[i] = std::exp(samples.variance_forest_predictions_train[i]) * y_std2;
   }
   if (sample_sigma2_global_) {
-    double y_std2 = samples.y_std * samples.y_std;
-    for (double& v : samples.global_error_variance_samples) v *= y_std2;
+    for (size_t i = static_cast<size_t>(start_sample); i < samples.global_error_variance_samples.size(); i++)
+      samples.global_error_variance_samples[i] *= y_std2;
   }
-
-  // Convert mean forest and random effects predictions from standardized space to the
-  // original outcome scale, matching predict(): the mean forest carries the location
-  // shift (y_bar), random effects carry only the scale factor. For probit/cloglog
-  // outcomes y_bar=0 and y_std=1, so these adjustments are the identity.
   if (has_mean_forest_) {
-    for (double& v : samples.mean_forest_predictions_train) v = v * samples.y_std + samples.y_bar;
-    for (double& v : samples.mean_forest_predictions_test)  v = v * samples.y_std + samples.y_bar;
+    for (size_t i = train_off; i < samples.mean_forest_predictions_train.size(); i++)
+      samples.mean_forest_predictions_train[i] = samples.mean_forest_predictions_train[i] * y_std + y_bar;
   }
   if (has_random_effects_) {
-    for (double& v : samples.rfx_predictions_train) v *= samples.y_std;
-    for (double& v : samples.rfx_predictions_test)  v *= samples.y_std;
+    for (size_t i = train_off; i < samples.rfx_predictions_train.size(); i++)
+      samples.rfx_predictions_train[i] *= y_std;
   }
 }
 

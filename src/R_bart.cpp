@@ -215,8 +215,105 @@ cpp11::writable::list bart_sample_cpp(
   // Unprotect protected R objects
   UNPROTECT(protect_count);
 
-  // Unpack metadata
+  // Unpack metadata (including the final RNG state, so continued sampling can resume the stream)
   cpp11::writable::list metadata_list = create_bart_metadata(config);
+  metadata_list.push_back(cpp11::named_arg("rng_state") = bart_sampler.GetRngState());
+  return metadata_list;
+}
+
+[[cpp11::register]]
+cpp11::writable::list bart_continue_sample_cpp(
+    cpp11::external_pointer<StochTree::BARTSamples> samples,
+    cpp11::sexp X_train,
+    cpp11::sexp y_train,
+    cpp11::sexp X_test,
+    int n_train,
+    int n_test,
+    int p,
+    cpp11::sexp basis_train,
+    cpp11::sexp basis_test,
+    int basis_dim,
+    cpp11::sexp obs_weights_train,
+    cpp11::sexp obs_weights_test,
+    cpp11::sexp rfx_group_ids_train,
+    cpp11::sexp rfx_group_ids_test,
+    cpp11::sexp rfx_basis_train,
+    cpp11::sexp rfx_basis_test,
+    int rfx_num_groups,
+    int rfx_basis_dim,
+    int num_gfr,
+    int num_burnin,
+    int keep_every,
+    int num_mcmc,
+    bool keep_gfr,
+    std::string rng_state_in,
+    bool override_seed,
+    cpp11::list config_input) {
+  // Extract pointers to raw (re-supplied) data
+  int protect_count = 0;
+  double* X_train_ptr = extract_numeric_pointer(X_train, "X_train", protect_count);
+  double* y_train_ptr = extract_numeric_pointer(y_train, "y_train", protect_count);
+  double* X_test_ptr = extract_numeric_pointer(X_test, "X_test", protect_count);
+  double* basis_train_ptr = extract_numeric_pointer(basis_train, "basis_train", protect_count);
+  double* basis_test_ptr = extract_numeric_pointer(basis_test, "basis_test", protect_count);
+  double* obs_weights_train_ptr = extract_numeric_pointer(obs_weights_train, "obs_weights_train", protect_count);
+  double* obs_weights_test_ptr = extract_numeric_pointer(obs_weights_test, "obs_weights_test", protect_count);
+  int* rfx_group_ids_train_ptr = extract_integer_pointer(rfx_group_ids_train, "rfx_group_ids_train", protect_count);
+  int* rfx_group_ids_test_ptr = extract_integer_pointer(rfx_group_ids_test, "rfx_group_ids_test", protect_count);
+  double* rfx_basis_train_ptr = extract_numeric_pointer(rfx_basis_train, "rfx_basis_train", protect_count);
+  double* rfx_basis_test_ptr = extract_numeric_pointer(rfx_basis_test, "rfx_basis_test", protect_count);
+
+  // Load the BARTData struct from re-supplied data
+  StochTree::BARTData data;
+  data.X_train = X_train_ptr;
+  data.y_train = y_train_ptr;
+  data.X_test = X_test_ptr;
+  data.n_train = n_train;
+  data.p = p;
+  data.n_test = n_test;
+  data.basis_train = basis_train_ptr;
+  data.basis_test = basis_test_ptr;
+  data.basis_dim = basis_dim;
+  data.obs_weights_train = obs_weights_train_ptr;
+  data.obs_weights_test = obs_weights_test_ptr;
+  data.rfx_group_ids_train = rfx_group_ids_train_ptr;
+  data.rfx_group_ids_test = rfx_group_ids_test_ptr;
+  data.rfx_basis_train = rfx_basis_train_ptr;
+  data.rfx_basis_test = rfx_basis_test_ptr;
+  data.rfx_num_groups = rfx_num_groups;
+  data.rfx_basis_dim = rfx_basis_dim;
+
+  // Create the BARTConfig object
+  StochTree::BARTConfig config = convert_list_to_bart_config(config_input);
+
+  // Continuation appends new draws in place onto the model's single-owner samples object. The
+  // warm-start reads the last retained forests / rfx / scalar state directly off `samples`
+  // (mean, variance, and random effects are all warm-started from their last sample), and
+  // postprocess_samples(samples, num_history) rescales only the newly appended draws.
+  StochTree::BARTSamples& bart_samples = *samples;
+  const int num_history = bart_samples.num_samples;
+
+  // Initialize a BART sampler in continuation mode (warm-start from last sample)
+  StochTree::BARTSampler bart_sampler(bart_samples, config, data, /*continuation=*/true);
+
+  // Resume the RNG stream unless the user supplied a new seed (override_seed). The warm-start init
+  // consumes no RNG draws, so the restored state is positioned exactly at the next draw.
+  if (!override_seed && !rng_state_in.empty()) {
+    bart_sampler.SetRngState(rng_state_in);
+  }
+
+  // Optionally append GFR warm-start draws (num_gfr, retained iff keep_gfr), then MCMC draws, then
+  // post-process only the newly appended range. Single-chain continuation, so num_chains = 1.
+  bart_sampler.run_gfr(bart_samples, num_gfr, keep_gfr, /*num_chains=*/1);
+  bart_sampler.run_mcmc(bart_samples, num_burnin, keep_every, num_mcmc);
+  bart_sampler.postprocess_samples(bart_samples, num_history);
+
+  // Unprotect protected R objects
+  UNPROTECT(protect_count);
+
+  // Metadata only; the extended samples live on the passed-in samples object.
+  cpp11::writable::list metadata_list = create_bart_metadata(config);
+  metadata_list.push_back(cpp11::named_arg("rng_state") = bart_sampler.GetRngState());
   return metadata_list;
 }
 

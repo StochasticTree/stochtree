@@ -694,104 +694,18 @@ bart <- function(
   }
 
   # Standardize the keep variable lists to numeric indices
-  if (!is.null(keep_vars_mean)) {
-    if (is.character(keep_vars_mean)) {
-      if (!all(keep_vars_mean %in% names(X_train))) {
-        stop(
-          "keep_vars_mean includes some variable names that are not in X_train"
-        )
-      }
-      variable_subset_mean <- unname(which(
-        names(X_train) %in% keep_vars_mean
-      ))
-    } else {
-      if (any(keep_vars_mean > ncol(X_train))) {
-        stop(
-          "keep_vars_mean includes some variable indices that exceed the number of columns in X_train"
-        )
-      }
-      if (any(keep_vars_mean < 0)) {
-        stop("keep_vars_mean includes some negative variable indices")
-      }
-      variable_subset_mean <- keep_vars_mean
-    }
-  } else if ((is.null(keep_vars_mean)) && (!is.null(drop_vars_mean))) {
-    if (is.character(drop_vars_mean)) {
-      if (!all(drop_vars_mean %in% names(X_train))) {
-        stop(
-          "drop_vars_mean includes some variable names that are not in X_train"
-        )
-      }
-      variable_subset_mean <- unname(which(
-        !(names(X_train) %in% drop_vars_mean)
-      ))
-    } else {
-      if (any(drop_vars_mean > ncol(X_train))) {
-        stop(
-          "drop_vars_mean includes some variable indices that exceed the number of columns in X_train"
-        )
-      }
-      if (any(drop_vars_mean < 0)) {
-        stop("drop_vars_mean includes some negative variable indices")
-      }
-      variable_subset_mean <- (1:ncol(X_train))[
-        !(1:ncol(X_train) %in% drop_vars_mean)
-      ]
-    }
-  } else {
-    variable_subset_mean <- 1:ncol(X_train)
-  }
-  if (!is.null(keep_vars_variance)) {
-    if (is.character(keep_vars_variance)) {
-      if (!all(keep_vars_variance %in% names(X_train))) {
-        stop(
-          "keep_vars_variance includes some variable names that are not in X_train"
-        )
-      }
-      variable_subset_variance <- unname(which(
-        names(X_train) %in% keep_vars_variance
-      ))
-    } else {
-      if (any(keep_vars_variance > ncol(X_train))) {
-        stop(
-          "keep_vars_variance includes some variable indices that exceed the number of columns in X_train"
-        )
-      }
-      if (any(keep_vars_variance < 0)) {
-        stop(
-          "keep_vars_variance includes some negative variable indices"
-        )
-      }
-      variable_subset_variance <- keep_vars_variance
-    }
-  } else if ((is.null(keep_vars_variance)) && (!is.null(drop_vars_variance))) {
-    if (is.character(drop_vars_variance)) {
-      if (!all(drop_vars_variance %in% names(X_train))) {
-        stop(
-          "drop_vars_variance includes some variable names that are not in X_train"
-        )
-      }
-      variable_subset_variance <- unname(which(
-        !(names(X_train) %in% drop_vars_variance)
-      ))
-    } else {
-      if (any(drop_vars_variance > ncol(X_train))) {
-        stop(
-          "drop_vars_variance includes some variable indices that exceed the number of columns in X_train"
-        )
-      }
-      if (any(drop_vars_variance < 0)) {
-        stop(
-          "drop_vars_variance includes some negative variable indices"
-        )
-      }
-      variable_subset_variance <- (1:ncol(X_train))[
-        !(1:ncol(X_train) %in% drop_vars_variance)
-      ]
-    }
-  } else {
-    variable_subset_variance <- 1:ncol(X_train)
-  }
+  variable_subset_mean <- resolveVariableSubset(
+    keep_vars_mean,
+    drop_vars_mean,
+    X_train,
+    "mean"
+  )
+  variable_subset_variance <- resolveVariableSubset(
+    keep_vars_variance,
+    drop_vars_variance,
+    X_train,
+    "variance"
+  )
 
   # Preprocess covariates
   if ((!is.data.frame(X_train)) && (!is.matrix(X_train))) {
@@ -814,25 +728,21 @@ bart <- function(
     X_test <- preprocessPredictionData(X_test, X_train_metadata)
   }
 
-  # Update variable weights
+  # Update variable weights (expand per-variable weights to the preprocessed feature space)
   variable_weights_mean <- variable_weights_variance <- variable_weights
-  variable_weights_adj <- 1 /
-    sapply(original_var_indices, function(x) sum(original_var_indices == x))
   if (include_mean_forest) {
-    variable_weights_mean <- variable_weights_mean[original_var_indices] *
-      variable_weights_adj
-    variable_weights_mean[
-      !(original_var_indices %in% variable_subset_mean)
-    ] <- 0
+    variable_weights_mean <- expandVariableWeights(
+      variable_weights,
+      original_var_indices,
+      variable_subset_mean
+    )
   }
   if (include_variance_forest) {
-    variable_weights_variance <- variable_weights_variance[
-      original_var_indices
-    ] *
-      variable_weights_adj
-    variable_weights_variance[
-      !(original_var_indices %in% variable_subset_variance)
-    ] <- 0
+    variable_weights_variance <- expandVariableWeights(
+      variable_weights,
+      original_var_indices,
+      variable_subset_variance
+    )
   }
 
   # Set num_features_subsample to default, ncol(X_train), if not already set
@@ -1353,12 +1263,24 @@ bart <- function(
     "b_forest" = bart_metadata[["scale_variance_forest"]],
     "outcome_mean" = bart_samples$y_bar(),
     "outcome_scale" = bart_samples$y_std(),
-    "num_samples" = bart_samples$num_samples()
+    "num_samples" = bart_samples$num_samples(),
+    # Final RNG state, so continueSampling() can resume the stream by default
+    "rng_state" = bart_metadata[["rng_state"]]
   )
   model_params <- c(model_params_r, model_params_cpp)
   result[["model_params"]] <- model_params
   result[["train_set_metadata"]] <- X_train_metadata
   result[["samples"]] <- bart_samples
+  # Cache the resolved sampler config so continueSampling() can reconstruct the sampler. This is a
+  # runtime-only field (not serialized), so continuation is unavailable for deserialized models.
+  result[["bart_config"]] <- bart_config
+  # Cache the raw per-variable split weights and the resolved variable subsets so continueSampling()
+  # can re-resolve split-variable weights when keep_vars / drop_vars / variable_weights are changed.
+  result[["continuation_state"]] <- list(
+    variable_weights = variable_weights,
+    variable_subset_mean = variable_subset_mean,
+    variable_subset_variance = variable_subset_variance
+  )
 
   # Unpack RFX samples
   if (has_rfx) {
@@ -1788,6 +1710,452 @@ predict.bartmodel <- function(
     }
   }
   return(result)
+}
+
+
+#' @title Continue Sampling a BART Model
+#' @description
+#' Continue sampling from an already-fit BART model, adding more draws of the posterior to the `bartmodel` object.
+#' Model terms (mean forest, variance forest, random effects, parametric terms) are initialized from their last retained sample.
+#' Training data must be passed anew to this function as the `bartmodel` object does not retain it.
+#' This function can only run on a model that has been sampled in session via the `bart()` function.
+#' Models that have been serialized to JSON can be passed directly to the `bart()` function to achieve a similar goal of drawing
+#' more posterior samples from a given model, though in that workflow the JSON samples are not included in the resulting `bartmodel` object.
+#'
+#' The model specification interface mirrors that of `bart()`, but some parameters are considered fixed and thus cannot be changed in the user-provided parameter lists (i.e., `global_params`,
+#' `mean_forest_params`, `variance_forest_params`, `rfx_params`). Any model specifications that define the relevant models terms, number of trees, outcome scale and distribution, or
+#' calibration / initialization (e.g. `num_trees`, `sample_sigma2_global`, `sample_sigma2_leaf`, `sigma2_global_init`, `sigma2_leaf_init`, `standardize`, `outcome_model`, `num_chains`)
+#' cannot be changed. Specifying any of these components in a parameter list triggers a warning and will be ignored. Prior hyperparameters and sampling knobs that only impact future draws
+#' *can* be modified (see the parameter lists below), though this means the continued draws target a slightly different posterior. This may be desirable in some use cases, but it's important
+#' to be thoughtful about any such parameter changes.
+#'
+#' @param object Fitted model object to continue sampling. Must be of class `bartmodel` and must be have been obtained by running the `bart()` function in session (this function is unavailable for models deserialized from JSON).
+#' @param X_train Covariates used to split trees in the ensemble. May be provided either as a dataframe or a matrix.
+#' Matrix covariates will be assumed to be all numeric. Covariates passed as a dataframe will be
+#' preprocessed based on the variable types (e.g. categorical columns stored as unordered factors will be one-hot encoded,
+#' categorical columns stored as ordered factors will passed as integers to the core algorithm, along with the metadata
+#' that the column is ordered categorical).
+#' @param y_train Outcome to be modeled by the ensemble.
+#' @param leaf_basis_train (Optional) Bases used to define a regression model `y ~ W` in
+#' each leaf of each regression tree. By default, BART assumes constant leaf node
+#' parameters, implicitly regressing on a constant basis of ones (i.e. `y ~ 1`).
+#' @param rfx_group_ids_train (Optional) Group labels used for an additive random effects model.
+#' @param rfx_basis_train (Optional) Basis for "random-slope" regression in an additive random effects model.
+#' If `rfx_group_ids_train` is provided with a regression basis, an intercept-only random effects model
+#' will be estimated.
+#' @param X_test (Optional) Test set of covariates used to define "out of sample" evaluation data.
+#' May be provided either as a dataframe or a matrix, but the format of `X_test` must be consistent with
+#' that of `X_train`.
+#' @param leaf_basis_test (Optional) Test set of bases used to define "out of sample" evaluation data.
+#' While a test set is optional, the structure of any provided test set must match that
+#' of the training set (i.e. if both `X_train` and `leaf_basis_train` are provided, then a test set must
+#' consist of `X_test` and `leaf_basis_test` with the same number of columns).
+#' @param rfx_group_ids_test (Optional) Test set group labels used for an additive random effects model.
+#' We do not currently support (but plan to in the near future), test set evaluation for group labels
+#' that were not in the training set.
+#' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
+#' @param observation_weights_train (Optional) Numeric vector of observation weights of length `nrow(X_train)`. Weights are
+#'   applied as `y_i | - ~ N(mu(X_i), sigma^2 / w_i)`, so larger weights increase an observation's influence on the fit.
+#'   All weights must be non-negative. Default: `NULL` (all observations equally weighted). Compatible with Gaussian
+#'   (continuous/identity) and probit outcome models; not compatible with cloglog link functions. Note: these are
+#'   referred to internally in the C++ layer as "variance weights" (`var_weights`), since they scale the residual variance.
+#' @param observation_weights Deprecated alias for `observation_weights_train`; will be removed in a future release.
+#' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
+#' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
+#' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
+#' @param general_params (Optional) A list of general (non-forest-specific) model parameters. Only the following keys can be modified by `continueSampling`; any other parameters specified
+#' prompt a warning and are ignored. Unspecified keys default to their value set in `bart()`.
+#'
+#'   - `cutpoint_grid_size` Maximum size of the "grid" of potential cutpoints to consider in the GFR algorithm. Default: `100`.
+#'   - `sigma2_global_shape` Shape parameter in the `IG(sigma2_global_shape, sigma2_global_scale)` global error variance model. Default: `0`.
+#'   - `sigma2_global_scale` Scale parameter in the `IG(sigma2_global_shape, sigma2_global_scale)` global error variance model. Default: `0`.
+#'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to `1/ncol(X_train)`.
+#'   - `random_seed` Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
+#'   - `keep_burnin` Whether or not "burnin" samples should be included in the stored samples of forests and other parameters. Default `FALSE`. Ignored if `num_mcmc = 0`.
+#'   - `keep_gfr` Whether or not "grow-from-root" samples should be included in the stored samples of forests and other parameters. Default `FALSE`. Ignored if `num_mcmc = 0`.
+#'   - `keep_every` How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default `1`. Setting `keep_every <- k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
+#'   - `num_chains` How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`. Note that if `num_chains > 1`, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BART models, see [the multi chain vignette](https://stochtree.ai/vignettes/multi-chain.html).
+#'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
+#'   - `num_threads` Number of threads to use in the GFR and MCMC algorithms, as well as prediction. Defaults to `1` (single-threaded). Set to `-1` to use the maximum number of available threads, or a positive integer for a specific count. OpenMP must be available for values other than `1`.
+#'
+#' @param mean_forest_params (Optional) A list of mean forest model parameters. Only the following keys can be modified by `continueSampling`; any other parameters specified
+#' prompt a warning and are ignored. Unspecified keys default to their value set in `bart()`.
+#'
+#'   - `alpha` Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: `0.95`.
+#'   - `beta` Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: `2`.
+#'   - `min_samples_leaf` Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: `5`.
+#'   - `max_depth` Maximum depth of any tree in the ensemble in the mean model. Default: `10`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
+#'   - `sigma2_leaf_shape` Shape parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Default: `3`.
+#'   - `sigma2_leaf_scale` Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
+#'   - `keep_vars` Vector of variable names or column indices denoting variables that should be included in the forest. Default: `NULL`.
+#'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+#'   - `num_features_subsample` How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
+#'
+#' @param variance_forest_params (Optional) A list of variance forest model parameters. Only the following keys can be modified by `continueSampling`; any other parameters specified
+#' prompt a warning and are ignored. Unspecified keys default to their value set in `bart()`.
+#'
+#'   - `alpha` Prior probability of splitting for a tree of depth 0 in the variance model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: `0.95`.
+#'   - `beta` Exponent that decreases split probabilities for nodes of depth > 0 in the variance model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: `2`.
+#'   - `min_samples_leaf` Minimum allowable size of a leaf, in terms of training samples, in the variance model. Default: `5`.
+#'   - `max_depth` Maximum depth of any tree in the ensemble in the variance model. Default: `10`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
+#'   - `var_forest_prior_shape` Shape parameter in the `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / leaf_prior_calibration_param^2 + 0.5` if not set.
+#'   - `var_forest_prior_scale` Scale parameter in the `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / leaf_prior_calibration_param^2` if not set.
+#'   - `keep_vars` Vector of variable names or column indices denoting variables that should be included in the forest. Default: `NULL`.
+#'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+#'   - `num_features_subsample` How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
+#'
+#' @param random_effects_params (Optional) A list of random effects model parameters. Only the following keys can be modified by `continueSampling`; any other parameters specified
+#' prompt a warning and are ignored. Unspecified keys default to their value set in `bart()`.
+#'
+#'   - `variance_prior_shape` Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
+#'   - `variance_prior_scale` Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
+#'
+#'
+#' @param ... Other parameters (ignored).
+#'
+#' @return List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train,
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
+#' continueSampling(bart_model, X_train = X_train, y_train = y_train,
+#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10)
+continueSampling.bartmodel <- function(
+  object,
+  X_train,
+  y_train,
+  leaf_basis_train = NULL,
+  rfx_group_ids_train = NULL,
+  rfx_basis_train = NULL,
+  X_test = NULL,
+  leaf_basis_test = NULL,
+  rfx_group_ids_test = NULL,
+  rfx_basis_test = NULL,
+  observation_weights_train = NULL,
+  observation_weights = NULL,
+  num_gfr = 5,
+  num_burnin = 0,
+  num_mcmc = 100,
+  previous_model_json = NULL,
+  previous_model_warmstart_sample_num = NULL,
+  general_params = list(),
+  mean_forest_params = list(),
+  variance_forest_params = list(),
+  random_effects_params = list(),
+  ...
+) {
+  # Input checks
+  if (!inherits(object, "bartmodel")) {
+    stop("object must be a bartmodel")
+  }
+  if (!object$model_params$include_mean_forest) {
+    stop("Continued sampling currently requires a mean forest")
+  }
+  bart_config <- object[["bart_config"]]
+  if (is.null(bart_config)) {
+    stop(
+      "Cannot continue sampling: the cached sampler configuration is unavailable. ",
+      "Continuation is not supported for deserialized models (a model loaded from JSON)."
+    )
+  }
+  if (object$model_params$outcome_model$link != "identity") {
+    stop(
+      "Continued sampling is not yet supported for probit or cloglog link functions"
+    )
+  }
+
+  # Preprocessing user-supplied parameters for continuation and merging with existing config
+  overlayContinuationParams <- function(
+    config,
+    user_params,
+    mapping,
+    list_name
+  ) {
+    if (length(user_params) == 0) {
+      return(config)
+    }
+    unknown <- setdiff(names(user_params), names(mapping))
+    if (length(unknown) > 0) {
+      warning(
+        "The following ",
+        list_name,
+        " cannot be changed on continuation and will be ignored: ",
+        paste(unknown, collapse = ", ")
+      )
+    }
+    for (key in intersect(names(user_params), names(mapping))) {
+      val <- user_params[[key]]
+      if (!is.null(val)) config[[mapping[[key]]]] <- val
+    }
+    config
+  }
+
+  # Changeable keys, mapped from user-facing names to internal bart_config keys.
+  general_map <- list(
+    random_seed = "random_seed",
+    keep_gfr = "keep_gfr",
+    keep_burnin = "keep_burnin",
+    cutpoint_grid_size = "cutpoint_grid_size",
+    sigma2_global_shape = "a_sigma2_global",
+    sigma2_global_scale = "b_sigma2_global",
+    num_threads = "num_threads",
+    verbose = "verbose"
+  )
+  mean_forest_map <- list(
+    alpha = "alpha_mean",
+    beta = "beta_mean",
+    min_samples_leaf = "min_samples_leaf_mean",
+    max_depth = "max_depth_mean",
+    num_features_subsample = "num_features_subsample_mean",
+    sigma2_leaf_shape = "a_sigma2_mean",
+    sigma2_leaf_scale = "b_sigma2_mean"
+  )
+  variance_forest_map <- list(
+    alpha = "alpha_variance",
+    beta = "beta_variance",
+    min_samples_leaf = "min_samples_leaf_variance",
+    max_depth = "max_depth_variance",
+    num_features_subsample = "num_features_subsample_variance",
+    var_forest_prior_shape = "shape_variance_forest",
+    var_forest_prior_scale = "scale_variance_forest"
+  )
+  random_effects_map <- list(
+    variance_prior_shape = "rfx_variance_prior_shape",
+    variance_prior_scale = "rfx_variance_prior_scale"
+  )
+
+  # Temporarily store copies and remove user-provided parameters
+  user_variable_weights <- general_params[["variable_weights"]]
+  keep_vars_mean <- mean_forest_params[["keep_vars"]]
+  drop_vars_mean <- mean_forest_params[["drop_vars"]]
+  keep_vars_variance <- variance_forest_params[["keep_vars"]]
+  drop_vars_variance <- variance_forest_params[["drop_vars"]]
+  user_keep_every <- general_params[["keep_every"]]
+  general_params[["variable_weights"]] <- NULL
+  general_params[["keep_every"]] <- NULL
+  mean_forest_params[["keep_vars"]] <- NULL
+  mean_forest_params[["drop_vars"]] <- NULL
+  variance_forest_params[["keep_vars"]] <- NULL
+  variance_forest_params[["drop_vars"]] <- NULL
+
+  # Fold any user-provided parameters into the config stored with the BART model
+  config <- bart_config
+  config <- overlayContinuationParams(
+    config,
+    general_params,
+    general_map,
+    "general_params"
+  )
+  config <- overlayContinuationParams(
+    config,
+    mean_forest_params,
+    mean_forest_map,
+    "mean_forest_params"
+  )
+  config <- overlayContinuationParams(
+    config,
+    variance_forest_params,
+    variance_forest_map,
+    "variance_forest_params"
+  )
+  config <- overlayContinuationParams(
+    config,
+    random_effects_params,
+    random_effects_map,
+    "random_effects_params"
+  )
+
+  # Handle overrides to keep_every / keep_gfr
+  keep_every <- if (!is.null(user_keep_every)) user_keep_every else 1
+  keep_gfr <- if (!is.null(general_params$keep_gfr)) {
+    general_params$keep_gfr
+  } else {
+    TRUE
+  }
+
+  # Preprocessing training data
+  train_set_metadata <- object$train_set_metadata
+  # Keep the raw (pre-preprocessing) covariates so keep_vars / drop_vars can be resolved against the
+  # original variable names / count, exactly as bart() does.
+  X_train_raw <- X_train
+  X_train <- preprocessPredictionData(X_train, train_set_metadata)
+  if (ncol(X_train) != object$model_params$num_covariates) {
+    stop(sprintf(
+      "Re-supplied covariates have %d columns; model expects %d",
+      ncol(X_train),
+      object$model_params$num_covariates
+    ))
+  }
+  y_train <- as.numeric(y_train)
+  if (nrow(X_train) != length(y_train)) {
+    stop("X_train and y_train have differing numbers of observations")
+  }
+
+  # Update split-variable weights if variable_weights / keep_vars / drop_vars changed.
+  cstate <- object$continuation_state
+  if (is.null(cstate)) {
+    stop(
+      "Cannot continue sampling: cached continuation state is unavailable for this model."
+    )
+  }
+  variable_weights <- if (!is.null(user_variable_weights)) {
+    user_variable_weights
+  } else {
+    cstate$variable_weights
+  }
+  if (length(variable_weights) != object$model_params$num_covariates) {
+    stop(sprintf(
+      "variable_weights must have length %d (the number of covariates)",
+      object$model_params$num_covariates
+    ))
+  }
+  if (any(variable_weights < 0)) {
+    stop("variable_weights cannot have any negative weights")
+  }
+  variable_subset_mean <- if (
+    !is.null(keep_vars_mean) || !is.null(drop_vars_mean)
+  ) {
+    resolveVariableSubset(keep_vars_mean, drop_vars_mean, X_train_raw, "mean")
+  } else {
+    cstate$variable_subset_mean
+  }
+  variable_subset_variance <- if (
+    !is.null(keep_vars_variance) || !is.null(drop_vars_variance)
+  ) {
+    resolveVariableSubset(
+      keep_vars_variance,
+      drop_vars_variance,
+      X_train_raw,
+      "variance"
+    )
+  } else {
+    cstate$variable_subset_variance
+  }
+  original_var_indices <- train_set_metadata$original_var_indices
+  if (object$model_params$include_mean_forest) {
+    config[["var_weights_mean"]] <- expandVariableWeights(
+      variable_weights,
+      original_var_indices,
+      variable_subset_mean
+    )
+  }
+  if (object$model_params$include_variance_forest) {
+    config[["var_weights_variance"]] <- expandVariableWeights(
+      variable_weights,
+      original_var_indices,
+      variable_subset_variance
+    )
+  }
+
+  if (object$model_params$has_basis && is.null(leaf_basis_train)) {
+    stop(
+      "This model was fit with a leaf basis; leaf_basis_train must be supplied to continue sampling"
+    )
+  }
+
+  # Re-supplied random effects data, encoded with the model's stored factor levels so that the
+  # group ids map to the same 0-indexed categories as the original fit.
+  has_rfx <- object$model_params$has_rfx
+  rfx_intercept <- (object$model_params$rfx_model_spec == "intercept_only")
+  if (has_rfx && is.null(rfx_group_ids_train)) {
+    stop(
+      "This model was fit with random effects; rfx_group_ids_train must be supplied to continue sampling"
+    )
+  }
+  if (has_rfx && is.null(rfx_basis_train) && !rfx_intercept) {
+    stop(
+      "This model was fit with a non-intercept-only random effects model; rfx_basis_train must be supplied to continue sampling"
+    )
+  }
+  rfx_num_groups <- 0L
+  rfx_basis_dim <- 0L
+  if (has_rfx) {
+    group_ids_factor <- factor(
+      rfx_group_ids_train,
+      levels = object$rfx_unique_group_ids
+    )
+    if (any(is.na(group_ids_factor))) {
+      stop(
+        "rfx_group_ids_train contains group labels not present in the fitted model"
+      )
+    }
+    rfx_group_ids_train <- as.integer(group_ids_factor)
+    rfx_num_groups <- length(object$rfx_unique_group_ids)
+    rfx_basis_dim <- as.integer(object$model_params$num_rfx_basis)
+  }
+
+  # RNG state can be overriden by a new (non-default) user-provided seed, otherwise it resumes from the model's available RNG state.
+  override_seed <- !is.null(general_params$random_seed)
+  rng_state_in <- if (
+    !override_seed && !is.null(object$model_params$rng_state)
+  ) {
+    object$model_params$rng_state
+  } else {
+    ""
+  }
+
+  # Continue sampling the BART model in C++, augmenting the pointer stored in object$samples and returning updated metadata about the new total number of samples and the new RNG state
+  bart_samples <- object$samples
+  num_history <- bart_samples$num_samples()
+  bart_metadata <- bart_continue_sample_cpp(
+    samples = bart_samples$samples_ptr,
+    X_train = X_train,
+    y_train = y_train,
+    X_test = NULL,
+    n_train = nrow(X_train),
+    n_test = 0L,
+    p = ncol(X_train),
+    basis_train = leaf_basis_train,
+    basis_test = NULL,
+    basis_dim = if (!is.null(leaf_basis_train)) ncol(leaf_basis_train) else 0L,
+    obs_weights_train = NULL,
+    obs_weights_test = NULL,
+    rfx_group_ids_train = if (has_rfx) rfx_group_ids_train else NULL,
+    rfx_group_ids_test = NULL,
+    rfx_basis_train = if (has_rfx && !rfx_intercept) rfx_basis_train else NULL,
+    rfx_basis_test = NULL,
+    rfx_num_groups = as.integer(rfx_num_groups),
+    rfx_basis_dim = as.integer(rfx_basis_dim),
+    num_gfr = as.integer(num_gfr),
+    num_burnin = as.integer(num_burnin),
+    keep_every = as.integer(keep_every),
+    num_mcmc = as.integer(num_mcmc),
+    keep_gfr = keep_gfr,
+    rng_state_in = rng_state_in,
+    override_seed = override_seed,
+    config_input = config
+  )
+
+  # Update model metadata
+  object$model_params$num_samples <- bart_samples$num_samples()
+  object$model_params$num_mcmc <- object$model_params$num_mcmc + num_mcmc
+  if (keep_gfr) {
+    object$model_params$num_gfr <- object$model_params$num_gfr + num_gfr
+  }
+  object$model_params$rng_state <- bart_metadata[["rng_state"]]
+
+  return(object)
 }
 
 #' @title Print Summary of BART Model

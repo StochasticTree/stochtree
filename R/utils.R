@@ -395,15 +395,15 @@ preprocessTrainDataFrame <- function(input_df) {
     original_var_indices = original_var_indices
   )
   if (num_ordered_cat_vars > 0) {
-    metadata[["ordered_cat_vars"]] = ordered_cat_vars
-    metadata[["ordered_unique_levels"]] = ordered_unique_levels
+    metadata[["ordered_cat_vars"]] <- ordered_cat_vars
+    metadata[["ordered_unique_levels"]] <- ordered_unique_levels
   }
   if (num_unordered_cat_vars > 0) {
-    metadata[["unordered_cat_vars"]] = unordered_cat_vars
-    metadata[["unordered_unique_levels"]] = unordered_unique_levels
+    metadata[["unordered_cat_vars"]] <- unordered_cat_vars
+    metadata[["unordered_unique_levels"]] <- unordered_unique_levels
   }
   if (num_numeric_vars > 0) {
-    metadata[["numeric_vars"]] = numeric_vars
+    metadata[["numeric_vars"]] <- numeric_vars
   }
   output <- list(
     data = X,
@@ -796,15 +796,15 @@ createForestCovariates <- function(
     num_numeric_vars = num_numeric_vars
   )
   if (num_ordered_cat_vars > 0) {
-    metadata[["ordered_cat_vars"]] = ordered_cat_vars
-    metadata[["ordered_unique_levels"]] = ordered_unique_levels
+    metadata[["ordered_cat_vars"]] <- ordered_cat_vars
+    metadata[["ordered_unique_levels"]] <- ordered_unique_levels
   }
   if (num_unordered_cat_vars > 0) {
-    metadata[["unordered_cat_vars"]] = unordered_cat_vars
-    metadata[["unordered_unique_levels"]] = unordered_unique_levels
+    metadata[["unordered_cat_vars"]] <- unordered_cat_vars
+    metadata[["unordered_unique_levels"]] <- unordered_unique_levels
   }
   if (num_numeric_vars > 0) {
-    metadata[["numeric_vars"]] = numeric_vars
+    metadata[["numeric_vars"]] <- numeric_vars
   }
   output <- list(
     data = X,
@@ -1267,4 +1267,97 @@ inferStochtreeJsonVersion <- function(json_object) {
   }
 
   return("unknown")
+}
+
+#' Resolve a forest's variable subset from keep_vars / drop_vars.
+#'
+#' Refactors logic that is common to both bart() and `continueSampler()`: `keep_vars` (if supplied) selects the included
+#' variables; otherwise `drop_vars` (if supplied) selects the excluded variables; otherwise all
+#' variables are included. Both may be supplied as character variable names (matched against
+#' `names(X_train)`) or as integer column indices. Returns a vector of 1-indexed original variable
+#' indices. `X_train` must be the raw (pre-preprocessing) covariate object.
+#'
+#' @param keep_vars Variables to include (names or indices), or NULL.
+#' @param drop_vars Variables to exclude (names or indices), or NULL. Ignored if `keep_vars` is set.
+#' @param X_train Raw covariate matrix / dataframe (used for column count and, for character
+#'   selectors, column names).
+#' @param forest_label Short label ("mean" / "variance") used in error messages.
+#' @return Integer vector of included original variable indices.
+#' @keywords internal
+#' @noRd
+resolveVariableSubset <- function(keep_vars, drop_vars, X_train, forest_label) {
+  ncov <- ncol(X_train)
+  if (!is.null(keep_vars)) {
+    if (is.character(keep_vars)) {
+      if (!all(keep_vars %in% names(X_train))) {
+        stop(sprintf(
+          "keep_vars_%s includes some variable names that are not in X_train",
+          forest_label
+        ))
+      }
+      return(unname(which(names(X_train) %in% keep_vars)))
+    }
+    if (any(keep_vars > ncov)) {
+      stop(sprintf(
+        "keep_vars_%s includes some variable indices that exceed the number of columns in X_train",
+        forest_label
+      ))
+    }
+    if (any(keep_vars < 0)) {
+      stop(sprintf(
+        "keep_vars_%s includes some negative variable indices",
+        forest_label
+      ))
+    }
+    return(keep_vars)
+  } else if (!is.null(drop_vars)) {
+    if (is.character(drop_vars)) {
+      if (!all(drop_vars %in% names(X_train))) {
+        stop(sprintf(
+          "drop_vars_%s includes some variable names that are not in X_train",
+          forest_label
+        ))
+      }
+      return(unname(which(!(names(X_train) %in% drop_vars))))
+    }
+    if (any(drop_vars > ncov)) {
+      stop(sprintf(
+        "drop_vars_%s includes some variable indices that exceed the number of columns in X_train",
+        forest_label
+      ))
+    }
+    if (any(drop_vars < 0)) {
+      stop(sprintf(
+        "drop_vars_%s includes some negative variable indices",
+        forest_label
+      ))
+    }
+    return((1:ncov)[!(1:ncov %in% drop_vars)])
+  }
+  return(1:ncov)
+}
+
+#' Expand per-variable split weights to the preprocessed feature space.
+#'
+#' Refactors logic that is common to both `bart()` and `continueSampler()`: each original variable's weight is spread evenly across
+#' its preprocessed (e.g. one-hot expanded) feature columns, and features whose original variable is
+#' not in `variable_subset` are zeroed out.
+#'
+#' @param variable_weights Numeric per-original-variable weights (length = number of original covariates).
+#' @param original_var_indices Integer vector mapping each preprocessed feature to its original
+#'   variable index (from the covariate preprocessor metadata).
+#' @param variable_subset Integer vector of included original variable indices.
+#' @return Numeric vector of expanded per-feature weights.
+#' @keywords internal
+#' @noRd
+expandVariableWeights <- function(
+  variable_weights,
+  original_var_indices,
+  variable_subset
+) {
+  variable_weights_adj <- 1 /
+    sapply(original_var_indices, function(x) sum(original_var_indices == x))
+  expanded <- variable_weights[original_var_indices] * variable_weights_adj
+  expanded[!(original_var_indices %in% variable_subset)] <- 0
+  expanded
 }
