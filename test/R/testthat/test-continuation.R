@@ -276,3 +276,201 @@ test_that("BART continuation drops stale test predictions with a warning", {
   expect_false(m$samples$has_mean_forest_predictions_test())
   expect_equal(m$model_params$num_samples, 18)
 })
+
+# --- BCF continuation ----------------------------------------------------------------------------
+
+test_that("BCF continuation appends draws (basic + adaptive + variance + rfx)", {
+  skip_on_cran()
+
+  set.seed(101)
+  n <- 200
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- 0.25 + 0.5 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  g <- sample(1:3, n, replace = TRUE)
+  rb <- matrix(rep(1, n), ncol = 1)
+  y <- X[, 1] * 2 + X[, 2] * (-1) * Z + (-2 * (g == 1) + 2 * (g == 2)) + rnorm(n)
+
+  # Basic
+  m <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+           num_gfr = 0, num_burnin = 5, num_mcmc = 10)
+  m <- continueSampling(m, X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x, num_mcmc = 8)
+  expect_equal(m$model_params$num_samples, 18)
+
+  # Adaptive coding
+  ma <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+            num_gfr = 0, num_burnin = 5, num_mcmc = 10,
+            general_params = list(adaptive_coding = TRUE))
+  ma <- continueSampling(ma, X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x, num_mcmc = 8)
+  expect_equal(ma$model_params$num_samples, 18)
+  expect_length(ma$samples$b0_samples(), 18)
+
+  # Variance forest
+  mv <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+            num_gfr = 0, num_burnin = 5, num_mcmc = 10,
+            variance_forest_params = list(num_trees = 20))
+  mv <- continueSampling(mv, X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x, num_mcmc = 8)
+  expect_equal(mv$model_params$num_samples, 18)
+
+  # Random effects
+  mr <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+            rfx_group_ids_train = g, rfx_basis_train = rb,
+            num_gfr = 0, num_burnin = 5, num_mcmc = 10)
+  mr <- continueSampling(mr, X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+                         rfx_group_ids_train = g, rfx_basis_train = rb, num_mcmc = 8)
+  expect_equal(mr$model_params$num_samples, 18)
+  bs <- extractRandomEffectSamples(mr)$beta_samples
+  expect_equal(dim(bs)[length(dim(bs))], 18)  # last dim = num_samples
+})
+
+test_that("BCF continuation is deterministic", {
+  skip_on_cran()
+
+  set.seed(202)
+  n <- 200
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- 0.25 + 0.5 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  y <- X[, 1] * 2 + X[, 2] * (-1) * Z + rnorm(n)
+
+  run <- function() {
+    m <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+             num_gfr = 0, num_burnin = 5, num_mcmc = 10,
+             general_params = list(random_seed = 99))
+    m <- continueSampling(m, X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x, num_mcmc = 8)
+    rowMeans(predict(m, X = X, Z = Z, propensity = pi_x)$y_hat)
+  }
+  expect_equal(run(), run())
+})
+
+test_that("BCF continuation re-specifies split-variable selection without warning", {
+  skip_on_cran()
+
+  set.seed(303)
+  n <- 200
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- 0.25 + 0.5 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  y <- X[, 1] * 2 + X[, 2] * (-1) * Z + rnorm(n)
+
+  # continueSampling appends in place onto the model's shared C++ samples, so use a fresh base model
+  # for each independent continuation.
+  fresh <- function() {
+    bcf(
+      X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+      num_gfr = 0, num_burnin = 5, num_mcmc = 6,
+      general_params = list(random_seed = 7)
+    )
+  }
+
+  # keep_vars / drop_vars (per forest) + variable_weights are changeable: no warning, continuation proceeds.
+  expect_no_warning(
+    m1 <- continueSampling(
+      fresh(), X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x, num_mcmc = 6,
+      prognostic_forest_params = list(keep_vars = c(1, 2)),
+      treatment_effect_forest_params = list(drop_vars = c(3, 4, 5))
+    )
+  )
+  expect_equal(m1$model_params$num_samples, 12)
+
+  expect_no_warning(
+    m2 <- continueSampling(
+      fresh(), X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x, num_mcmc = 6,
+      general_params = list(variable_weights = c(0.5, 0.5, 0, 0, 0))
+    )
+  )
+  expect_equal(m2$model_params$num_samples, 12)
+
+  # Malformed variable_weights are rejected (wrong length).
+  expect_error(
+    continueSampling(
+      fresh(), X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x, num_mcmc = 6,
+      general_params = list(variable_weights = c(0.5, 0.5))
+    )
+  )
+
+  # keep_vars by name works on a data.frame model.
+  Xdf <- as.data.frame(X)
+  names(Xdf) <- paste0("v", 1:5)
+  md <- bcf(
+    X_train = Xdf, Z_train = Z, y_train = y, propensity_train = pi_x,
+    num_gfr = 0, num_burnin = 5, num_mcmc = 6,
+    general_params = list(random_seed = 7)
+  )
+  expect_no_warning(
+    md <- continueSampling(
+      md, X_train = Xdf, Z_train = Z, y_train = y, propensity_train = pi_x, num_mcmc = 6,
+      treatment_effect_forest_params = list(keep_vars = c("v1", "v2"))
+    )
+  )
+  expect_equal(md$model_params$num_samples, 12)
+})
+
+test_that("BCF continuation drops stale test predictions with a warning", {
+  skip_on_cran()
+
+  set.seed(303)
+  n <- 200
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- 0.25 + 0.5 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  y <- X[, 1] * 2 + X[, 2] * (-1) * Z + rnorm(n)
+  test_inds <- 1:40
+  m <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+           X_test = X[test_inds, ], Z_test = Z[test_inds], propensity_test = pi_x[test_inds],
+           num_gfr = 0, num_burnin = 5, num_mcmc = 10)
+  expect_warning(
+    m <- continueSampling(m, X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x, num_mcmc = 8),
+    "test-set predictions are stale"
+  )
+  expect_equal(m$model_params$num_samples, 18)
+})
+
+test_that("BCF continuation supports multivariate treatment", {
+  skip_on_cran()
+
+  set.seed(404)
+  n <- 300
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  Z <- matrix(runif(n * 2), ncol = 2)  # multivariate treatment
+  y <- X[, 1] * 2 + Z[, 1] * X[, 2] - Z[, 2] * X[, 3] + rnorm(n)
+  mv <- bcf(X_train = X, Z_train = Z, y_train = y, num_gfr = 0, num_burnin = 5, num_mcmc = 10)
+  mv <- continueSampling(mv, X_train = X, Z_train = Z, y_train = y, num_mcmc = 8)
+  expect_equal(mv$model_params$num_samples, 18)
+})
+
+test_that("BART probit continuation is supported", {
+  skip_on_cran()
+  set.seed(11)
+  n <- 300; p <- 4
+  X <- matrix(runif(n * p), ncol = p)
+  z <- (2 * X[, 1] - 1) + rnorm(n)
+  y <- as.numeric(z > 0)
+  m <- bart(X_train = X, y_train = y, num_gfr = 0, num_burnin = 5, num_mcmc = 10,
+            general_params = list(random_seed = 1, sample_sigma2_global = FALSE,
+                                  outcome_model = OutcomeModel(outcome = "binary", link = "probit")))
+  m <- continueSampling(m, X_train = X, y_train = y, num_mcmc = 8)
+  expect_equal(m$model_params$num_samples, 18)
+})
+
+test_that("BCF probit continuation is supported", {
+  skip_on_cran()
+  set.seed(12)
+  n <- 300; p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- 0.3 + 0.4 * X[, 2]
+  Z <- rbinom(n, 1, pi_x)
+  lin <- X[, 1] + 0.8 * X[, 3] * Z
+  y <- as.numeric(lin + rnorm(n) > 0.9)
+  m <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+           num_gfr = 0, num_burnin = 5, num_mcmc = 10,
+           general_params = list(random_seed = 1, sample_sigma2_global = FALSE,
+                                 outcome_model = OutcomeModel(outcome = "binary", link = "probit")))
+  m <- continueSampling(m, X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x, num_mcmc = 8)
+  expect_equal(m$model_params$num_samples, 18)
+})

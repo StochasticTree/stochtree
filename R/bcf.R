@@ -1138,21 +1138,10 @@ bcf <- function(
     }
   }
 
-  # Update variable weights
-  variable_weights_adj <- 1 /
-    sapply(original_var_indices, function(x) sum(original_var_indices == x))
-  variable_weights <- variable_weights[original_var_indices] *
-    variable_weights_adj
-
-  # Create mu and tau (and variance) specific variable weights with weights zeroed out for excluded variables
-  variable_weights_variance <- variable_weights_tau <- variable_weights_mu <- variable_weights
-  variable_weights_mu[!(original_var_indices %in% variable_subset_mu)] <- 0
-  variable_weights_tau[!(original_var_indices %in% variable_subset_tau)] <- 0
-  if (include_variance_forest) {
-    variable_weights_variance[
-      !(original_var_indices %in% variable_subset_variance)
-    ] <- 0
-  }
+  # Preserve the raw per-original-variable weights (used below to derive the per-forest weights and
+  # cached in continuation_state so continueSampling.bcfmodel() can re-derive them if the user
+  # changes variable_weights / keep_vars / drop_vars).
+  variable_weights_raw <- variable_weights
 
   # Handle the rfx basis matrices
   has_basis_rfx <- FALSE
@@ -1367,68 +1356,36 @@ bcf <- function(
 
   # Update feature_types and covariates
   feature_types <- as.integer(feature_types)
+  ncol_propensity <- if (propensity_covariate != "none") {
+    ncol(propensity_train)
+  } else {
+    0
+  }
   if (propensity_covariate != "none") {
     feature_types <- as.integer(c(
       feature_types,
-      rep(0, ncol(propensity_train))
+      rep(0, ncol_propensity)
     ))
     X_train <- cbind(X_train, propensity_train)
-    if (propensity_covariate == "prognostic") {
-      variable_weights_mu <- c(
-        variable_weights_mu,
-        rep(1. / num_cov_orig, ncol(propensity_train))
-      )
-      variable_weights_tau <- c(
-        variable_weights_tau,
-        rep(0, ncol(propensity_train))
-      )
-      if (include_variance_forest) {
-        variable_weights_variance <- c(
-          variable_weights_variance,
-          rep(0, ncol(propensity_train))
-        )
-      }
-    } else if (propensity_covariate == "treatment_effect") {
-      variable_weights_mu <- c(
-        variable_weights_mu,
-        rep(0, ncol(propensity_train))
-      )
-      variable_weights_tau <- c(
-        variable_weights_tau,
-        rep(1. / num_cov_orig, ncol(propensity_train))
-      )
-      if (include_variance_forest) {
-        variable_weights_variance <- c(
-          variable_weights_variance,
-          rep(0, ncol(propensity_train))
-        )
-      }
-    } else if (propensity_covariate == "both") {
-      variable_weights_mu <- c(
-        variable_weights_mu,
-        rep(1. / num_cov_orig, ncol(propensity_train))
-      )
-      variable_weights_tau <- c(
-        variable_weights_tau,
-        rep(1. / num_cov_orig, ncol(propensity_train))
-      )
-      if (include_variance_forest) {
-        variable_weights_variance <- c(
-          variable_weights_variance,
-          rep(0, ncol(propensity_train))
-        )
-      }
-    }
     if (has_test) X_test <- cbind(X_test, propensity_test)
   }
 
-  # Renormalize variable weights
-  variable_weights_mu <- variable_weights_mu / sum(variable_weights_mu)
-  variable_weights_tau <- variable_weights_tau / sum(variable_weights_tau)
-  if (include_variance_forest) {
-    variable_weights_variance <- variable_weights_variance /
-      sum(variable_weights_variance)
-  }
+  # Derive the per-forest split-variable weights (expand across preprocessed features, append
+  # propensity-column weights, renormalize). Shared with continueSampling.bcfmodel() via the helper.
+  variable_weights_list <- computeBCFForestWeights(
+    variable_weights = variable_weights_raw,
+    original_var_indices = original_var_indices,
+    variable_subset_mu = variable_subset_mu,
+    variable_subset_tau = variable_subset_tau,
+    variable_subset_variance = variable_subset_variance,
+    propensity_covariate = propensity_covariate,
+    ncol_propensity = ncol_propensity,
+    num_cov_orig = num_cov_orig,
+    include_variance_forest = include_variance_forest
+  )
+  variable_weights_mu <- variable_weights_list$mu
+  variable_weights_tau <- variable_weights_list$tau
+  variable_weights_variance <- variable_weights_list$variance
 
   # Set num_features_subsample to default, ncol(X_train), if not already set
   if (is.null(num_features_subsample_mu)) {
@@ -1533,6 +1490,7 @@ bcf <- function(
     "num_mcmc" = num_mcmc,
     "keep_every" = keep_every,
     "num_chains" = num_chains,
+    "has_test" = has_test,
     "has_rfx" = has_rfx,
     "has_rfx_basis" = has_basis_rfx,
     "num_rfx_basis" = num_basis_rfx,
@@ -1797,12 +1755,20 @@ bcf <- function(
     "outcome_scale" = bcf_samples$y_std(),
     "num_samples" = bcf_samples$num_samples(),
     "sample_tau_0" = sample_tau_0,
-    "tau_0_prior_var" = if (sample_tau_0) tau_0_prior_var else NULL
+    "tau_0_prior_var" = if (sample_tau_0) tau_0_prior_var else NULL,
+    "rng_state" = bcf_metadata[["rng_state"]]
   )
   model_params <- c(model_params_r, model_params_cpp)
   result[["model_params"]] <- model_params
   result[["train_set_metadata"]] <- X_train_metadata
   result[["samples"]] <- bcf_samples
+  result[["bcf_config"]] <- bcf_config
+  result[["continuation_state"]] <- list(
+    variable_weights = variable_weights_raw,
+    variable_subset_mu = variable_subset_mu,
+    variable_subset_tau = variable_subset_tau,
+    variable_subset_variance = variable_subset_variance
+  )
 
   # Unpack RFX samples
   if (has_rfx) {
@@ -3216,6 +3182,347 @@ extractForest.bcfmodel <- function(object, term) {
   }
 
   stop(paste0("term ", term, " is not a valid BCF forest term"))
+}
+
+#' @title Continue Sampling a BCF Model
+#' @description Continue sampling from a BCF model, appending additional draws to the existing
+#' posterior samples. The training data must be re-supplied (it is not retained on the model).
+#' The sampler initializes every term (prognostic + treatment forests, variance forest,
+#' random effects, tau_0, and adaptive-coding b0/b1) from its last retained sample.
+#'
+#' @param object Fitted `bcfmodel` to continue sampling.
+#' @param X_train Training covariates (re-supplied; same structure used to fit the model).
+#' @param Z_train Training treatment assignments (re-supplied).
+#' @param y_train Training outcome (re-supplied).
+#' @param propensity_train (Optional) Training propensity scores. Required if the model used a propensity
+#'   covariate and no internal propensity model is available to re-derive them.
+#' @param rfx_group_ids_train (Optional) Training random effects group labels (required if the model has rfx).
+#' @param rfx_basis_train (Optional) Training random effects basis (required for a custom rfx model).
+#' @param num_burnin Number of additional burn-in iterations to discard. Default `0`.
+#' @param num_mcmc Number of additional retained MCMC draws. Default `100`.
+#' @param general_params (Optional) List of changeable general parameters (e.g. `random_seed`, `keep_every`,
+#'   `keep_burnin`, `cutpoint_grid_size`, `sigma2_global_shape`, `sigma2_global_scale`, `num_threads`, `verbose`).
+#'   May also include `variable_weights` (per-covariate split weights); if omitted, the fit-time weights are reused.
+#' @param prognostic_forest_params (Optional) Changeable prognostic (mu) forest parameters (`alpha`, `beta`,
+#'   `min_samples_leaf`, `max_depth`, `num_features_subsample`, `sigma2_leaf_shape`, `sigma2_leaf_scale`).
+#'   May also include `keep_vars` / `drop_vars` to change which covariates this forest may split on; if omitted,
+#'   the fit-time split-variable subset is reused.
+#' @param treatment_effect_forest_params (Optional) Changeable treatment (tau) forest parameters (same keys as
+#'   prognostic, including `keep_vars` / `drop_vars`).
+#' @param variance_forest_params (Optional) Changeable variance forest parameters (`alpha`, `beta`,
+#'   `min_samples_leaf`, `max_depth`, `num_features_subsample`, `var_forest_prior_shape`, `var_forest_prior_scale`,
+#'   and `keep_vars` / `drop_vars`).
+#' @param ... Other parameters (ignored).
+#' @return The updated `bcfmodel` (mutated in place; the sampled forests are extended).
+#' @export
+continueSampling.bcfmodel <- function(
+  object,
+  X_train,
+  Z_train,
+  y_train,
+  propensity_train = NULL,
+  rfx_group_ids_train = NULL,
+  rfx_basis_train = NULL,
+  num_burnin = 0,
+  num_mcmc = 100,
+  general_params = list(),
+  prognostic_forest_params = list(),
+  treatment_effect_forest_params = list(),
+  variance_forest_params = list(),
+  ...
+) {
+  if (!inherits(object, "bcfmodel")) {
+    stop("object must be a bcfmodel")
+  }
+  bcf_config <- object[["bcf_config"]]
+  if (is.null(bcf_config)) {
+    stop(
+      "Cannot continue sampling: the cached sampler configuration is unavailable. ",
+      "Continuation is not supported for deserialized models (a model loaded from JSON)."
+    )
+  }
+  if (object$model_params$outcome_model$link == "cloglog") {
+    stop("Continued sampling is not yet supported for cloglog link functions")
+  }
+
+  # Update any changeable model parameters
+  general_map <- list(
+    random_seed = "random_seed",
+    keep_burnin = "keep_burnin",
+    cutpoint_grid_size = "cutpoint_grid_size",
+    sigma2_global_shape = "a_sigma2_global",
+    sigma2_global_scale = "b_sigma2_global",
+    num_threads = "num_threads",
+    verbose = "verbose"
+  )
+  prognostic_map <- list(
+    alpha = "alpha_mu",
+    beta = "beta_mu",
+    min_samples_leaf = "min_samples_leaf_mu",
+    max_depth = "max_depth_mu",
+    num_features_subsample = "num_features_subsample_mu",
+    sigma2_leaf_shape = "a_sigma2_mu",
+    sigma2_leaf_scale = "b_sigma2_mu"
+  )
+  treatment_map <- list(
+    alpha = "alpha_tau",
+    beta = "beta_tau",
+    min_samples_leaf = "min_samples_leaf_tau",
+    max_depth = "max_depth_tau",
+    num_features_subsample = "num_features_subsample_tau",
+    sigma2_leaf_shape = "a_sigma2_tau",
+    sigma2_leaf_scale = "b_sigma2_tau"
+  )
+  variance_map <- list(
+    alpha = "alpha_variance",
+    beta = "beta_variance",
+    min_samples_leaf = "min_samples_leaf_variance",
+    max_depth = "max_depth_variance",
+    num_features_subsample = "num_features_subsample_variance",
+    var_forest_prior_shape = "shape_variance_forest",
+    var_forest_prior_scale = "scale_variance_forest"
+  )
+  # keep_every is passed to the binding as an explicit arg (not a config key); pull it out so the
+  # overlay does not flag it as unchangeable.
+  user_keep_every <- general_params[["keep_every"]]
+  general_params[["keep_every"]] <- NULL
+  # Split-variable configuration overrides. These are re-derived below (not overlaid as raw config
+  # keys), so pull them out of their params lists before the overlay so they are not flagged as
+  # unchangeable. When left NULL, the cached fit-time values are reused.
+  user_variable_weights <- general_params[["variable_weights"]]
+  general_params[["variable_weights"]] <- NULL
+  keep_vars_mu <- prognostic_forest_params[["keep_vars"]]
+  drop_vars_mu <- prognostic_forest_params[["drop_vars"]]
+  prognostic_forest_params[["keep_vars"]] <- NULL
+  prognostic_forest_params[["drop_vars"]] <- NULL
+  keep_vars_tau <- treatment_effect_forest_params[["keep_vars"]]
+  drop_vars_tau <- treatment_effect_forest_params[["drop_vars"]]
+  treatment_effect_forest_params[["keep_vars"]] <- NULL
+  treatment_effect_forest_params[["drop_vars"]] <- NULL
+  keep_vars_variance <- variance_forest_params[["keep_vars"]]
+  drop_vars_variance <- variance_forest_params[["drop_vars"]]
+  variance_forest_params[["keep_vars"]] <- NULL
+  variance_forest_params[["drop_vars"]] <- NULL
+  config <- bcf_config
+  config <- overlayContinuationParams(
+    config,
+    general_params,
+    general_map,
+    "general_params"
+  )
+  config <- overlayContinuationParams(
+    config,
+    prognostic_forest_params,
+    prognostic_map,
+    "prognostic_forest_params"
+  )
+  config <- overlayContinuationParams(
+    config,
+    treatment_effect_forest_params,
+    treatment_map,
+    "treatment_effect_forest_params"
+  )
+  config <- overlayContinuationParams(
+    config,
+    variance_forest_params,
+    variance_map,
+    "variance_forest_params"
+  )
+  keep_every <- if (!is.null(user_keep_every)) user_keep_every else 1
+
+  # Cached split-variable state is required to re-derive per-forest weights on continuation.
+  cstate <- object$continuation_state
+  if (is.null(cstate)) {
+    stop(
+      "Cannot continue sampling: cached continuation state is unavailable for this model."
+    )
+  }
+
+  # Update training data
+  train_set_metadata <- object$train_set_metadata
+  if (ncol(X_train) != object$model_params$num_covariates) {
+    stop(sprintf(
+      "X_train has %d columns; the model was trained on %d covariates",
+      ncol(X_train),
+      object$model_params$num_covariates
+    ))
+  }
+  # Keep the raw (un-preprocessed) covariates so name-based keep_vars / drop_vars resolve against the original column names
+  X_train_raw <- X_train
+  X_train <- preprocessPredictionData(X_train, train_set_metadata)
+  y_train <- as.numeric(y_train)
+  Z_train <- as.matrix(Z_train)
+  if (nrow(X_train) != length(y_train) || nrow(X_train) != nrow(Z_train)) {
+    stop(
+      "X_train, Z_train, and y_train must have the same number of observations"
+    )
+  }
+
+  # Propensity: re-derive from the internal model if not supplied.
+  if (
+    object$model_params$propensity_covariate != "none" &&
+      is.null(propensity_train)
+  ) {
+    if (!object$model_params$internal_propensity_model) {
+      stop("propensity_train must be provided to continue sampling this model")
+    }
+    propensity_train <- predict(
+      object$bart_propensity_model,
+      X_train,
+      type = "mean",
+      terms = "y_hat"
+    )
+  }
+
+  # Random effects, encoded with the model's stored factor levels.
+  has_rfx <- object$model_params$has_rfx
+  rfx_num_groups <- 0L
+  rfx_basis_dim <- 0L
+  if (has_rfx) {
+    if (is.null(rfx_group_ids_train)) {
+      stop(
+        "This model was fit with random effects; rfx_group_ids_train must be supplied to continue sampling"
+      )
+    }
+    group_ids_factor <- factor(
+      rfx_group_ids_train,
+      levels = object$rfx_unique_group_ids
+    )
+    if (any(is.na(group_ids_factor))) {
+      stop(
+        "rfx_group_ids_train contains group labels not present in the fitted model"
+      )
+    }
+    rfx_group_ids_train <- as.integer(group_ids_factor)
+    rfx_num_groups <- length(object$rfx_unique_group_ids)
+    rfx_basis_dim <- as.integer(object$model_params$num_rfx_basis)
+    spec <- object$model_params$rfx_model_spec
+    if (spec == "custom" && is.null(rfx_basis_train)) {
+      stop(
+        "A user-provided rfx_basis_train must be supplied for a 'custom' random effects model"
+      )
+    } else if (spec == "intercept_only" && is.null(rfx_basis_train)) {
+      rfx_basis_train <- matrix(rep(1, nrow(X_train)), ncol = 1)
+    } else if (spec == "intercept_plus_treatment" && is.null(rfx_basis_train)) {
+      rfx_basis_train <- cbind(rep(1, nrow(X_train)), Z_train)
+    }
+  }
+
+  # Append propensity to the covariates exactly as bcf() / predict.bcfmodel do.
+  X_combined <- X_train
+  if (object$model_params$propensity_covariate != "none") {
+    X_combined <- cbind(X_train, propensity_train)
+  }
+
+  # If the user overrode variable_weights / keep_vars / drop_vars for any forest, recompute that
+  # forest's weights; otherwise reuse the cached fit-time values. The full BCF weight pipeline
+  # (expand across preprocessed features, append propensity columns, renormalize) is shared with
+  # bcf() via computeBCFForestWeights().
+  num_cov_orig <- object$model_params$num_covariates
+  variable_weights <- if (!is.null(user_variable_weights)) {
+    user_variable_weights
+  } else {
+    cstate$variable_weights
+  }
+  if (length(variable_weights) != num_cov_orig) {
+    stop(sprintf(
+      "variable_weights must have length %d (the number of covariates)",
+      num_cov_orig
+    ))
+  }
+  if (any(variable_weights < 0)) {
+    stop("variable_weights cannot have any negative weights")
+  }
+  variable_subset_mu <- if (!is.null(keep_vars_mu) || !is.null(drop_vars_mu)) {
+    resolveVariableSubset(keep_vars_mu, drop_vars_mu, X_train_raw, "mu")
+  } else {
+    cstate$variable_subset_mu
+  }
+  variable_subset_tau <- if (
+    !is.null(keep_vars_tau) || !is.null(drop_vars_tau)
+  ) {
+    resolveVariableSubset(keep_vars_tau, drop_vars_tau, X_train_raw, "tau")
+  } else {
+    cstate$variable_subset_tau
+  }
+  variable_subset_variance <- if (
+    !is.null(keep_vars_variance) || !is.null(drop_vars_variance)
+  ) {
+    resolveVariableSubset(
+      keep_vars_variance,
+      drop_vars_variance,
+      X_train_raw,
+      "variance"
+    )
+  } else {
+    cstate$variable_subset_variance
+  }
+  include_variance_forest <- object$model_params$include_variance_forest
+  variable_weights_list <- computeBCFForestWeights(
+    variable_weights = variable_weights,
+    original_var_indices = train_set_metadata$original_var_indices,
+    variable_subset_mu = variable_subset_mu,
+    variable_subset_tau = variable_subset_tau,
+    variable_subset_variance = variable_subset_variance,
+    propensity_covariate = object$model_params$propensity_covariate,
+    ncol_propensity = ncol(X_combined) - ncol(X_train),
+    num_cov_orig = num_cov_orig,
+    include_variance_forest = include_variance_forest
+  )
+  config[["var_weights_mu"]] <- variable_weights_list$mu
+  config[["var_weights_tau"]] <- variable_weights_list$tau
+  if (include_variance_forest) {
+    config[["var_weights_variance"]] <- variable_weights_list$variance
+  }
+
+  # A model fit with a test set: continuation takes no test set, so the cached test predictions become
+  # stale. Warn; the sampler drops them (postprocess clears test predictions when no test set present).
+  if (isTRUE(object$model_params$has_test)) {
+    warning(
+      "Continuing a BCF model fit with a test set: the existing test-set predictions are stale and ",
+      "will be dropped (BCF continuation does not accept a test set)."
+    )
+  }
+
+  # Update or restore RNG state
+  override_seed <- !is.null(general_params$random_seed)
+  rng_state_in <- if (
+    !override_seed && !is.null(object$model_params$rng_state)
+  ) {
+    object$model_params$rng_state
+  } else {
+    ""
+  }
+
+  # Continue running the sampler with in-place updates to the samples object
+  bcf_samples <- object$samples
+  bcf_metadata <- bcf_continue_sample_cpp(
+    samples = bcf_samples$samples_ptr,
+    X_train = X_combined,
+    Z_train = Z_train,
+    y_train = y_train,
+    n_train = nrow(X_combined),
+    p = ncol(X_combined),
+    treatment_dim = ncol(Z_train),
+    obs_weights_train = NULL,
+    rfx_group_ids_train = if (has_rfx) rfx_group_ids_train else NULL,
+    rfx_basis_train = if (has_rfx) rfx_basis_train else NULL,
+    rfx_num_groups = as.integer(rfx_num_groups),
+    rfx_basis_dim = as.integer(rfx_basis_dim),
+    num_burnin = as.integer(num_burnin),
+    keep_every = as.integer(keep_every),
+    num_mcmc = as.integer(num_mcmc),
+    rng_state_in = rng_state_in,
+    override_seed = override_seed,
+    config_input = config
+  )
+
+  # Update model metadata
+  object$model_params$num_samples <- bcf_samples$num_samples()
+  object$model_params$num_mcmc <- object$model_params$num_mcmc + num_mcmc
+  object$model_params$rng_state <- bcf_metadata[["rng_state"]]
+
+  return(object)
 }
 
 #' @title Convert BCF Model to JSON

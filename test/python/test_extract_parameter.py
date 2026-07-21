@@ -608,13 +608,10 @@ class TestExtractRandomEffectSamples:
         return m
 
     @pytest.mark.parametrize("builder", ["_bart_rfx", "_bcf_rfx"])
-    def test_keys_and_legacy_alias(self, builder):
+    def test_keys(self, builder):
         m = getattr(self, builder)()
         out = m.extract_random_effect_samples()
         assert set(out.keys()) == {"beta_samples", "xi_samples", "alpha_samples", "sigma_samples"}
-        legacy = m.get_random_effect_samples()
-        for k in out:
-            np.testing.assert_array_equal(out[k], legacy[k])
 
     @pytest.mark.parametrize("builder", ["_bart_rfx", "_bcf_rfx"])
     def test_scaled_to_outcome_scale(self, builder):

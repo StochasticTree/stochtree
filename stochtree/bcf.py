@@ -23,12 +23,14 @@ from .serialization import (
 from .utils import (
     OutcomeModel,
     NotSampledError,
+    _compute_bcf_forest_weights,
     _expand_dims_1d,
     _expand_dims_2d,
     _expand_dims_2d_diag,
     _get_stochtree_version,
     _infer_stochtree_version,
     _posterior_predictive_heuristic_multiplier,
+    _resolve_variable_subset,
     _summarize_interval,
 )
 from stochtree_cpp import bcf_sample_cpp, bcf_continue_sample_cpp, bcf_predict_cpp, BCFSamplesCpp
@@ -1855,6 +1857,7 @@ class BCFModel:
             self.has_rfx_basis = True
             self.num_rfx_basis = rfx_basis_train.shape[1]
             num_rfx_groups = np.unique(rfx_group_ids_train).shape[0]
+            self.num_rfx_groups = num_rfx_groups
             num_rfx_components = rfx_basis_train.shape[1]
             if num_rfx_groups == 1:
                 warnings.warn(
@@ -1904,78 +1907,37 @@ class BCFModel:
                 )
                 sample_sigma2_global = False
         
-        # Update variable weights for one-hot-expanded covariates and zero out
-        # excluded variables.  Runs for both the C++ and Python sampling paths.
-        variable_counts = [original_var_indices.count(i) for i in original_var_indices]
-        variable_weights_mu_adj = [1 / i for i in variable_counts]
-        variable_weights_tau_adj = [1 / i for i in variable_counts]
-        variable_weights_variance_adj = [1 / i for i in variable_counts]
-        variable_weights_mu = (
-            variable_weights_mu[original_var_indices] * variable_weights_mu_adj
-        )
-        variable_weights_tau = (
-            variable_weights_tau[original_var_indices] * variable_weights_tau_adj
-        )
-        variable_weights_variance = (
-            variable_weights_variance[original_var_indices]
-            * variable_weights_variance_adj
-        )
+        # Preserve the raw per-original-variable weights so continue_sampling() can re-derive the
+        # per-forest weights if the user changes variable_weights / keep_vars / drop_vars.
+        variable_weights_raw = np.asarray(variable_weights, dtype=np.float64)
 
-        # Zero out weights for excluded variables
-        variable_weights_mu[
-            [variable_subset_mu.count(i) == 0 for i in original_var_indices]
-        ] = 0
-        variable_weights_tau[
-            [variable_subset_tau.count(i) == 0 for i in original_var_indices]
-        ] = 0
-        variable_weights_variance[
-            [variable_subset_variance.count(i) == 0 for i in original_var_indices]
-        ] = 0
-
-        # Append propensity score to X and update feature_types / variable weights.
-        # Runs for both the C++ and Python sampling paths.
+        # Append propensity score column(s) to X / feature_types (the per-forest weights are derived
+        # by the shared helper below). Runs for both the C++ and Python sampling paths.
+        ncol_propensity = 0
         if propensity_covariate != "none":
+            ncol_propensity = propensity_train.shape[1]
             feature_types = np.append(
-                feature_types, np.repeat(0, propensity_train.shape[1])
+                feature_types, np.repeat(0, ncol_propensity)
             ).astype("int")
             X_train_processed = np.c_[X_train_processed, propensity_train]
             if self.has_test:
                 X_test_processed = np.c_[X_test_processed, propensity_test]
-            if propensity_covariate == "prognostic":
-                variable_weights_mu = np.append(
-                    variable_weights_mu,
-                    np.repeat(1 / num_cov_orig, propensity_train.shape[1]),
-                )
-                variable_weights_tau = np.append(
-                    variable_weights_tau, np.repeat(0.0, propensity_train.shape[1])
-                )
-            elif propensity_covariate == "treatment_effect":
-                variable_weights_mu = np.append(
-                    variable_weights_mu, np.repeat(0.0, propensity_train.shape[1])
-                )
-                variable_weights_tau = np.append(
-                    variable_weights_tau,
-                    np.repeat(1 / num_cov_orig, propensity_train.shape[1]),
-                )
-            elif propensity_covariate == "both":
-                variable_weights_mu = np.append(
-                    variable_weights_mu,
-                    np.repeat(1 / num_cov_orig, propensity_train.shape[1]),
-                )
-                variable_weights_tau = np.append(
-                    variable_weights_tau,
-                    np.repeat(1 / num_cov_orig, propensity_train.shape[1]),
-                )
-            # For now, propensities are not included in the variance forest
-            variable_weights_variance = np.append(
-                variable_weights_variance, np.repeat(0.0, propensity_train.shape[1])
-            )
 
-        # Renormalize variable weights
-        variable_weights_mu = variable_weights_mu / np.sum(variable_weights_mu)
-        variable_weights_tau = variable_weights_tau / np.sum(variable_weights_tau)
-        variable_weights_variance = variable_weights_variance / np.sum(
-            variable_weights_variance
+        # Derive per-forest split-variable weights (expand across preprocessed features, append
+        # propensity columns, renormalize). Shared with continue_sampling() via the module helper.
+        (
+            variable_weights_mu,
+            variable_weights_tau,
+            variable_weights_variance,
+        ) = _compute_bcf_forest_weights(
+            variable_weights_raw,
+            original_var_indices,
+            variable_subset_mu,
+            variable_subset_tau,
+            variable_subset_variance,
+            propensity_covariate,
+            ncol_propensity,
+            num_cov_orig,
         )
 
         # Store propensity score requirements of the BCF forests
@@ -2147,6 +2109,15 @@ class BCFModel:
         # configuration (the C++ BCFConfig is reconstructed from this dict at continue-time).
         self._cached_bcf_config = bcf_config
 
+        # Cache the raw split-variable state so continue_sampling() can re-derive the per-forest
+        # weights when the user changes variable_weights / keep_vars / drop_vars.
+        self._cont_variable_weights = variable_weights_raw
+        self._cont_variable_subset_mu = variable_subset_mu
+        self._cont_variable_subset_tau = variable_subset_tau
+        self._cont_variable_subset_variance = variable_subset_variance
+        self._cont_original_var_indices = original_var_indices
+        self._cont_num_cov_orig = num_cov_orig
+
         # Convert arrays to F-contiguous (column-major) before calling C++.
         # convert_numpy_to_bart_data stores raw pointers into these arrays; if
         # pybind11 has to make a copy (wrong dtype or order) that copy is destroyed
@@ -2250,11 +2221,15 @@ class BCFModel:
         Z_train: np.array,
         y_train: np.array,
         propensity_train: np.array = None,
-        num_mcmc: int = 100,
+        rfx_group_ids_train: np.array = None,
+        rfx_basis_train: np.array = None,
         num_burnin: int = 0,
-        keep_every: int = 1,
+        num_mcmc: int = 100,
+        general_params: Optional[Dict[str, Any]] = None,
+        prognostic_forest_params: Optional[Dict[str, Any]] = None,
+        treatment_effect_forest_params: Optional[Dict[str, Any]] = None,
+        variance_forest_params: Optional[Dict[str, Any]] = None,
         observation_weights_train: Optional[np.ndarray] = None,
-        random_seed: int = None,
     ):
         """Continue (warm-start) MCMC sampling from an already-fit BCF model, appending
         additional samples to the existing posterior draws.
@@ -2263,9 +2238,17 @@ class BCFModel:
         warm-start initializes the sampler from the last retained sample so that the new
         draws form a continuous chain with the existing ones.
 
+        Changeable parameters are supplied through the same dictionaries used by
+        :meth:`sample` (``general_params`` and the three forest-parameter dictionaries). Only the
+        subset of parameters that can be changed mid-chain is honored; any others are ignored with a
+        warning. This includes the split-variable configuration: ``variable_weights`` (in
+        ``general_params``) and per-forest ``keep_vars`` / ``drop_vars``. When omitted, the fit-time
+        values are reused.
+
         .. note::
-            This is currently supported only for Gaussian (identity-link), univariate-treatment
-            models without a variance forest, random effects, or adaptive coding.
+            Supported for Gaussian (identity-link) and probit, univariate-treatment models. cloglog
+            is not supported. A model fit with a test set has its cached test predictions dropped
+            (with a warning), since continuation takes no test set.
 
         Parameters
         ----------
@@ -2278,18 +2261,32 @@ class BCFModel:
         propensity_train : np.array, optional
             Training propensity scores. Required if the model was fit with a propensity covariate
             and an internal propensity model is not available to re-derive them.
-        num_mcmc : int, optional
-            Number of additional retained MCMC samples. Defaults to ``100``.
+        rfx_group_ids_train : np.array, optional
+            Training random effects group labels (required if the model has random effects).
+        rfx_basis_train : np.array, optional
+            Training random effects basis (required for a custom random effects model).
         num_burnin : int, optional
             Number of additional burn-in iterations to discard before retaining. Defaults to ``0``.
-        keep_every : int, optional
-            Thinning interval for the additional samples. Defaults to ``1``.
+        num_mcmc : int, optional
+            Number of additional retained MCMC samples. Defaults to ``100``.
+        general_params : dict, optional
+            Changeable general parameters. Honored keys: ``random_seed``, ``keep_every``,
+            ``keep_burnin``, ``cutpoint_grid_size``, ``sigma2_global_shape``, ``sigma2_global_scale``,
+            ``num_threads``, ``verbose``, and ``variable_weights`` (per-covariate split weights; if
+            omitted, the fit-time weights are reused).
+        prognostic_forest_params : dict, optional
+            Changeable prognostic (mu) forest parameters. Honored keys: ``alpha``, ``beta``,
+            ``min_samples_leaf``, ``max_depth``, ``num_features_subsample``, ``sigma2_leaf_shape``,
+            ``sigma2_leaf_scale``, and ``keep_vars`` / ``drop_vars`` (split-variable subset; if
+            omitted, the fit-time subset is reused).
+        treatment_effect_forest_params : dict, optional
+            Changeable treatment (tau) forest parameters (same keys as ``prognostic_forest_params``).
+        variance_forest_params : dict, optional
+            Changeable variance forest parameters. Honored keys: ``alpha``, ``beta``,
+            ``min_samples_leaf``, ``max_depth``, ``num_features_subsample``, ``var_forest_prior_shape``,
+            ``var_forest_prior_scale``, and ``keep_vars`` / ``drop_vars``.
         observation_weights_train : np.array, optional
             Optional training observation weights (must match those used to fit the model).
-        random_seed : int, optional
-            If supplied, re-seeds the sampler RNG for the continued draws. By default
-            (``None``), the RNG state from the prior run is resumed, so the continued chain
-            is bit-identical to a single run of the combined length.
 
         Returns
         -------
@@ -2297,21 +2294,9 @@ class BCFModel:
         """
         if not getattr(self, "sampled", False):
             raise RuntimeError("Cannot continue sampling: this model has not been sampled yet")
-        if self.include_variance_forest:
-            raise NotImplementedError(
-                "Continued sampling is not yet supported for models with a variance forest"
-            )
-        if getattr(self, "has_rfx", False):
-            raise NotImplementedError(
-                "Continued sampling is not yet supported for models with random effects"
-            )
-        if self.multivariate_treatment:
-            raise NotImplementedError(
-                "Continued sampling is not yet supported for multivariate treatment effects"
-            )
-        if self.adaptive_coding:
-            raise NotImplementedError(
-                "Continued sampling is not yet supported for adaptive coding"
+        if getattr(self, "has_rfx", False) and rfx_group_ids_train is None:
+            raise ValueError(
+                "This model was fit with random effects; rfx_group_ids_train must be supplied to continue sampling"
             )
         cfg = getattr(self, "_cached_bcf_config", None)
         if cfg is None:
@@ -2319,14 +2304,102 @@ class BCFModel:
                 "Cannot continue sampling: cached sampler configuration is unavailable "
                 "(continuation is not supported for deserialized models yet)"
             )
-        if cfg.get("link_function", 0) != 0:
+        # Probit continuation is supported; BCF does not support cloglog at all.
+        if cfg.get("link_function", 0) == 2:
             raise NotImplementedError(
-                "Continued sampling is not yet supported for probit or cloglog link functions"
+                "Continued sampling is not yet supported for cloglog link functions"
             )
+        if getattr(self, "_cont_variable_weights", None) is None:
+            raise RuntimeError(
+                "Cannot continue sampling: cached continuation state is unavailable for this model."
+            )
+
+        # Update changeable model params
+        general_params = dict(general_params) if general_params else {}
+        prognostic_forest_params = (
+            dict(prognostic_forest_params) if prognostic_forest_params else {}
+        )
+        treatment_effect_forest_params = (
+            dict(treatment_effect_forest_params) if treatment_effect_forest_params else {}
+        )
+        variance_forest_params = dict(variance_forest_params) if variance_forest_params else {}
+
+        # keep_every / random_seed / variable_weights / keep_vars / drop_vars are handled specially
+        # (not overlaid as raw config keys), so pull them out before the overlay so they are not
+        # flagged as unchangeable.
+        keep_every = general_params.pop("keep_every", 1)
+        random_seed = general_params.pop("random_seed", None)
+        user_variable_weights = general_params.pop("variable_weights", None)
+        keep_vars_mu = prognostic_forest_params.pop("keep_vars", None)
+        drop_vars_mu = prognostic_forest_params.pop("drop_vars", None)
+        keep_vars_tau = treatment_effect_forest_params.pop("keep_vars", None)
+        drop_vars_tau = treatment_effect_forest_params.pop("drop_vars", None)
+        keep_vars_variance = variance_forest_params.pop("keep_vars", None)
+        drop_vars_variance = variance_forest_params.pop("drop_vars", None)
+
+        general_map = {
+            "keep_burnin": "keep_burnin",
+            "cutpoint_grid_size": "cutpoint_grid_size",
+            "sigma2_global_shape": "a_sigma2_global",
+            "sigma2_global_scale": "b_sigma2_global",
+            "num_threads": "num_threads",
+            "verbose": "verbose",
+        }
+        prognostic_map = {
+            "alpha": "alpha_mu",
+            "beta": "beta_mu",
+            "min_samples_leaf": "min_samples_leaf_mu",
+            "max_depth": "max_depth_mu",
+            "num_features_subsample": "num_features_subsample_mu",
+            "sigma2_leaf_shape": "a_sigma2_mu",
+            "sigma2_leaf_scale": "b_sigma2_mu",
+        }
+        treatment_map = {
+            "alpha": "alpha_tau",
+            "beta": "beta_tau",
+            "min_samples_leaf": "min_samples_leaf_tau",
+            "max_depth": "max_depth_tau",
+            "num_features_subsample": "num_features_subsample_tau",
+            "sigma2_leaf_shape": "a_sigma2_tau",
+            "sigma2_leaf_scale": "b_sigma2_tau",
+        }
+        variance_map = {
+            "alpha": "alpha_variance",
+            "beta": "beta_variance",
+            "min_samples_leaf": "min_samples_leaf_variance",
+            "max_depth": "max_depth_variance",
+            "num_features_subsample": "num_features_subsample_variance",
+            "var_forest_prior_shape": "shape_variance_forest",
+            "var_forest_prior_scale": "scale_variance_forest",
+        }
+
+        config = dict(cfg)
+
+        def overlay(user_params, mapping, list_name):
+            if not user_params:
+                return
+            unknown = [k for k in user_params if k not in mapping]
+            if unknown:
+                warnings.warn(
+                    f"The following {list_name} cannot be changed on continuation and will be "
+                    f"ignored: {', '.join(unknown)}",
+                    UserWarning,
+                )
+            for key, val in user_params.items():
+                if key in mapping and val is not None:
+                    config[mapping[key]] = val
+
+        overlay(general_params, general_map, "general_params")
+        overlay(prognostic_forest_params, prognostic_map, "prognostic_forest_params")
+        overlay(
+            treatment_effect_forest_params, treatment_map, "treatment_effect_forest_params"
+        )
+        overlay(variance_forest_params, variance_map, "variance_forest_params")
 
         # Reconstruct the covariate matrix exactly as sample() did: preprocess, then append the
         # propensity score column(s) if the model uses a propensity covariate.
         X_train_processed = self._covariate_preprocessor.transform(X_train).astype(np.float64)
+        ncol_propensity = 0
         if getattr(self, "propensity_covariate", "none") != "none":
             if propensity_train is None:
                 if getattr(self, "internal_propensity_model", False) and hasattr(
@@ -2346,7 +2419,56 @@ class BCFModel:
                 propensity_train = np.atleast_2d(propensity_train)
                 if propensity_train.shape[0] == 1 and propensity_train.shape[1] != 1:
                     propensity_train = propensity_train.T
+            ncol_propensity = propensity_train.shape[1]
             X_train_processed = np.c_[X_train_processed, propensity_train]
+
+        # If the user overrode variable_weights / keep_vars / drop_vars for any forest, recompute that
+        # forest's weights; otherwise reuse the cached fit-time values. The full BCF weight pipeline
+        # (expand across preprocessed features, append propensity columns, renormalize) is shared with
+        # sample() via _compute_bcf_forest_weights().
+        num_cov_orig = self._cont_num_cov_orig
+        variable_weights = (
+            user_variable_weights
+            if user_variable_weights is not None
+            else self._cont_variable_weights
+        )
+        variable_weights = np.asarray(variable_weights, dtype=np.float64).reshape(-1)
+        if variable_weights.shape[0] != num_cov_orig:
+            raise ValueError(
+                f"variable_weights must have length {num_cov_orig} (the number of covariates)"
+            )
+        if np.any(variable_weights < 0):
+            raise ValueError("variable_weights cannot have any negative weights")
+        variable_subset_mu = (
+            _resolve_variable_subset(keep_vars_mu, drop_vars_mu, X_train, "mu")
+            if (keep_vars_mu is not None or drop_vars_mu is not None)
+            else self._cont_variable_subset_mu
+        )
+        variable_subset_tau = (
+            _resolve_variable_subset(keep_vars_tau, drop_vars_tau, X_train, "tau")
+            if (keep_vars_tau is not None or drop_vars_tau is not None)
+            else self._cont_variable_subset_tau
+        )
+        variable_subset_variance = (
+            _resolve_variable_subset(
+                keep_vars_variance, drop_vars_variance, X_train, "variance"
+            )
+            if (keep_vars_variance is not None or drop_vars_variance is not None)
+            else self._cont_variable_subset_variance
+        )
+        vw_mu, vw_tau, vw_var = _compute_bcf_forest_weights(
+            variable_weights,
+            self._cont_original_var_indices,
+            variable_subset_mu,
+            variable_subset_tau,
+            variable_subset_variance,
+            getattr(self, "propensity_covariate", "none"),
+            ncol_propensity,
+            num_cov_orig,
+        )
+        config["var_weights_mu"] = vw_mu
+        config["var_weights_tau"] = vw_tau
+        config["var_weights_variance"] = vw_var
 
         y_train = np.asarray(y_train).astype(np.float64).reshape(-1)
         if X_train_processed.shape[0] != y_train.shape[0]:
@@ -2363,16 +2485,41 @@ class BCFModel:
         Z_train_cpp = np.asfortranarray(Z_train.astype(np.float64))
         y_train_cpp = np.asfortranarray(y_train)
 
+        # Re-supplied random effects data. The C++ warm-start preserves the model's existing rfx
+        # container / label mapper and restores the last sample; the re-supplied group ids must match
+        # the fitted groups. A non-custom spec (intercept_only / intercept_plus_treatment) dispatches
+        # the basis internally in C++, so rfx_basis_train may be None there.
+        rfx_group_ids_cpp = None
+        rfx_basis_cpp = None
+        rfx_num_groups = 0
+        rfx_basis_dim = 0
+        if self.has_rfx:
+            rfx_group_ids_cpp = np.asarray(rfx_group_ids_train).astype(np.int32).reshape(-1)
+            rfx_num_groups = int(self.num_rfx_groups)
+            rfx_basis_dim = int(self.num_rfx_basis)
+            if rfx_basis_train is not None:
+                rfx_basis_cpp = np.asfortranarray(np.atleast_2d(rfx_basis_train).astype(np.float64))
+
         # If the user supplies a new seed, override the cached RNG state.
         override_seed = random_seed is not None
         if override_seed:
-            cfg = dict(cfg)
-            cfg["random_seed"] = random_seed
+            config["random_seed"] = random_seed
         rng_state_in = (
             self.rng_state
             if (not override_seed and getattr(self, "rng_state", None) is not None)
             else ""
         )
+
+        # BCF continuation does not accept a test set, so if the model was fit with one its cached
+        # test predictions become stale on continuation (they cover only the pre-continuation draws).
+        # The sampler drops them (postprocess clears test predictions when no test set is present); warn
+        # and reset the test flags below so the y_hat_test / sigma2_x_test properties reflect that.
+        if getattr(self, "has_test", False):
+            warnings.warn(
+                "Continuing a BCF model that was fit with a test set: the existing test-set predictions "
+                "are stale and will be dropped (BCF continuation does not accept a test set).",
+                UserWarning,
+            )
 
         # Modify the stored samples in place by taking more draws from the posterior
         bcf_metadata = bcf_continue_sample_cpp(
@@ -2386,17 +2533,24 @@ class BCFModel:
             obs_weights_train=observation_weights_train
             if observation_weights_train is not None
             else None,
+            rfx_group_ids_train=rfx_group_ids_cpp,
+            rfx_basis_train=rfx_basis_cpp,
+            rfx_num_groups=rfx_num_groups,
+            rfx_basis_dim=rfx_basis_dim,
             num_burnin=num_burnin,
             keep_every=keep_every,
             num_mcmc=num_mcmc,
             rng_state_in=rng_state_in,
             override_seed=override_seed,
-            config_input=cfg,
+            config_input=config,
         )
 
         self.num_mcmc = (self.num_mcmc or 0) + num_mcmc
         # Store the new RNG state
         self.rng_state = bcf_metadata.get("rng_state", None)
+        # The sampler cleared any stale test-prediction trace; reflect that in the test flags.
+        self.has_test = False
+        self.n_test = 0
 
         return self
 

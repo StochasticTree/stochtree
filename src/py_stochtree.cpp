@@ -1814,8 +1814,13 @@ class JsonCpp {
     if (forest_label.empty()) {
       forest_label = "forest_" + std::to_string(forest_num);
     }
-    nlohmann::json forest_json = forest_samples.ToJson();
-    json_->at("forests").emplace(forest_label, forest_json);
+    // Reject a duplicate label before any mutation/serialization: nlohmann's emplace would silently
+    // no-op on an existing key while num_forests still incremented, dropping the forest and desyncing
+    // the count from the actual key set.
+    if (json_->at("forests").contains(forest_label)) {
+      StochTree::Log::Fatal("A forest with label '%s' already exists; forest labels must be unique", forest_label.c_str());
+    }
+    json_->at("forests")[forest_label] = forest_samples.ToJson();
     json_->at("num_forests") = forest_num + 1;
     return forest_label;
   }
@@ -2866,6 +2871,10 @@ py::dict bart_continue_sample_cpp(
     bart_sampler.SetRngState(rng_state_in);
   }
 
+  // Probit warm-start: regenerate the (unpersisted) latent outcome now that the RNG is positioned at
+  // the resumed/re-seeded stream, so the first continued draw starts from a valid stationary state.
+  bart_sampler.RegenerateProbitLatent(bart_samples);
+
   // Optionally append GFR (grow-from-root) warm-start draws, then MCMC draws, then post-process only
   // the newly appended range. num_gfr defaults to 0 (MCMC-only append); when > 0, keep_gfr controls
   // whether those draws are retained (TRUE = extend the chain, e.g. 25 -> 40 warm-start samples;
@@ -3596,6 +3605,10 @@ py::dict bcf_continue_sample_cpp(
     int p,
     int treatment_dim,
     py::object obs_weights_train,
+    py::object rfx_group_ids_train,
+    py::object rfx_basis_train,
+    int rfx_num_groups,
+    int rfx_basis_dim,
     int num_burnin,
     int keep_every,
     int num_mcmc,
@@ -3610,9 +3623,9 @@ py::dict bcf_continue_sample_cpp(
   StochTree::BCFData bcf_data = convert_numpy_to_bcf_data(
       X_train, Z_train, y_train, /*X_test=*/py::none(), /*Z_test=*/py::none(),
       n_train, /*n_test=*/0, p, treatment_dim, obs_weights_train, /*obs_weights_test=*/py::none(),
-      /*rfx_group_ids_train=*/py::none(), /*rfx_group_ids_test=*/py::none(),
-      /*rfx_basis_train=*/py::none(), /*rfx_basis_test=*/py::none(),
-      /*rfx_num_groups=*/0, /*rfx_basis_dim=*/0);
+      rfx_group_ids_train, /*rfx_group_ids_test=*/py::none(),
+      rfx_basis_train, /*rfx_basis_test=*/py::none(),
+      rfx_num_groups, rfx_basis_dim);
 
   // Continuation appends new MCMC draws in place onto the model's single-owner samples object,
   // mirroring the R sampler. The warm-start reads the last retained forest + scalar state directly
@@ -3629,6 +3642,10 @@ py::dict bcf_continue_sample_cpp(
   if (!override_seed && !rng_state_in.empty()) {
     bcf_sampler.SetRngState(rng_state_in);
   }
+
+  // Probit warm-start: regenerate the (unpersisted) latent outcome now that the RNG is positioned at
+  // the resumed/re-seeded stream, so the first continued draw starts from a valid stationary state.
+  bcf_sampler.RegenerateProbitLatent(bcf_samples);
 
   // Append new MCMC samples (continuation does not run GFR), then post-process only the new range.
   bcf_sampler.run_mcmc(bcf_samples, num_burnin, keep_every, num_mcmc);
@@ -3949,6 +3966,10 @@ PYBIND11_MODULE(stochtree_cpp, m) {
         py::arg("p"),
         py::arg("treatment_dim"),
         py::arg("obs_weights_train") = py::none(),
+        py::arg("rfx_group_ids_train") = py::none(),
+        py::arg("rfx_basis_train") = py::none(),
+        py::arg("rfx_num_groups") = 0,
+        py::arg("rfx_basis_dim") = 0,
         py::arg("num_burnin"),
         py::arg("keep_every"),
         py::arg("num_mcmc"),

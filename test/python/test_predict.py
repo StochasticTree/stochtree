@@ -586,6 +586,34 @@ class TestPredict:
         expected_y_no_int = bcf_no_intercept.mu_hat_test + Z_test[:, None] * bcf_no_intercept.tau_hat_test
         np.testing.assert_allclose(bcf_no_intercept.y_hat_test, expected_y_no_int)
 
+    def test_bcf_tau_0_reported_in_original_scale(self):
+        """tau_0_samples is stored/reported in the original outcome scale, mirroring sigma2_global
+        and the other parametric terms. The sampler is scale-equivariant under a fixed seed, so
+        scaling y by c scales an original-scale tau_0 by ~c; a standardized-scale tau_0 (the pre-fix
+        behavior) would instead be invariant to the outcome scale."""
+        rng = np.random.default_rng(7)
+        n, p = 200, 5
+        X = rng.uniform(size=(n, p))
+        pi_x = 0.4 + 0.2 * X[:, 0]
+        Z = rng.binomial(1, pi_x).astype(float)
+        # Strong constant treatment intercept so tau_0's posterior mean is clearly non-zero.
+        y = (1 + 2 * X[:, 0]) + (5 + X[:, 1]) * Z + rng.normal(size=n)
+
+        def fit_tau0_mean(scale):
+            m = BCFModel()
+            m.sample(
+                X_train=X, Z_train=Z, y_train=scale * y, propensity_train=pi_x,
+                num_gfr=0, num_burnin=10, num_mcmc=40,
+                general_params={"random_seed": 1234},
+            )
+            return float(np.mean(np.asarray(m.tau_0_samples)))
+
+        t1 = fit_tau0_mean(1.0)
+        t10 = fit_tau0_mean(10.0)
+        assert abs(t1) > 0.5  # clear non-zero treatment intercept
+        # Original scale => ratio ~10; standardized storage (the bug) => ratio ~1.
+        assert 7.0 < t10 / t1 < 13.0, (t1, t10)
+
     def test_bart_cloglog_binary_interval_and_contrast(self):
         # Generate binary cloglog data
         rng = np.random.default_rng(42)

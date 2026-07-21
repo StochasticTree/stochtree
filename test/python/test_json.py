@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from stochtree import (
     RNG,
@@ -153,6 +154,29 @@ class TestJson:
         np.testing.assert_almost_equal(
             forest_preds_y_mcmc_retrieved, forest_preds_json_reload
         )
+
+    def test_add_forest_rejects_duplicate_label(self):
+        # RNG
+        random_seed = 1234
+        rng = np.random.default_rng(random_seed)
+
+        # Generate covariates and basis
+        n = 100
+        p_X = 5
+        X = rng.uniform(0, 1, (n, p_X))
+        f_XW = 5 * X[:, 0] + rng.normal(0, 0.1, n)
+        y = f_XW + rng.normal(0, 0.5, n)
+
+        bart_model = BARTModel()
+        bart_model.sample(X_train=X, y_train=y, num_gfr=5, num_mcmc=5)
+
+        json_test = JSONSerializer()
+        json_test.add_forest(bart_model.extract_forest("mean"), forest_label="my_forest")
+        # A second forest under the same label must be rejected rather than silently dropped.
+        with pytest.raises(RuntimeError):
+            json_test.add_forest(
+                bart_model.extract_forest("mean"), forest_label="my_forest"
+            )
 
     def test_forest_string(self):
         # RNG

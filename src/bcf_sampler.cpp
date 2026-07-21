@@ -62,28 +62,6 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
     Log::Fatal("Ordinal outcome type is not currently supported in BCF");
   }
 
-  // Continued sampling currently supports only the basic Gaussian, identity-link,
-  // univariate-treatment case; reject configurations whose warm-start init is not yet
-  // implemented so that unsupported continuations fail loudly rather than silently
-  // re-initializing from root.
-  if (continuation) {
-    if (config_.num_trees_variance > 0) {
-      Log::Fatal("Continued sampling is not yet supported for models with a variance forest");
-    }
-    if (config_.has_random_effects) {
-      Log::Fatal("Continued sampling is not yet supported for models with random effects");
-    }
-    if (config_.link_function != LinkFunction::Identity) {
-      Log::Fatal("Continued sampling is not yet supported for probit or cloglog link functions");
-    }
-    if (config_.adaptive_coding) {
-      Log::Fatal("Continued sampling is not yet supported for adaptive coding");
-    }
-    if (data_.treatment_dim != 1 || config_.tau_leaf_model_type != MeanLeafModelType::GaussianUnivariateRegression) {
-      Log::Fatal("Continued sampling is not yet supported for multivariate treatment effects");
-    }
-  }
-
   // Switch off treatment forest leaf scale sampling if treatment is multivariate
   if (config_.sample_sigma2_leaf_tau && config_.tau_leaf_model_type != MeanLeafModelType::GaussianUnivariateRegression) {
     Log::Info("sample_sigma2_leaf_tau can only be true when tau_leaf_model_type is GaussianUnivariateRegression, setting sample_sigma2_leaf_tau to false");
@@ -96,8 +74,15 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
       Log::Fatal("Adaptive coding is currently only supported for binary treatments (treatment_dim=1)");
     }
     adaptive_coding_ = true;
-    b_0_ = config_.b_0_init;
-    b_1_ = config_.b_1_init;
+    // On continuation, warm-start b0/b1 from the last retained sample (stored raw; postprocess does
+    // not touch them) so the adaptive basis built below + the tau-forest warm-start use them.
+    if (continuation && !samples.b0_samples.empty()) {
+      b_0_ = samples.b0_samples.back();
+      b_1_ = samples.b1_samples.back();
+    } else {
+      b_0_ = config_.b_0_init;
+      b_1_ = config_.b_1_init;
+    }
   }
 
   // Load data from BARTData object into ForestDataset object
@@ -333,12 +318,23 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
     }
   } else if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
     tau_forest_ = std::make_unique<TreeEnsemble>(config_.num_trees_tau, config_.leaf_dim_tau, config_.leaf_constant_tau, config_.exponentiated_leaf_tau);
-    samples.tau_forests = std::make_unique<ForestContainer>(config_.num_trees_tau, config_.leaf_dim_tau, config_.leaf_constant_tau, config_.exponentiated_leaf_tau);
+    // On continuation, preserve the existing sample container (append new draws).
+    if (!continuation) {
+      samples.tau_forests = std::make_unique<ForestContainer>(config_.num_trees_tau, config_.leaf_dim_tau, config_.leaf_constant_tau, config_.exponentiated_leaf_tau);
+    }
     tau_forest_tracker_ = std::make_unique<ForestTracker>(forest_dataset_->GetCovariates(), config_.feature_types, config_.num_trees_tau, data_.n_train);
     tree_prior_tau_ = std::make_unique<TreePrior>(config_.alpha_tau, config_.beta_tau, config_.min_samples_leaf_tau, config_.max_depth_tau);
     tau_forest_->SetLeafVector(init_val_tau_vec_);
     UpdateResidualEntireForest(*tau_forest_tracker_, *forest_dataset_, *residual_, tau_forest_.get(), true, std::minus<double>());
     tau_forest_tracker_->UpdatePredictions(tau_forest_.get(), *forest_dataset_.get());
+    if (continuation) {
+      // Warm-start the multivariate treatment forest from the last retained sample.
+      int last_tau_idx = samples.tau_forests->NumSamples() - 1;
+      TreeEnsemble& last_tau = *samples.tau_forests->GetEnsemble(last_tau_idx);
+      tau_forest_->ReconstituteFromForest(last_tau);
+      tau_forest_tracker_->ReconstituteFromForest(last_tau, *forest_dataset_, *residual_, true);
+      tau_forest_tracker_->UpdatePredictions(tau_forest_.get(), *forest_dataset_.get());
+    }
   } else {
     Log::Fatal("Unsupported leaf model type for treatment forest");
   }
@@ -347,7 +343,10 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
   if (config_.num_trees_variance > 0) {
     variance_leaf_model_ = LogLinearVarianceLeafModel(config_.shape_variance_forest, config_.scale_variance_forest);
     variance_forest_ = std::make_unique<TreeEnsemble>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
-    samples.variance_forests = std::make_unique<ForestContainer>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
+    // On continuation, preserve the existing sample container so new draws append to it.
+    if (!continuation) {
+      samples.variance_forests = std::make_unique<ForestContainer>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
+    }
     variance_forest_tracker_ = std::make_unique<ForestTracker>(forest_dataset_->GetCovariates(), config_.feature_types, config_.num_trees_variance, data_.n_train);
     tree_prior_variance_ = std::make_unique<TreePrior>(config_.alpha_variance, config_.beta_variance, config_.min_samples_leaf_variance, config_.max_depth_variance);
     // Leaf values for the log-linear variance model are on the log scale; the ensemble sums
@@ -366,6 +365,16 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
     std::vector<double> initial_variance_preds(data_.n_train, init_val_variance_);
     forest_dataset_->AddVarianceWeights(initial_variance_preds.data(), data_.n_train);
     has_variance_forest_ = true;
+    // Continuation: warm-start the active variance forest from the last retained sample. The
+    // reconstitution (is_mean_model=false) swaps the flat-init leaves out of the variance-weight
+    // slot and the last forest's leaves in, so the slot lands at exp(sum of last-forest leaves) =
+    // the last sample's per-observation variance prediction. Mirrors the mu/tau warm-start + BART.
+    if (continuation) {
+      int last_var_idx = samples.variance_forests->NumSamples() - 1;
+      TreeEnsemble& last_variance_forest = *samples.variance_forests->GetEnsemble(last_var_idx);
+      variance_forest_->ReconstituteFromForest(last_variance_forest);
+      variance_forest_tracker_->ReconstituteFromForest(last_variance_forest, *forest_dataset_, *residual_, /*is_mean_model=*/false);
+    }
   }
 
   // Global error variance model
@@ -437,10 +446,13 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
     }
     // Tracking data structure for random effects groups
     random_effects_tracker_ = std::make_unique<RandomEffectsTracker>(data_.rfx_group_ids_train, data_.n_train);
-    // Container of random effects samples
-    samples.rfx_container = std::make_unique<RandomEffectsContainer>(data_.rfx_basis_dim, data_.rfx_num_groups);
-    // Mapping from RFX labels to 0-indexed group IDs for efficient lookup in the sampler; populated from the RFX dataset group labels
-    samples.rfx_label_mapper = std::make_unique<LabelMapper>(random_effects_tracker_->GetLabelMap());
+    // Container of random effects samples + label mapper. On continuation these already exist on the
+    // samples object (from the prior run); preserve them so new draws append to the existing container.
+    if (!continuation) {
+      samples.rfx_container = std::make_unique<RandomEffectsContainer>(data_.rfx_basis_dim, data_.rfx_num_groups);
+      // Mapping from RFX labels to 0-indexed group IDs for efficient lookup in the sampler; populated from the RFX dataset group labels
+      samples.rfx_label_mapper = std::make_unique<LabelMapper>(random_effects_tracker_->GetLabelMap());
+    }
 
     // Initialize random effects model object
     random_effects_model_ = std::make_unique<MultivariateRegressionRandomEffectsModel>(data_.rfx_basis_dim, data_.rfx_num_groups);
@@ -513,6 +525,17 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
 
     // Set has_random_effects_ flag to true so that the sampler will perform random effects updates at each iteration
     has_random_effects_ = true;
+
+    // Continuation: warm-start the rfx model from the last retained sample. ResetFromSample restores
+    // the SAMPLED state (working parameter alpha, group parameters xi, group-parameter covariance
+    // sigma) from the persisted container; the FIXED priors were just set above from config. The
+    // tracker ResetFromSample then swaps the last sample's rfx contribution into the residual.
+    // Mirrors BART + BCF RestoreStateFromGFRSnapshot.
+    if (continuation) {
+      int last_rfx_idx = samples.rfx_container->NumSamples() - 1;
+      random_effects_model_->ResetFromSample(*samples.rfx_container, last_rfx_idx);
+      random_effects_tracker_->ResetFromSample(*random_effects_model_, *random_effects_dataset_, *residual_);
+    }
   }
 
   // RNG
@@ -549,13 +572,31 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
     // After the forest warm-starts above, residual_ = y_std - mu_last - Z*tau_last; the one-shot
     // sampler additionally carries -Z*tau_0_last at the start of the next iteration.
     if (sample_tau_0_ && !samples.tau_0_samples.empty()) {
-      tau_0_scalar_ = samples.tau_0_samples.back() / samples.y_std;  // stored x y_std -> standardized
       double* resid_ptr = residual_->GetData().data();
-      const double* basis = data_.treatment_train;  // adaptive coding is guarded off for continuation
-      for (int i = 0; i < data_.n_train; i++) {
-        resid_ptr[i] -= tau_0_scalar_ * basis[i];
+      if (data_.treatment_dim == 1) {
+        tau_0_scalar_ = samples.tau_0_samples.back() / samples.y_std;  // stored x y_std -> standardized
+        const double* basis = adaptive_coding_ ? tau_basis_vector_train_.data() : data_.treatment_train;
+        for (int i = 0; i < data_.n_train; i++) {
+          resid_ptr[i] -= tau_0_scalar_ * basis[i];
+        }
+      } else {
+        // Multivariate treatment: the last sample is the final treatment_dim block (col-major),
+        // stored x y_std. Adaptive coding is binary-only, so the basis is the raw treatment here.
+        const int last = samples.num_samples - 1;
+        tau_0_vector_.resize(data_.treatment_dim);
+        for (int k = 0; k < data_.treatment_dim; k++) {
+          tau_0_vector_[k] = samples.tau_0_samples[last * data_.treatment_dim + k] / samples.y_std;
+        }
+        for (int i = 0; i < data_.n_train; i++) {
+          for (int k = 0; k < data_.treatment_dim; k++) {
+            resid_ptr[i] -= data_.treatment_train[k * data_.n_train + i] * tau_0_vector_[k];
+          }
+        }
       }
     }
+    // Probit continuation: the latent outcome is not persisted (re-drawn each iteration). Its
+    // regeneration is deferred to RegenerateProbitLatent(), which the wrappers call AFTER SetRngState
+    // so the draw comes from the resumed (or user-re-seeded) stream rather than this pre-seed RNG.
   } else {
     global_variance_ = config_.sigma2_global_init;
     leaf_scale_mu_ = config_.sigma2_mu_init;
@@ -566,6 +607,33 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
   tau_raw_sum_preds_.assign(data_.n_train * data_.treatment_dim, 0.0);
 
   initialized_ = true;
+}
+
+void BCFSampler::RegenerateProbitLatent(BCFSamples& samples) {
+  // No-op unless this is a probit model. Called by the continuation wrappers after SetRngState so the
+  // fresh latent draw comes from the resumed (or user-re-seeded) stream. Regenerates the latent from
+  // (y, warm-started model predictions mu + Z*tau + rfx + tau_0*Z), exactly as one MCMC iteration
+  // does, placing the residual in a valid, stationary state before the first continued draw (which is
+  // retained when num_burnin == 0).
+  if (config_.link_function != LinkFunction::Probit) return;
+  AddModelTermsForProbit(model_preds_.data(), mu_forest_tracker_.get(), tau_forest_tracker_.get(),
+                         has_random_effects_ ? random_effects_tracker_.get() : nullptr, data_.n_train);
+  if (sample_tau_0_) {
+    if (data_.treatment_dim > 1) {
+      for (int i = 0; i < data_.n_train; i++) {
+        for (int k = 0; k < data_.treatment_dim; k++) {
+          model_preds_[i] += data_.treatment_train[data_.n_train * k + i] * tau_0_vector_[k];
+        }
+      }
+    } else {
+      const double* treatment_ptr = adaptive_coding_ ? tau_basis_vector_train_.data() : data_.treatment_train;
+      for (int i = 0; i < data_.n_train; i++) {
+        model_preds_[i] += tau_0_scalar_ * treatment_ptr[i];
+      }
+    }
+  }
+  sample_probit_latent_outcome(rng_, outcome_raw_->GetData().data(), model_preds_.data(),
+                               residual_->GetData().data(), samples.y_bar, data_.n_train);
 }
 
 void BCFSampler::run_gfr(BCFSamples& samples, int num_gfr, bool keep_gfr, int num_chains) {
@@ -699,6 +767,8 @@ void BCFSampler::postprocess_samples(BCFSamples& samples, int start_sample) {
     // Add tau_0 to the treatment effect function predictions if it was sampled.
     // tau_0_samples layout: col-major (treatment dim k, sample j) -> j * treatment_dim + k.
     // For treatment_dim==1 this collapses to samples.tau_0_samples[j].
+    // NOTE: this runs BEFORE tau_0_samples is scaled to the original outcome scale below, so the
+    // values here are still standardized -- matching the standardized tau_predictions from PredictRaw.
     if (sample_tau_0_) {
       const int treatment_dim = data_.treatment_dim;
       for (int j = 0; j < samples.num_samples; j++) {
@@ -787,6 +857,16 @@ void BCFSampler::postprocess_samples(BCFSamples& samples, int start_sample) {
         samples.y_hat_test[k] = y_term * samples.y_std + samples.y_bar;
       }
     }
+  } else if (!has_test_) {
+    // No test set for this run (e.g. a continuation that did not re-supply a test set). Any test
+    // predictions still on the samples object are from a prior run and are now stale (they cover
+    // only the pre-continuation draws), so drop them. num_test was already reset in InitializeState.
+    // (On an initial run without a test set these are already empty, so this is a no-op.)
+    samples.mu_forest_predictions_test.clear();
+    samples.tau_forest_predictions_test.clear();
+    samples.variance_forest_predictions_test.clear();
+    samples.rfx_predictions_test.clear();
+    samples.y_hat_test.clear();
   }
 
   // Convert variance forest predictions and global error variance from
@@ -804,12 +884,22 @@ void BCFSampler::postprocess_samples(BCFSamples& samples, int start_sample) {
     double y_std2 = samples.y_std * samples.y_std;
     for (size_t i = train_off; i < samples.variance_forest_predictions_train.size(); i++)
       samples.variance_forest_predictions_train[i] = std::exp(samples.variance_forest_predictions_train[i]) * y_std2;
-    for (double& v : samples.variance_forest_predictions_test)  v *= y_std2;
+    for (double& v : samples.variance_forest_predictions_test) v *= y_std2;
   }
   if (sample_sigma2_global_) {
     double y_std2 = samples.y_std * samples.y_std;
     for (size_t i = static_cast<size_t>(start_sample); i < samples.global_error_variance_samples.size(); i++)
       samples.global_error_variance_samples[i] *= y_std2;
+  }
+  // Treatment intercept tau_0 is sampled in standardized space; scale it to the original outcome
+  // scale for storage/readers, mirroring sigma2_global above and the other parametric terms (and the
+  // R main-branch convention). predict() and the continuation warm-start convert it back to
+  // standardized as needed. Runs after the test-prediction block above, which consumes the still-
+  // standardized values. Layout is col-major (sample j, treatment dim k) -> j * treatment_dim + k.
+  if (sample_tau_0_) {
+    const size_t tau0_off = static_cast<size_t>(start_sample) * static_cast<size_t>(treatment_dim);
+    for (size_t i = tau0_off; i < samples.tau_0_samples.size(); i++)
+      samples.tau_0_samples[i] *= samples.y_std;
   }
 
   // Convert the cached prognostic / treatment-effect / random-effects predictions from standardized
@@ -820,14 +910,14 @@ void BCFSampler::postprocess_samples(BCFSamples& samples, int start_sample) {
   // were already placed on the original scale above, computed from these caches while still standardized.
   for (size_t i = train_off; i < samples.mu_forest_predictions_train.size(); i++)
     samples.mu_forest_predictions_train[i] = samples.mu_forest_predictions_train[i] * samples.y_std + samples.y_bar;
-  for (double& v : samples.mu_forest_predictions_test)  v = v * samples.y_std + samples.y_bar;
+  for (double& v : samples.mu_forest_predictions_test) v = v * samples.y_std + samples.y_bar;
   for (size_t i = tau_train_off; i < samples.tau_forest_predictions_train.size(); i++)
     samples.tau_forest_predictions_train[i] *= samples.y_std;
-  for (double& v : samples.tau_forest_predictions_test)  v *= samples.y_std;
+  for (double& v : samples.tau_forest_predictions_test) v *= samples.y_std;
   if (has_random_effects_) {
     for (size_t i = train_off; i < samples.rfx_predictions_train.size(); i++)
       samples.rfx_predictions_train[i] *= samples.y_std;
-    for (double& v : samples.rfx_predictions_test)  v *= samples.y_std;
+    for (double& v : samples.rfx_predictions_test) v *= samples.y_std;
   }
 }
 

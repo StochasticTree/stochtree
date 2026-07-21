@@ -3,6 +3,7 @@ import json
 import math
 
 import numpy as np
+import pandas as pd
 
 
 def _get_stochtree_version() -> str:
@@ -535,3 +536,123 @@ def _compute_sample_dim(predictions: np.ndarray, num_samples: int) -> int:
             "No posterior dimension was found that matches the number of posterior draws"
         )
     return matches[0]
+
+
+def _resolve_variable_subset(keep_vars, drop_vars, X_train, forest_label):
+    """Resolve keep_vars / drop_vars to a list of 0-indexed original covariate indices.
+
+    Mirrors the R ``resolveVariableSubset()``. ``X_train`` is the raw (un-preprocessed) covariate
+    frame/array, so name-based selections resolve against the original column names. ``keep_vars``
+    takes precedence over ``drop_vars``; if both are ``None`` every covariate is included.
+    """
+    ncov = X_train.shape[1]
+    columns = list(X_train.columns) if isinstance(X_train, pd.DataFrame) else None
+
+    def to_indices(vars_, kind):
+        arr = vars_.tolist() if isinstance(vars_, np.ndarray) else list(vars_)
+        if len(arr) == 0:
+            return []
+        if all(isinstance(i, str) or isinstance(i, np.str_) for i in arr):
+            if columns is None:
+                raise ValueError(
+                    f"{kind}_{forest_label} was given variable names, but X_train has no column names"
+                )
+            requested = set(str(v) for v in arr)
+            missing = [v for v in requested if v not in columns]
+            if missing:
+                raise ValueError(
+                    f"{kind}_{forest_label} includes some variable names that are not in X_train"
+                )
+            return [i for i, c in enumerate(columns) if c in requested]
+        idx = [int(i) for i in arr]
+        if any(i >= ncov for i in idx):
+            raise ValueError(
+                f"{kind}_{forest_label} includes some variable indices that exceed the number of columns in X_train"
+            )
+        if any(i < 0 for i in idx):
+            raise ValueError(f"{kind}_{forest_label} includes some negative variable indices")
+        return idx
+
+    if keep_vars is not None:
+        return sorted(set(to_indices(keep_vars, "keep_vars")))
+    if drop_vars is not None:
+        dropped = set(to_indices(drop_vars, "drop_vars"))
+        return [i for i in range(ncov) if i not in dropped]
+    return list(range(ncov))
+
+
+def _expand_variable_weights(variable_weights, original_var_indices, variable_subset):
+    """Expand per-original-variable split weights to the preprocessed feature space.
+
+    Mirrors the R ``expandVariableWeights()``. Each original variable's weight is spread evenly across
+    its preprocessed (e.g. one-hot expanded) feature columns, and features whose original variable is
+    not in ``variable_subset`` are zeroed out. No renormalization is applied.
+
+    Returns a numpy array of per-feature weights (length = number of preprocessed features).
+    """
+    variable_weights = np.asarray(variable_weights, dtype=np.float64)
+    counts = [original_var_indices.count(i) for i in original_var_indices]
+    adj = np.array([1.0 / c for c in counts])
+    expanded = variable_weights[original_var_indices] * adj
+    expanded[[variable_subset.count(i) == 0 for i in original_var_indices]] = 0.0
+    return expanded
+
+
+def _compute_bcf_forest_weights(
+    variable_weights,
+    original_var_indices,
+    variable_subset_mu,
+    variable_subset_tau,
+    variable_subset_variance,
+    propensity_covariate,
+    ncol_propensity,
+    num_cov_orig,
+):
+    """Compute the per-forest split-variable weights for a BCF model.
+
+    Shared by ``BCFModel.sample()`` and ``BCFModel.continue_sampling()`` so the fit and continuation
+    paths cannot drift. For each forest it (1) expands the per-original-variable weights across the
+    preprocessed feature columns and zeroes out variables excluded from that forest's subset (via
+    ``_expand_variable_weights``), (2) appends weights for the propensity column(s) per
+    ``propensity_covariate`` (the variance forest never splits on the propensity), and (3)
+    renormalizes each forest's weights to sum to 1.
+
+    Returns a tuple ``(mu, tau, variance)`` of numpy arrays.
+    """
+    variable_weights_mu = _expand_variable_weights(
+        variable_weights, original_var_indices, variable_subset_mu
+    )
+    variable_weights_tau = _expand_variable_weights(
+        variable_weights, original_var_indices, variable_subset_tau
+    )
+    variable_weights_variance = _expand_variable_weights(
+        variable_weights, original_var_indices, variable_subset_variance
+    )
+
+    if propensity_covariate != "none":
+        mu_prop_weight = (
+            1.0 / num_cov_orig
+            if propensity_covariate in ("prognostic", "both")
+            else 0.0
+        )
+        tau_prop_weight = (
+            1.0 / num_cov_orig
+            if propensity_covariate in ("treatment_effect", "both")
+            else 0.0
+        )
+        variable_weights_mu = np.append(
+            variable_weights_mu, np.repeat(mu_prop_weight, ncol_propensity)
+        )
+        variable_weights_tau = np.append(
+            variable_weights_tau, np.repeat(tau_prop_weight, ncol_propensity)
+        )
+        variable_weights_variance = np.append(
+            variable_weights_variance, np.repeat(0.0, ncol_propensity)
+        )
+
+    variable_weights_mu = variable_weights_mu / np.sum(variable_weights_mu)
+    variable_weights_tau = variable_weights_tau / np.sum(variable_weights_tau)
+    variable_weights_variance = variable_weights_variance / np.sum(
+        variable_weights_variance
+    )
+    return variable_weights_mu, variable_weights_tau, variable_weights_variance

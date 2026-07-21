@@ -60,8 +60,8 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
     if (config_.num_trees_mean <= 0) {
       Log::Fatal("Continued sampling requires an existing mean forest");
     }
-    if (config_.link_function != LinkFunction::Identity) {
-      Log::Fatal("Continued sampling is not yet supported for probit or cloglog link functions");
+    if (config_.link_function == LinkFunction::Cloglog) {
+      Log::Fatal("Continued sampling is not yet supported for cloglog link functions");
     }
   }
 
@@ -245,6 +245,12 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
       std::visit(MeanForestInitVisitor{*this, samples}, mean_leaf_model_);
     }
   }
+
+  // Probit continuation: the latent outcome z is not persisted (it is re-drawn each MCMC iteration).
+  // It must be regenerated to place the residual in a valid state before the first continued draw,
+  // but that regeneration is deferred to RegenerateProbitLatent(), which the wrappers call AFTER
+  // SetRngState so the draw comes from the resumed (or user-re-seeded) stream rather than this
+  // pre-seed default RNG.
 
   // Initialize variance forest state (if present)
   if (config_.num_trees_variance > 0) {
@@ -477,6 +483,16 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
   // leaf_scale_multivariate_ = config_.sigma2_leaf_multivariate_init;
 
   initialized_ = true;
+}
+
+void BARTSampler::RegenerateProbitLatent(BARTSamples& samples) {
+  // No-op unless this is a probit model with a mean forest. Called by the continuation wrappers after
+  // SetRngState so the fresh latent draw z ~ p(z | y, f_last) comes from the resumed (or user-re-
+  // seeded) stream. This places the residual in a valid, stationary state before the first continued
+  // draw (which is retained when num_burnin == 0).
+  if (config_.link_function != LinkFunction::Probit || config_.num_trees_mean <= 0) return;
+  sample_probit_latent_outcome(rng_, outcome_raw_->GetData().data(), mean_forest_tracker_->GetSumPredictions(),
+                               residual_->GetData().data(), samples.y_bar, data_.n_train);
 }
 
 void BARTSampler::run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr, int num_chains) {

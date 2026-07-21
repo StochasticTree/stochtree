@@ -513,3 +513,19 @@ test_that("BCF multi-chain and combined round-trips preserve contract fields", {
   expect_equal(combined$model_params$num_samples, 20)
   expect_error(capture.output(print(combined)), NA)
 })
+
+test_that("add_forest rejects a duplicate forest label", {
+  skip_on_cran()
+
+  n <- 100
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  y <- 5 * X[, 1] + rnorm(n, 0, 0.5)
+  bart_model <- bart(X_train = X, y_train = y, num_gfr = 5, num_mcmc = 5)
+  mean_forest <- extractForest(bart_model, "mean")
+
+  json_obj <- createCppJson()
+  json_obj$add_forest(mean_forest, forest_label = "my_forest")
+  # A second forest under the same label must be rejected rather than silently dropped.
+  expect_error(json_obj$add_forest(mean_forest, forest_label = "my_forest"))
+})

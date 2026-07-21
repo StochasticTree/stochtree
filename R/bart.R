@@ -1271,11 +1271,7 @@ bart <- function(
   result[["model_params"]] <- model_params
   result[["train_set_metadata"]] <- X_train_metadata
   result[["samples"]] <- bart_samples
-  # Cache the resolved sampler config so continueSampling() can reconstruct the sampler. This is a
-  # runtime-only field (not serialized), so continuation is unavailable for deserialized models.
   result[["bart_config"]] <- bart_config
-  # Cache the raw per-variable split weights and the resolved variable subsets so continueSampling()
-  # can re-resolve split-variable weights when keep_vars / drop_vars / variable_weights are changed.
   result[["continuation_state"]] <- list(
     variable_weights = variable_weights,
     variable_subset_mean = variable_subset_mean,
@@ -1307,7 +1303,7 @@ bart <- function(
     stop(
       sprintf(
         paste0(
-          "`bartmodel$%s` has been removed. The sampled forests are owned by `model$bart_samples`; ",
+          "`bartmodel$%s` has been removed. The sampled forests are owned by `model$samples`; ",
           "you can extract a standalone copy with `extractForest()`."
         ),
         name
@@ -1772,7 +1768,7 @@ predict.bartmodel <- function(
 #'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to `1/ncol(X_train)`.
 #'   - `random_seed` Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
 #'   - `keep_burnin` Whether or not "burnin" samples should be included in the stored samples of forests and other parameters. Default `FALSE`. Ignored if `num_mcmc = 0`.
-#'   - `keep_gfr` Whether or not "grow-from-root" samples should be included in the stored samples of forests and other parameters. Default `FALSE`. Ignored if `num_mcmc = 0`.
+#'   - `keep_gfr` Whether or not "grow-from-root" samples should be included in the stored samples of forests and other parameters. Default `TRUE`. Ignored if `num_mcmc = 0`.
 #'   - `keep_every` How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default `1`. Setting `keep_every <- k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
 #'   - `num_chains` How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`. Note that if `num_chains > 1`, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BART models, see [the multi chain vignette](https://stochtree.ai/vignettes/multi-chain.html).
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
@@ -1877,9 +1873,9 @@ continueSampling.bartmodel <- function(
       "Continuation is not supported for deserialized models (a model loaded from JSON)."
     )
   }
-  if (object$model_params$outcome_model$link != "identity") {
+  if (object$model_params$outcome_model$link == "cloglog") {
     stop(
-      "Continued sampling is not yet supported for probit or cloglog link functions"
+      "Continued sampling is not yet supported for cloglog link functions"
     )
   }
 
@@ -1893,33 +1889,7 @@ continueSampling.bartmodel <- function(
     }
   }
 
-  # Preprocessing user-supplied parameters for continuation and merging with existing config
-  overlayContinuationParams <- function(
-    config,
-    user_params,
-    mapping,
-    list_name
-  ) {
-    if (length(user_params) == 0) {
-      return(config)
-    }
-    unknown <- setdiff(names(user_params), names(mapping))
-    if (length(unknown) > 0) {
-      warning(
-        "The following ",
-        list_name,
-        " cannot be changed on continuation and will be ignored: ",
-        paste(unknown, collapse = ", ")
-      )
-    }
-    for (key in intersect(names(user_params), names(mapping))) {
-      val <- user_params[[key]]
-      if (!is.null(val)) config[[mapping[[key]]]] <- val
-    }
-    config
-  }
-
-  # Changeable keys, mapped from user-facing names to internal bart_config keys.
+  # Update any changeable model parameters
   general_map <- list(
     random_seed = "random_seed",
     keep_gfr = "keep_gfr",
@@ -2155,29 +2125,55 @@ continueSampling.bartmodel <- function(
   if (!is.null(rfx_basis_test) && is.null(dim(rfx_basis_test))) {
     rfx_basis_test <- as.matrix(rfx_basis_test)
   }
-  if (object$model_params$has_basis && !is.null(X_test) && is.null(leaf_basis_test)) {
-    stop("This model was fit with a leaf basis; leaf_basis_test must be supplied when X_test is provided")
+  if (
+    object$model_params$has_basis &&
+      !is.null(X_test) &&
+      is.null(leaf_basis_test)
+  ) {
+    stop(
+      "This model was fit with a leaf basis; leaf_basis_test must be supplied when X_test is provided"
+    )
   }
-  if (!is.null(leaf_basis_test) && !is.null(X_test) && nrow(leaf_basis_test) != nrow(X_test)) {
+  if (
+    !is.null(leaf_basis_test) &&
+      !is.null(X_test) &&
+      nrow(leaf_basis_test) != nrow(X_test)
+  ) {
     stop("leaf_basis_test and X_test must have the same number of rows")
   }
-  if (!is.null(leaf_basis_test) && !is.null(leaf_basis_train) &&
-        ncol(leaf_basis_test) != ncol(leaf_basis_train)) {
-    stop("leaf_basis_train and leaf_basis_test must have the same number of columns")
+  if (
+    !is.null(leaf_basis_test) &&
+      !is.null(leaf_basis_train) &&
+      ncol(leaf_basis_test) != ncol(leaf_basis_train)
+  ) {
+    stop(
+      "leaf_basis_train and leaf_basis_test must have the same number of columns"
+    )
   }
   if (has_rfx && !is.null(rfx_group_ids_test)) {
     if (is.null(X_test)) {
       stop("X_test must be supplied when rfx_group_ids_test is provided")
     }
-    group_ids_factor_test <- factor(rfx_group_ids_test, levels = object$rfx_unique_group_ids)
+    group_ids_factor_test <- factor(
+      rfx_group_ids_test,
+      levels = object$rfx_unique_group_ids
+    )
     if (any(is.na(group_ids_factor_test))) {
-      stop("rfx_group_ids_test contains group labels not present in the fitted model")
+      stop(
+        "rfx_group_ids_test contains group labels not present in the fitted model"
+      )
     }
     rfx_group_ids_test <- as.integer(group_ids_factor_test)
     if (rfx_intercept) {
-      rfx_basis_test <- matrix(rep(1, nrow(X_test)), nrow = nrow(X_test), ncol = 1)
+      rfx_basis_test <- matrix(
+        rep(1, nrow(X_test)),
+        nrow = nrow(X_test),
+        ncol = 1
+      )
     } else if (is.null(rfx_basis_test)) {
-      stop("rfx_basis_test must be supplied for a non-intercept-only random effects model when rfx_group_ids_test is provided")
+      stop(
+        "rfx_basis_test must be supplied for a non-intercept-only random effects model when rfx_group_ids_test is provided"
+      )
     }
     has_rfx_test <- TRUE
   }
@@ -2185,9 +2181,11 @@ continueSampling.bartmodel <- function(
   # If the model carries cached test-set predictions but no test set is re-supplied, those
   # predictions become stale on continuation (they cover only the pre-continuation draws). Warn and
   # let the sampler drop them (postprocess_samples clears test predictions when no test set is present).
-  if (is.null(X_test) &&
-        (object$samples$has_mean_forest_predictions_test() ||
-           object$samples$has_variance_forest_predictions_test())) {
+  if (
+    is.null(X_test) &&
+      (object$samples$has_mean_forest_predictions_test() ||
+        object$samples$has_variance_forest_predictions_test())
+  ) {
     warning(
       "Continuing without X_test: the model's existing test-set predictions are stale and will be ",
       "dropped. Re-supply X_test to retain test-set predictions."
@@ -2223,7 +2221,11 @@ continueSampling.bartmodel <- function(
     rfx_group_ids_train = if (has_rfx) rfx_group_ids_train else NULL,
     rfx_group_ids_test = if (has_rfx_test) rfx_group_ids_test else NULL,
     rfx_basis_train = if (has_rfx && !rfx_intercept) rfx_basis_train else NULL,
-    rfx_basis_test = if (has_rfx_test && !rfx_intercept) rfx_basis_test else NULL,
+    rfx_basis_test = if (has_rfx_test && !rfx_intercept) {
+      rfx_basis_test
+    } else {
+      NULL
+    },
     rfx_num_groups = as.integer(rfx_num_groups),
     rfx_basis_dim = as.integer(rfx_basis_dim),
     num_gfr = as.integer(num_gfr),

@@ -1241,3 +1241,35 @@ test_that("predict(terms='tau') == tau_hat_test, tau==cate without treatment RFX
     sweep(tau_hat_test, 1, as.numeric(Z_test), "*")
   expect_equal(y_hat_test, expected_y_no_int)
 })
+
+test_that("tau_0 samples are reported in the original outcome scale", {
+  skip_on_cran()
+
+  # tau_0 is stored in the original outcome scale, mirroring sigma2_global and the other parametric
+  # terms. The sampler is scale-equivariant under a fixed seed, so scaling y by c scales an
+  # original-scale tau_0 by ~c; a standardized-scale tau_0 (the pre-fix behavior) would be invariant.
+  set.seed(7)
+  n <- 200
+  p <- 5
+  X <- matrix(runif(n * p), nrow = n)
+  pi_x <- 0.4 + 0.2 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  # Strong constant treatment intercept so tau_0's posterior mean is clearly non-zero.
+  y <- (1 + 2 * X[, 1]) + (5 + X[, 2]) * Z + rnorm(n)
+
+  fit_tau0_mean <- function(scale) {
+    m <- bcf(
+      X_train = X, Z_train = Z, y_train = scale * y, propensity_train = pi_x,
+      num_gfr = 0, num_burnin = 10, num_mcmc = 40,
+      general_params = list(random_seed = 1234)
+    )
+    mean(as.numeric(m$samples$tau_0_samples()))
+  }
+
+  t1 <- fit_tau0_mean(1.0)
+  t10 <- fit_tau0_mean(10.0)
+  expect_gt(abs(t1), 0.5) # clear non-zero treatment intercept
+  # Original scale => ratio ~10; standardized storage (the bug) => ratio ~1.
+  expect_gt(t10 / t1, 7.0)
+  expect_lt(t10 / t1, 13.0)
+})

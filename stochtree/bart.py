@@ -25,9 +25,11 @@ from .utils import (
     _expand_dims_1d,
     _expand_dims_2d,
     _expand_dims_2d_diag,
+    _expand_variable_weights,
     _get_stochtree_version,
     _infer_stochtree_version,
     _posterior_predictive_heuristic_multiplier,
+    _resolve_variable_subset,
     _summarize_interval,
 )
 from stochtree_cpp import bart_sample_cpp, bart_continue_sample_cpp, bart_predict_cpp, BARTSamplesCpp
@@ -899,6 +901,10 @@ class BARTModel:
                 variable_weights = np.repeat(1.0, 1)
         if np.any(variable_weights < 0):
             raise ValueError("variable_weights cannot have any negative weights")
+        # Preserve the raw per-original-variable weights (a copy, since the per-forest arrays below
+        # alias and may zero-out this array in place). continue_sampling() re-derives the per-forest
+        # weights from these when the user changes variable_weights / keep_vars / drop_vars.
+        variable_weights_raw = np.asarray(variable_weights, dtype=np.float64).copy()
         variable_weights_mean = variable_weights
         variable_weights_variance = variable_weights
 
@@ -1317,6 +1323,7 @@ class BARTModel:
             self.has_rfx_basis = True
             self.num_rfx_basis = rfx_basis_train.shape[1]
             num_rfx_groups = np.unique(rfx_group_ids_train).shape[0]
+            self.num_rfx_groups = num_rfx_groups
             num_rfx_components = rfx_basis_train.shape[1]
             if num_rfx_groups == 1:
                 warnings.warn(
@@ -1467,6 +1474,15 @@ class BARTModel:
         # exact same priors/structure without re-deriving them.
         self._cached_bart_config = bart_config
 
+        # Cache the raw split-variable state so continue_sampling() can re-derive the per-forest
+        # weights when the user changes variable_weights / keep_vars / drop_vars. num_cov_orig is the
+        # ORIGINAL covariate count (self.num_covariates is the post-preprocessing count).
+        self._cont_variable_weights = variable_weights_raw
+        self._cont_variable_subset_mean = variable_subset_mean
+        self._cont_variable_subset_variance = variable_subset_variance
+        self._cont_original_var_indices = original_var_indices
+        self._cont_num_cov_orig = p
+
         # Convert arrays to F-contiguous (column-major) before calling C++.
         # convert_numpy_to_bart_data stores raw pointers into these arrays; if
         # pybind11 has to make a copy (wrong dtype or wrong order) that copy is
@@ -1578,10 +1594,8 @@ class BARTModel:
         X_train: Union[np.array, pd.DataFrame],
         y_train: np.array,
         num_gfr: int = 0,
-        num_mcmc: int = 100,
         num_burnin: int = 0,
-        keep_every: int = 1,
-        keep_gfr: bool = True,
+        num_mcmc: int = 100,
         leaf_basis_train: np.array = None,
         rfx_group_ids_train: np.array = None,
         rfx_basis_train: np.array = None,
@@ -1591,7 +1605,10 @@ class BARTModel:
         rfx_basis_test: np.array = None,
         observation_weights_train: np.array = None,
         observation_weights: np.array = None,
-        random_seed: int = None,
+        general_params: Optional[Dict[str, Any]] = None,
+        mean_forest_params: Optional[Dict[str, Any]] = None,
+        variance_forest_params: Optional[Dict[str, Any]] = None,
+        random_effects_params: Optional[Dict[str, Any]] = None,
     ):
         """Continue (warm-start) sampling from an already-fit BART model, appending
         additional samples to the existing posterior draws.
@@ -1615,18 +1632,12 @@ class BARTModel:
             Training outcome (re-supplied).
         num_gfr : int, optional
             Number of additional "grow-from-root" (GFR) warm-start draws to append before the
-            MCMC draws. Defaults to ``0`` (MCMC-only append). When ``> 0``, ``keep_gfr`` controls
-            whether these draws are retained.
-        num_mcmc : int, optional
-            Number of additional retained MCMC samples. Defaults to ``100``.
+            MCMC draws. Defaults to ``0`` (MCMC-only append). When ``> 0``, ``keep_gfr`` (in
+            ``general_params``) controls whether these draws are retained.
         num_burnin : int, optional
             Number of additional burn-in iterations to discard before retaining. Defaults to ``0``.
-        keep_every : int, optional
-            Thinning interval for the additional samples. Defaults to ``1``.
-        keep_gfr : bool, optional
-            Whether to retain the ``num_gfr`` GFR draws. Defaults to ``True`` (extend the chain
-            with retained warm-start draws, e.g. grow 25 draws into 40). Set ``False`` to re-anneal
-            the chain with GFR draws that are then discarded before the MCMC draws.
+        num_mcmc : int, optional
+            Number of additional retained MCMC samples. Defaults to ``100``.
         leaf_basis_train : np.array, optional
             Training leaf basis (required if the model was fit with a leaf regression basis).
         rfx_group_ids_train : np.array, optional
@@ -1648,9 +1659,26 @@ class BARTModel:
             Case weights for the training observations. Not compatible with a variance forest.
         observation_weights : np.array, optional
             Deprecated alias for ``observation_weights_train``; will be removed in a future release.
-        random_seed : int, optional
-            If supplied, re-seeds the sampler RNG for the continued draws. By default
-            (``None``), the RNG state from the prior run is resumed.
+        general_params : dict, optional
+            Changeable general parameters (mirrors :meth:`sample`). Honored keys: ``random_seed``,
+            ``keep_every``, ``keep_gfr``, ``keep_burnin``, ``cutpoint_grid_size``,
+            ``sigma2_global_shape``, ``sigma2_global_scale``, ``num_threads``, ``verbose``, and
+            ``variable_weights`` (per-covariate split weights; if omitted, the fit-time weights are
+            reused). ``random_seed`` re-seeds the continued draws; by default the prior RNG stream is
+            resumed. ``keep_every`` defaults to ``1`` and ``keep_gfr`` to ``True``.
+        mean_forest_params : dict, optional
+            Changeable mean forest parameters. Honored keys: ``alpha``, ``beta``, ``min_samples_leaf``,
+            ``max_depth``, ``num_features_subsample``, ``sigma2_leaf_shape``, ``sigma2_leaf_scale``,
+            and ``keep_vars`` / ``drop_vars`` (split-variable subset; if omitted, the fit-time subset
+            is reused).
+        variance_forest_params : dict, optional
+            Changeable variance forest parameters. Honored keys: ``alpha``, ``beta``,
+            ``min_samples_leaf``, ``max_depth``, ``num_features_subsample``, ``var_forest_prior_shape``,
+            ``var_forest_prior_scale``, and ``keep_vars`` / ``drop_vars``.
+        random_effects_params : dict, optional
+            Changeable random effects parameters. Honored keys: ``variance_prior_shape`` and
+            ``variance_prior_scale`` (the inverse-gamma prior on the random effects group-parameter
+            variance). Ignored if the model has no random effects.
 
         Returns
         -------
@@ -1666,10 +1694,84 @@ class BARTModel:
                 "Cannot continue sampling: cached sampler configuration is unavailable "
                 "(continuation is not supported for deserialized models yet)"
             )
-        if cfg.get("link_function", 0) != 0:
+        if cfg.get("link_function", 0) == 2:
             raise NotImplementedError(
-                "Continued sampling is not yet supported for probit or cloglog link functions"
+                "Continued sampling is not yet supported for cloglog link functions"
             )
+        if getattr(self, "_cont_variable_weights", None) is None:
+            raise RuntimeError(
+                "Cannot continue sampling: cached continuation state is unavailable for this model."
+            )
+
+        # Update changeable model parameters
+        general_params = dict(general_params) if general_params else {}
+        mean_forest_params = dict(mean_forest_params) if mean_forest_params else {}
+        variance_forest_params = dict(variance_forest_params) if variance_forest_params else {}
+        random_effects_params = dict(random_effects_params) if random_effects_params else {}
+
+        # keep_every / keep_gfr / random_seed / variable_weights / keep_vars / drop_vars are handled
+        # specially (not overlaid as raw config keys), so pull them out before the overlay so they are
+        # not flagged as unchangeable.
+        keep_every = general_params.pop("keep_every", 1)
+        keep_gfr = general_params.pop("keep_gfr", True)
+        random_seed = general_params.pop("random_seed", None)
+        user_variable_weights = general_params.pop("variable_weights", None)
+        keep_vars_mean = mean_forest_params.pop("keep_vars", None)
+        drop_vars_mean = mean_forest_params.pop("drop_vars", None)
+        keep_vars_variance = variance_forest_params.pop("keep_vars", None)
+        drop_vars_variance = variance_forest_params.pop("drop_vars", None)
+
+        general_map = {
+            "keep_burnin": "keep_burnin",
+            "cutpoint_grid_size": "cutpoint_grid_size",
+            "sigma2_global_shape": "a_sigma2_global",
+            "sigma2_global_scale": "b_sigma2_global",
+            "num_threads": "num_threads",
+            "verbose": "verbose",
+        }
+        mean_forest_map = {
+            "alpha": "alpha_mean",
+            "beta": "beta_mean",
+            "min_samples_leaf": "min_samples_leaf_mean",
+            "max_depth": "max_depth_mean",
+            "num_features_subsample": "num_features_subsample_mean",
+            "sigma2_leaf_shape": "a_sigma2_mean",
+            "sigma2_leaf_scale": "b_sigma2_mean",
+        }
+        variance_forest_map = {
+            "alpha": "alpha_variance",
+            "beta": "beta_variance",
+            "min_samples_leaf": "min_samples_leaf_variance",
+            "max_depth": "max_depth_variance",
+            "num_features_subsample": "num_features_subsample_variance",
+            "var_forest_prior_shape": "shape_variance_forest",
+            "var_forest_prior_scale": "scale_variance_forest",
+        }
+        random_effects_map = {
+            "variance_prior_shape": "rfx_variance_prior_shape",
+            "variance_prior_scale": "rfx_variance_prior_scale",
+        }
+
+        config = dict(cfg)
+
+        def overlay(user_params, mapping, list_name):
+            if not user_params:
+                return
+            unknown = [k for k in user_params if k not in mapping]
+            if unknown:
+                warnings.warn(
+                    f"The following {list_name} cannot be changed on continuation and will be "
+                    f"ignored: {', '.join(unknown)}",
+                    UserWarning,
+                )
+            for key, val in user_params.items():
+                if key in mapping and val is not None:
+                    config[mapping[key]] = val
+
+        overlay(general_params, general_map, "general_params")
+        overlay(mean_forest_params, mean_forest_map, "mean_forest_params")
+        overlay(variance_forest_params, variance_forest_map, "variance_forest_params")
+        overlay(random_effects_params, random_effects_map, "random_effects_params")
 
         # `observation_weights` is a deprecated alias for `observation_weights_train` (mirrors sample()).
         if observation_weights is not None:
@@ -1700,7 +1802,10 @@ class BARTModel:
                     "Set num_gfr=0 when using all-zero observation_weights_train."
                 )
 
-        # Preprocess the re-supplied covariates with the fitted preprocessor and validate structure
+        # Preprocess the re-supplied covariates with the fitted preprocessor and validate structure.
+        # Keep the raw (un-preprocessed) covariates so name-based keep_vars / drop_vars resolve against
+        # the original column names.
+        X_train_raw = X_train
         X_train_processed = self._covariate_preprocessor.transform(X_train).astype(np.float64)
         if X_train_processed.shape[1] != self.num_covariates:
             raise ValueError(
@@ -1710,6 +1815,44 @@ class BARTModel:
         y_train = np.asarray(y_train).astype(np.float64).reshape(-1)
         if X_train_processed.shape[0] != y_train.shape[0]:
             raise ValueError("X_train and y_train have differing numbers of observations")
+
+        # If the user overrode variable_weights / keep_vars / drop_vars for a forest, recompute that
+        # forest's weights; otherwise reuse the cached fit-time values. Mirrors R's
+        # continueSampling.bartmodel via the shared _resolve_variable_subset / _expand_variable_weights.
+        num_cov_orig = self._cont_num_cov_orig
+        variable_weights = (
+            user_variable_weights
+            if user_variable_weights is not None
+            else self._cont_variable_weights
+        )
+        variable_weights = np.asarray(variable_weights, dtype=np.float64).reshape(-1)
+        if variable_weights.shape[0] != num_cov_orig:
+            raise ValueError(
+                f"variable_weights must have length {num_cov_orig} (the number of covariates)"
+            )
+        if np.any(variable_weights < 0):
+            raise ValueError("variable_weights cannot have any negative weights")
+        original_var_indices = self._cont_original_var_indices
+        if self.include_mean_forest:
+            variable_subset_mean = (
+                _resolve_variable_subset(keep_vars_mean, drop_vars_mean, X_train_raw, "mean")
+                if (keep_vars_mean is not None or drop_vars_mean is not None)
+                else self._cont_variable_subset_mean
+            )
+            config["var_weights_mean"] = _expand_variable_weights(
+                variable_weights, original_var_indices, variable_subset_mean
+            )
+        if self.include_variance_forest:
+            variable_subset_variance = (
+                _resolve_variable_subset(
+                    keep_vars_variance, drop_vars_variance, X_train_raw, "variance"
+                )
+                if (keep_vars_variance is not None or drop_vars_variance is not None)
+                else self._cont_variable_subset_variance
+            )
+            config["var_weights_variance"] = _expand_variable_weights(
+                variable_weights, original_var_indices, variable_subset_variance
+            )
         if (
             observation_weights_train is not None
             and observation_weights_train.shape[0] != X_train_processed.shape[0]
@@ -1754,14 +1897,9 @@ class BARTModel:
             if (self.has_rfx and not rfx_intercept)
             else None
         )
-        rfx_num_groups = (
-            int(np.unique(rfx_group_ids_cpp).shape[0]) if self.has_rfx else 0
-        )
+        rfx_num_groups = int(self.num_rfx_groups) if self.has_rfx else 0
         rfx_basis_dim = int(self.num_rfx_basis) if self.has_rfx else 0
 
-        # Re-supplied test data (optional). Test predictions are recomputed in full from all retained
-        # forests (postprocess assigns, not appends), so the test set need not match any test set used
-        # in the original fit. Preprocess with the fitted preprocessor, mirroring sample().
         has_rfx_test = False
         X_test_cpp = None
         n_test = 0
@@ -1817,12 +1955,11 @@ class BARTModel:
             )
 
         # RNG continuation: by default resume the saved stream. If the user supplies a new seed,
-        # override the cached config seed and tell the binding to keep the fresh seed instead of
+        # override the config seed and tell the binding to keep the fresh seed instead of
         # restoring the saved state.
         override_seed = random_seed is not None
         if override_seed:
-            cfg = dict(cfg)
-            cfg["random_seed"] = random_seed
+            config["random_seed"] = random_seed
         rng_state_in = self.rng_state if (not override_seed and self.rng_state is not None) else ""
 
         # Continuation appends the new draws in place onto self._samples (mirrors R's
@@ -1853,7 +1990,7 @@ class BARTModel:
             keep_gfr=keep_gfr,
             rng_state_in=rng_state_in,
             override_seed=override_seed,
-            config_input=cfg,
+            config_input=config,
         )
 
         # A supplied test set produces a full recomputed test-prediction trace on self._samples;

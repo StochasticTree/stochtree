@@ -3,6 +3,7 @@
 S3method("$",bartmodel)
 S3method("$",bcfmodel)
 S3method(continueSampling,bartmodel)
+S3method(continueSampling,bcfmodel)
 S3method(extractForest,bartmodel)
 S3method(extractForest,bcfmodel)
 S3method(extractParameter,bartmodel)

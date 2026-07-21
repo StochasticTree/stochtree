@@ -65,6 +65,13 @@ class BARTSampler {
     iss >> rng_;
   }
 
+  // Regenerate the probit latent outcome for a continuation warm-start. The latent z is not persisted
+  // (it is re-drawn each MCMC iteration), so this draws a fresh z ~ p(z | y, f_last) to place the
+  // residual in a valid, stationary state before the first continued draw. No-op unless the model
+  // uses a probit link and has a mean forest. MUST be called after SetRngState so the draw comes from
+  // the resumed (or user-re-seeded) stream rather than the pre-seed default RNG.
+  void RegenerateProbitLatent(BARTSamples& samples);
+
  private:
   /*! Initialize state variables */
   void InitializeState(BARTSamples& samples, bool continuation = false);
@@ -152,29 +159,17 @@ class BARTSampler {
     }
   };
 
-  /*! Continued-sampling initialization visitor.
-   *  Warm-starts the active mean forest from the last retained sample in the
-   *  existing container (rather than from root), and intentionally does NOT
-   *  re-create samples.mean_forests so that new draws are appended to it.
-   *  Only the basic Gaussian (Identity-link) leaf models are supported for now;
-   *  other leaf models hard-error until their continuation paths are implemented. */
+  /*! Continued-sampling initialization visitor */
   struct MeanForestContinuationInitVisitor {
     BARTSampler& sampler;
     BARTSamples& samples;
-    void WarmStart(bool expand_basis) {
-      // Step 1: standard root init (mirrors MeanForestInitVisitor) so the forest,
-      // tracker, and residual reach a consistent state -- but DO NOT re-create
-      // samples.mean_forests, so continuation appends to the existing container.
+    void WarmStart() {
+      // Reset active forest, tracker, and tree prior
       sampler.mean_forest_ = std::make_unique<TreeEnsemble>(sampler.config_.num_trees_mean, sampler.config_.leaf_dim_mean, sampler.config_.leaf_constant_mean, sampler.config_.exponentiated_leaf_mean);
       sampler.mean_forest_tracker_ = std::make_unique<ForestTracker>(sampler.forest_dataset_->GetCovariates(), sampler.config_.feature_types, sampler.config_.num_trees_mean, sampler.data_.n_train);
       sampler.tree_prior_mean_ = std::make_unique<TreePrior>(sampler.config_.alpha_mean, sampler.config_.beta_mean, sampler.config_.min_samples_leaf_mean, sampler.config_.max_depth_mean);
-      sampler.mean_forest_->SetLeafValue(sampler.init_val_mean_ / sampler.config_.num_trees_mean);
-      UpdateResidualEntireForest(*sampler.mean_forest_tracker_, *sampler.forest_dataset_, *sampler.residual_, sampler.mean_forest_.get(), expand_basis, std::minus<double>());
-      sampler.mean_forest_tracker_->UpdatePredictions(sampler.mean_forest_.get(), *sampler.forest_dataset_.get());
       sampler.has_mean_forest_ = true;
-      // Step 2: reset the now-consistent state to the last retained sample
-      // (mirrors MeanForestResetVisitor / RestoreStateFromGFRSnapshot). The reset
-      // requires an already-populated tracker, which step 1 provides.
+      // Re-initialize the active forest and tracker from the last retained sample
       int last_idx = samples.mean_forests->NumSamples() - 1;
       TreeEnsemble& last_forest = *samples.mean_forests->GetEnsemble(last_idx);
       sampler.mean_forest_->ReconstituteFromForest(last_forest);
@@ -182,13 +177,13 @@ class BARTSampler {
       sampler.mean_forest_tracker_->UpdatePredictions(sampler.mean_forest_.get(), *sampler.forest_dataset_.get());
     }
     void operator()(GaussianConstantLeafModel& model) {
-      WarmStart(!sampler.config_.leaf_constant_mean);
+      WarmStart();
     }
     void operator()(GaussianUnivariateRegressionLeafModel& model) {
-      WarmStart(!sampler.config_.leaf_constant_mean);
+      WarmStart();
     }
     void operator()(GaussianMultivariateRegressionLeafModel& model) {
-      Log::Fatal("Continued sampling is not yet supported for multivariate leaf regression models");
+      WarmStart();
     }
     void operator()(CloglogOrdinalLeafModel& model) {
       Log::Fatal("Continued sampling is not yet supported for cloglog ordinal models");

@@ -34,6 +34,13 @@ extern "C" SEXP _stochtree_bcf_sample_cpp(SEXP samples, SEXP X_train, SEXP Z_tra
   END_CPP11
 }
 // R_bcf.cpp
+cpp11::writable::list bcf_continue_sample_cpp(cpp11::external_pointer<StochTree::BCFSamples> samples, cpp11::sexp X_train, cpp11::sexp Z_train, cpp11::sexp y_train, int n_train, int p, int treatment_dim, cpp11::sexp obs_weights_train, cpp11::sexp rfx_group_ids_train, cpp11::sexp rfx_basis_train, int rfx_num_groups, int rfx_basis_dim, int num_burnin, int keep_every, int num_mcmc, std::string rng_state_in, bool override_seed, cpp11::list config_input);
+extern "C" SEXP _stochtree_bcf_continue_sample_cpp(SEXP samples, SEXP X_train, SEXP Z_train, SEXP y_train, SEXP n_train, SEXP p, SEXP treatment_dim, SEXP obs_weights_train, SEXP rfx_group_ids_train, SEXP rfx_basis_train, SEXP rfx_num_groups, SEXP rfx_basis_dim, SEXP num_burnin, SEXP keep_every, SEXP num_mcmc, SEXP rng_state_in, SEXP override_seed, SEXP config_input) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bcf_continue_sample_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BCFSamples>>>(samples), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(X_train), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(Z_train), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(y_train), cpp11::as_cpp<cpp11::decay_t<int>>(n_train), cpp11::as_cpp<cpp11::decay_t<int>>(p), cpp11::as_cpp<cpp11::decay_t<int>>(treatment_dim), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(obs_weights_train), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(rfx_group_ids_train), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(rfx_basis_train), cpp11::as_cpp<cpp11::decay_t<int>>(rfx_num_groups), cpp11::as_cpp<cpp11::decay_t<int>>(rfx_basis_dim), cpp11::as_cpp<cpp11::decay_t<int>>(num_burnin), cpp11::as_cpp<cpp11::decay_t<int>>(keep_every), cpp11::as_cpp<cpp11::decay_t<int>>(num_mcmc), cpp11::as_cpp<cpp11::decay_t<std::string>>(rng_state_in), cpp11::as_cpp<cpp11::decay_t<bool>>(override_seed), cpp11::as_cpp<cpp11::decay_t<cpp11::list>>(config_input)));
+  END_CPP11
+}
+// R_bcf.cpp
 cpp11::writable::list bcf_predict_cpp(cpp11::external_pointer<StochTree::BCFSamples> bcf_samples_ptr, cpp11::list bcf_model_metadata, cpp11::sexp X, cpp11::sexp Z, int n, int p, int treatment_dim, cpp11::sexp obs_weights, cpp11::sexp rfx_group_ids, cpp11::sexp rfx_basis, int rfx_num_groups, int rfx_basis_dim, bool posterior, int scale, bool predict_y_hat, bool predict_mu_x, bool predict_tau_x, bool predict_prognostic_function, bool predict_cate, bool predict_conditional_variance, bool predict_random_effects);
 extern "C" SEXP _stochtree_bcf_predict_cpp(SEXP bcf_samples_ptr, SEXP bcf_model_metadata, SEXP X, SEXP Z, SEXP n, SEXP p, SEXP treatment_dim, SEXP obs_weights, SEXP rfx_group_ids, SEXP rfx_basis, SEXP rfx_num_groups, SEXP rfx_basis_dim, SEXP posterior, SEXP scale, SEXP predict_y_hat, SEXP predict_mu_x, SEXP predict_tau_x, SEXP predict_prognostic_function, SEXP predict_cate, SEXP predict_conditional_variance, SEXP predict_random_effects) {
   BEGIN_CPP11
@@ -2332,6 +2339,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_bart_samples_y_std_cpp",                                 (DL_FUNC) &_stochtree_bart_samples_y_std_cpp,                                  1},
     {"_stochtree_bart_samples_yhat_test_cpp",                             (DL_FUNC) &_stochtree_bart_samples_yhat_test_cpp,                              1},
     {"_stochtree_bart_samples_yhat_train_cpp",                            (DL_FUNC) &_stochtree_bart_samples_yhat_train_cpp,                             1},
+    {"_stochtree_bcf_continue_sample_cpp",                                (DL_FUNC) &_stochtree_bcf_continue_sample_cpp,                                18},
     {"_stochtree_bcf_predict_cpp",                                        (DL_FUNC) &_stochtree_bcf_predict_cpp,                                        21},
     {"_stochtree_bcf_sample_cpp",                                         (DL_FUNC) &_stochtree_bcf_sample_cpp,                                         25},
     {"_stochtree_bcf_samples_b0_samples_cpp",                             (DL_FUNC) &_stochtree_bcf_samples_b0_samples_cpp,                              1},

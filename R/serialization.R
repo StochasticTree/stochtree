@@ -86,16 +86,24 @@ inferPlatformV0 <- function(json_object, default) {
 # is treated as non-portable (e.g. legacy v0 models), so such a cross-platform load
 # is refused rather than mis-handled.
 enforceCrossPlatformGate <- function(json_object, loader_platform) {
-  writer_platform <- json_object$get_string_or_default("platform", loader_platform)
+  writer_platform <- json_object$get_string_or_default(
+    "platform",
+    loader_platform
+  )
   if (identical(writer_platform, loader_platform)) {
     return(FALSE)
   }
   portable <- FALSE
   non_portable_columns <- ""
   if (json_object$contains("covariate_preprocessor")) {
-    prep <- createCppJsonString(json_object$get_string("covariate_preprocessor"))
+    prep <- createCppJsonString(json_object$get_string(
+      "covariate_preprocessor"
+    ))
     portable <- prep$get_boolean_or_default("cross_platform_portable", FALSE)
-    non_portable_columns <- prep$get_string_or_default("non_portable_columns", "")
+    non_portable_columns <- prep$get_string_or_default(
+      "non_portable_columns",
+      ""
+    )
   }
   compatible <- json_object$get_boolean_or_default(
     "cross_platform_compatible",
@@ -137,7 +145,9 @@ enforceCrossPlatformGate <- function(json_object, loader_platform) {
 buildIdentityPreprocessorMetadata <- function(json_object) {
   n_features <- 0L
   if (json_object$contains("covariate_preprocessor")) {
-    prep <- createCppJsonString(json_object$get_string("covariate_preprocessor"))
+    prep <- createCppJsonString(json_object$get_string(
+      "covariate_preprocessor"
+    ))
     n_features <- prep$get_integer_or_default(
       "num_original_features",
       prep$get_integer_or_default("num_numeric_vars", 0L)
@@ -162,7 +172,10 @@ buildIdentityPreprocessorMetadata <- function(json_object) {
 # absent (e.g. a cross-platform Python model, which never writes that field).
 resolveRfxUniqueGroupIds <- function(json_object, rfx_samples) {
   if (
-    json_object$contains("rfx_unique_group_ids", subfolder_name = "random_effects")
+    json_object$contains(
+      "rfx_unique_group_ids",
+      subfolder_name = "random_effects"
+    )
   ) {
     json_object$get_string_vector(
       "rfx_unique_group_ids",
@@ -638,7 +651,11 @@ CppJson <- R6::R6Class(
       if (is.null(subfolder_name)) {
         json_contains_field_cpp(self$json_ptr, field_name)
       } else {
-        json_contains_field_subfolder_cpp(self$json_ptr, subfolder_name, field_name)
+        json_contains_field_subfolder_cpp(
+          self$json_ptr,
+          subfolder_name,
+          field_name
+        )
       }
     },
 
@@ -649,7 +666,11 @@ CppJson <- R6::R6Class(
     #' @param default Value returned if the field is absent
     #' @param subfolder_name (Optional) Name of the subfolder / hierarchy
     #' @return The stored value, or `default` if absent
-    get_scalar_or_default = function(field_name, default, subfolder_name = NULL) {
+    get_scalar_or_default = function(
+      field_name,
+      default,
+      subfolder_name = NULL
+    ) {
       if (self$contains(field_name, subfolder_name)) {
         self$get_scalar(field_name, subfolder_name)
       } else {
@@ -663,7 +684,11 @@ CppJson <- R6::R6Class(
     #' @param default Value returned if the field is absent
     #' @param subfolder_name (Optional) Name of the subfolder / hierarchy
     #' @return The stored value, or `default` if absent
-    get_integer_or_default = function(field_name, default, subfolder_name = NULL) {
+    get_integer_or_default = function(
+      field_name,
+      default,
+      subfolder_name = NULL
+    ) {
       if (self$contains(field_name, subfolder_name)) {
         self$get_integer(field_name, subfolder_name)
       } else {
@@ -677,7 +702,11 @@ CppJson <- R6::R6Class(
     #' @param default Value returned if the field is absent
     #' @param subfolder_name (Optional) Name of the subfolder / hierarchy
     #' @return The stored value, or `default` if absent
-    get_boolean_or_default = function(field_name, default, subfolder_name = NULL) {
+    get_boolean_or_default = function(
+      field_name,
+      default,
+      subfolder_name = NULL
+    ) {
       if (self$contains(field_name, subfolder_name)) {
         self$get_boolean(field_name, subfolder_name)
       } else {
@@ -691,7 +720,11 @@ CppJson <- R6::R6Class(
     #' @param default Value returned if the field is absent
     #' @param subfolder_name (Optional) Name of the subfolder / hierarchy
     #' @return The stored value, or `default` if absent
-    get_string_or_default = function(field_name, default, subfolder_name = NULL) {
+    get_string_or_default = function(
+      field_name,
+      default,
+      subfolder_name = NULL
+    ) {
       if (self$contains(field_name, subfolder_name)) {
         self$get_string(field_name, subfolder_name)
       } else {
@@ -729,7 +762,11 @@ CppJson <- R6::R6Class(
       if (is.null(subfolder_name)) {
         json_erase_field_cpp(self$json_ptr, field_name)
       } else {
-        json_erase_field_subfolder_cpp(self$json_ptr, subfolder_name, field_name)
+        json_erase_field_subfolder_cpp(
+          self$json_ptr,
+          subfolder_name,
+          field_name
+        )
       }
       invisible(self)
     },

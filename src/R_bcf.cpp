@@ -252,7 +252,88 @@ cpp11::writable::list bcf_sample_cpp(
 
   // Unpack outputs
   cpp11::writable::list output_list = create_bcf_metadata(config);
+  // Final RNG state, so continueSampling() can resume the stream (single-chain runs).
+  output_list.push_back(cpp11::named_arg("rng_state") = bcf_sampler.GetRngState());
   return output_list;
+}
+
+[[cpp11::register]]
+cpp11::writable::list bcf_continue_sample_cpp(
+    cpp11::external_pointer<StochTree::BCFSamples> samples,
+    cpp11::sexp X_train,
+    cpp11::sexp Z_train,
+    cpp11::sexp y_train,
+    int n_train,
+    int p,
+    int treatment_dim,
+    cpp11::sexp obs_weights_train,
+    cpp11::sexp rfx_group_ids_train,
+    cpp11::sexp rfx_basis_train,
+    int rfx_num_groups,
+    int rfx_basis_dim,
+    int num_burnin,
+    int keep_every,
+    int num_mcmc,
+    std::string rng_state_in,
+    bool override_seed,
+    cpp11::list config_input) {
+  // Extract pointers to raw (re-supplied) data
+  int protect_count = 0;
+  double* X_train_ptr = extract_numeric_pointer(X_train, "X_train", protect_count);
+  double* Z_train_ptr = extract_numeric_pointer(Z_train, "Z_train", protect_count);
+  double* y_train_ptr = extract_numeric_pointer(y_train, "y_train", protect_count);
+  double* obs_weights_train_ptr = extract_numeric_pointer(obs_weights_train, "obs_weights_train", protect_count);
+  int* rfx_group_ids_train_ptr = extract_integer_pointer(rfx_group_ids_train, "rfx_group_ids_train", protect_count);
+  double* rfx_basis_train_ptr = extract_numeric_pointer(rfx_basis_train, "rfx_basis_train", protect_count);
+
+  // Load the BCFData struct from re-supplied data (no test data; the R wrapper recomputes
+  // predictions via predict()).
+  StochTree::BCFData data;
+  data.X_train = X_train_ptr;
+  data.treatment_train = Z_train_ptr;
+  data.y_train = y_train_ptr;
+  data.n_train = n_train;
+  data.p = p;
+  data.n_test = 0;
+  data.treatment_dim = treatment_dim;
+  data.obs_weights_train = obs_weights_train_ptr;
+  data.rfx_group_ids_train = rfx_group_ids_train_ptr;
+  data.rfx_basis_train = rfx_basis_train_ptr;
+  data.rfx_num_groups = rfx_num_groups;
+  data.rfx_basis_dim = rfx_basis_dim;
+
+  // Create the BCFConfig object
+  StochTree::BCFConfig config = convert_list_to_bcf_config(config_input);
+
+  // Continuation appends new MCMC draws in place onto the model's single-owner samples object. The
+  // warm-start reads the last retained forests (mu/tau/variance), rfx, and scalar state (tau_0, b0/b1)
+  // directly off `samples`; postprocess_samples(samples, num_history) rescales only the new draws.
+  StochTree::BCFSamples& bcf_samples = *samples;
+  const int num_history = bcf_samples.num_samples;
+
+  // Initialize a BCF sampler in continuation mode (warm-start from last sample)
+  StochTree::BCFSampler bcf_sampler(bcf_samples, config, data, /*continuation=*/true);
+
+  // Resume the RNG stream unless the user supplied a new seed (override_seed).
+  if (!override_seed && !rng_state_in.empty()) {
+    bcf_sampler.SetRngState(rng_state_in);
+  }
+
+  // Probit warm-start: regenerate the (unpersisted) latent outcome now that the RNG is positioned at
+  // the resumed/re-seeded stream, so the first continued draw starts from a valid stationary state.
+  bcf_sampler.RegenerateProbitLatent(bcf_samples);
+
+  // Append new MCMC draws (continuation does not run GFR), then post-process only the new range.
+  bcf_sampler.run_mcmc(bcf_samples, num_burnin, keep_every, num_mcmc);
+  bcf_sampler.postprocess_samples(bcf_samples, num_history);
+
+  // Unprotect protected R objects
+  UNPROTECT(protect_count);
+
+  // Metadata only; the extended samples live on the passed-in samples object.
+  cpp11::writable::list metadata_list = create_bcf_metadata(config);
+  metadata_list.push_back(cpp11::named_arg("rng_state") = bcf_sampler.GetRngState());
+  return metadata_list;
 }
 
 cpp11::writable::list convert_bcf_preds_to_list(StochTree::BCFPredictionResult& bcf_preds) {

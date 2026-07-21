@@ -565,8 +565,7 @@ savePreprocessorToJson <- function(object) {
       if (object$num_ordered_cat_vars > 0) object$ordered_cat_vars else NULL,
       if (object$num_unordered_cat_vars > 0) object$unordered_cat_vars else NULL
     )
-    # Human-readable string for the cross-platform refusal message (the gate
-    # only branches on the boolean above).
+    # String for the cross-platform refusal message (the gate only branches on the boolean above).
     jsonobj$add_string(
       "non_portable_columns",
       paste(non_portable_columns, collapse = ", ")
@@ -1269,6 +1268,39 @@ inferStochtreeJsonVersion <- function(json_object) {
   return("unknown")
 }
 
+#' Overlay changeable continuation parameters onto a cached sampler config.
+#'
+#' Shared by `continueSampling.bartmodel()` and `continueSampling.bcfmodel()`. For each user-supplied
+#' parameter whose name is present in `mapping`, the corresponding internal config key is overwritten;
+#' parameters not in `mapping` are ignored with a warning (they cannot be changed mid-chain).
+#'
+#' @param config The cached sampler config list to overlay onto.
+#' @param user_params Named list of user-supplied changeable parameters.
+#' @param mapping Named list mapping user-facing parameter names to internal config keys.
+#' @param list_name Human-readable name of the parameter list (used in the warning message).
+#' @return The updated config list.
+#' @keywords internal
+#' @noRd
+overlayContinuationParams <- function(config, user_params, mapping, list_name) {
+  if (length(user_params) == 0) {
+    return(config)
+  }
+  unknown <- setdiff(names(user_params), names(mapping))
+  if (length(unknown) > 0) {
+    warning(
+      "The following ",
+      list_name,
+      " cannot be changed on continuation and will be ignored: ",
+      paste(unknown, collapse = ", ")
+    )
+  }
+  for (key in intersect(names(user_params), names(mapping))) {
+    val <- user_params[[key]]
+    if (!is.null(val)) config[[mapping[[key]]]] <- val
+  }
+  config
+}
+
 #' Resolve a forest's variable subset from keep_vars / drop_vars.
 #'
 #' Refactors logic that is common to both bart() and `continueSampler()`: `keep_vars` (if supplied) selects the included
@@ -1360,4 +1392,102 @@ expandVariableWeights <- function(
   expanded <- variable_weights[original_var_indices] * variable_weights_adj
   expanded[!(original_var_indices %in% variable_subset)] <- 0
   expanded
+}
+
+#' Compute the full set of BCF per-forest split-variable weights.
+#'
+#' Refactors logic shared by `bcf()` and `continueSampling.bcfmodel()` so the fit and continuation
+#' paths cannot drift. For each forest it (1) expands the per-original-variable weights across the
+#' preprocessed feature columns and zeroes out variables excluded from that forest's subset, (2)
+#' appends weights for the propensity column(s) according to `propensity_covariate`, and (3)
+#' renormalizes each forest's weights to sum to 1.
+#'
+#' @param variable_weights Numeric per-original-variable weights (length = number of original covariates).
+#' @param original_var_indices Integer vector mapping each preprocessed feature to its original variable index.
+#' @param variable_subset_mu Integer vectors of included original variable indices for the prognostic forest.
+#' @param variable_subset_tau Integer vectors of included original variable indices for the treatment effect forest.
+#' @param variable_subset_variance Integer vectors of included original variable indices for the variance forest.
+#' @param propensity_covariate One of `"none"`, `"prognostic"`, `"treatment_effect"`, `"both"`.
+#' @param ncol_propensity Number of propensity columns appended to the covariates (0 if `propensity_covariate == "none"`).
+#' @param num_cov_orig Number of original covariates (used for the propensity-column default weight `1/num_cov_orig`).
+#' @param include_variance_forest Whether a variance forest is present.
+#' @return List with elements `mu`, `tau`, and `variance` (the last is `NULL` if `!include_variance_forest`).
+#' @keywords internal
+#' @noRd
+computeBCFForestWeights <- function(
+  variable_weights,
+  original_var_indices,
+  variable_subset_mu,
+  variable_subset_tau,
+  variable_subset_variance,
+  propensity_covariate,
+  ncol_propensity,
+  num_cov_orig,
+  include_variance_forest
+) {
+  variable_weights_mu <- expandVariableWeights(
+    variable_weights,
+    original_var_indices,
+    variable_subset_mu
+  )
+  variable_weights_tau <- expandVariableWeights(
+    variable_weights,
+    original_var_indices,
+    variable_subset_tau
+  )
+  variable_weights_variance <- if (include_variance_forest) {
+    expandVariableWeights(
+      variable_weights,
+      original_var_indices,
+      variable_subset_variance
+    )
+  } else {
+    NULL
+  }
+
+  # Append weights for the propensity column(s). The prognostic and treatment-effect forests each
+  # receive 1/num_cov_orig when the propensity is included as a covariate for that forest; the
+  # variance forest never splits on the propensity.
+  if (propensity_covariate != "none") {
+    mu_prop_weight <- if (propensity_covariate %in% c("prognostic", "both")) {
+      1 / num_cov_orig
+    } else {
+      0
+    }
+    tau_prop_weight <- if (
+      propensity_covariate %in% c("treatment_effect", "both")
+    ) {
+      1 / num_cov_orig
+    } else {
+      0
+    }
+    variable_weights_mu <- c(
+      variable_weights_mu,
+      rep(mu_prop_weight, ncol_propensity)
+    )
+    variable_weights_tau <- c(
+      variable_weights_tau,
+      rep(tau_prop_weight, ncol_propensity)
+    )
+    if (include_variance_forest) {
+      variable_weights_variance <- c(
+        variable_weights_variance,
+        rep(0, ncol_propensity)
+      )
+    }
+  }
+
+  # Renormalize each forest's weights to sum to 1
+  variable_weights_mu <- variable_weights_mu / sum(variable_weights_mu)
+  variable_weights_tau <- variable_weights_tau / sum(variable_weights_tau)
+  if (include_variance_forest) {
+    variable_weights_variance <- variable_weights_variance /
+      sum(variable_weights_variance)
+  }
+
+  list(
+    mu = variable_weights_mu,
+    tau = variable_weights_tau,
+    variance = variable_weights_variance
+  )
 }

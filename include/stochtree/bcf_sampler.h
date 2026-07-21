@@ -65,6 +65,13 @@ class BCFSampler {
     iss >> rng_;
   }
 
+  // Regenerate the probit latent outcome for a continuation warm-start. The latent is not persisted
+  // (it is re-drawn each MCMC iteration), so this draws a fresh z ~ p(z | y, mu + Z*tau + rfx + tau_0)
+  // to place the residual in a valid, stationary state before the first continued draw. No-op unless
+  // the model uses a probit link. MUST be called after SetRngState so the draw comes from the resumed
+  // (or user-re-seeded) stream rather than the pre-seed RNG.
+  void RegenerateProbitLatent(BCFSamples& samples);
+
  private:
   /*! Initialize state variables */
   void InitializeState(BCFSamples& samples, bool continuation = false);

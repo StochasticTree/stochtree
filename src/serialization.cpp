@@ -2,6 +2,7 @@
 #include "stochtree_types.h"
 #include <stochtree/container.h>
 #include <stochtree/leaf_model.h>
+#include <stochtree/log.h>
 #include <stochtree/meta.h>
 #include <stochtree/partition_tracker.h>
 #include <stochtree/random_effects.h>
@@ -380,8 +381,13 @@ std::string json_add_forest_cpp(cpp11::external_pointer<nlohmann::json> json_ptr
   if (forest_label.empty()) {
     forest_label = "forest_" + std::to_string(forest_num);
   }
-  nlohmann::json forest_json = forest_samples->to_json();
-  json_ptr->at("forests").emplace(forest_label, forest_json);
+  // Reject a duplicate label before any mutation/serialization: nlohmann's emplace would silently
+  // no-op on an existing key while num_forests still incremented, dropping the forest and desyncing
+  // the count from the actual key set.
+  if (json_ptr->at("forests").contains(forest_label)) {
+    StochTree::Log::Fatal("A forest with label '%s' already exists; forest labels must be unique", forest_label.c_str());
+  }
+  json_ptr->at("forests")[forest_label] = forest_samples->to_json();
   json_ptr->at("num_forests") = forest_num + 1;
   return forest_label;
 }
