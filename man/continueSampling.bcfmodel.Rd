@@ -42,15 +42,20 @@ covariate and no internal propensity model is available to re-derive them.}
 \item{num_mcmc}{Number of additional retained MCMC draws. Default \code{100}.}
 
 \item{general_params}{(Optional) List of changeable general parameters (e.g. \code{random_seed}, \code{keep_every},
-\code{keep_burnin}, \code{cutpoint_grid_size}, \code{sigma2_global_shape}, \code{sigma2_global_scale}, \code{num_threads}, \code{verbose}).}
+\code{keep_burnin}, \code{cutpoint_grid_size}, \code{sigma2_global_shape}, \code{sigma2_global_scale}, \code{num_threads}, \code{verbose}).
+May also include \code{variable_weights} (per-covariate split weights); if omitted, the fit-time weights are reused.}
 
 \item{prognostic_forest_params}{(Optional) Changeable prognostic (mu) forest parameters (\code{alpha}, \code{beta},
-\code{min_samples_leaf}, \code{max_depth}, \code{num_features_subsample}, \code{sigma2_leaf_shape}, \code{sigma2_leaf_scale}).}
+\code{min_samples_leaf}, \code{max_depth}, \code{num_features_subsample}, \code{sigma2_leaf_shape}, \code{sigma2_leaf_scale}).
+May also include \code{keep_vars} / \code{drop_vars} to change which covariates this forest may split on; if omitted,
+the fit-time split-variable subset is reused.}
 
-\item{treatment_effect_forest_params}{(Optional) Changeable treatment (tau) forest parameters (same keys as prognostic).}
+\item{treatment_effect_forest_params}{(Optional) Changeable treatment (tau) forest parameters (same keys as
+prognostic, including \code{keep_vars} / \code{drop_vars}).}
 
 \item{variance_forest_params}{(Optional) Changeable variance forest parameters (\code{alpha}, \code{beta},
-\code{min_samples_leaf}, \code{max_depth}, \code{num_features_subsample}, \code{var_forest_prior_shape}, \code{var_forest_prior_scale}).}
+\code{min_samples_leaf}, \code{max_depth}, \code{num_features_subsample}, \code{var_forest_prior_shape}, \code{var_forest_prior_scale},
+and \code{keep_vars} / \code{drop_vars}).}
 
 \item{...}{Other parameters (ignored).}
 }
@@ -58,11 +63,8 @@ covariate and no internal propensity model is available to re-derive them.}
 The updated \code{bcfmodel} (mutated in place; the sampled forests are extended).
 }
 \description{
-Continue (warm-start) MCMC sampling from an already-fit BCF model, appending additional
-draws to the existing posterior samples. The training data must be re-supplied (it is not retained on
-the model); the sampler warm-starts every term (prognostic + treatment forests, variance forest,
+Continue sampling from a BCF model, appending additional draws to the existing
+posterior samples. The training data must be re-supplied (it is not retained on the model).
+The sampler initializes every term (prognostic + treatment forests, variance forest,
 random effects, tau_0, and adaptive-coding b0/b1) from its last retained sample.
-
-Currently supported for Gaussian (identity-link), univariate-treatment models. A model fit with a
-test set has its cached test predictions dropped (with a warning) since continuation takes no test set.
 }
