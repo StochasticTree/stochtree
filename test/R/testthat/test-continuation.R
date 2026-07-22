@@ -322,6 +322,17 @@ test_that("BCF continuation appends draws (basic + adaptive + variance + rfx)", 
   expect_equal(mr$model_params$num_samples, 18)
   bs <- extractRandomEffectSamples(mr)$beta_samples
   expect_equal(dim(bs)[length(dim(bs))], 18)  # last dim = num_samples
+
+  # random_effects_params is a changeable dict on continuation (no warning, proceeds).
+  mr2 <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+             rfx_group_ids_train = g, rfx_basis_train = rb,
+             num_gfr = 0, num_burnin = 5, num_mcmc = 10)
+  expect_no_warning(
+    mr2 <- continueSampling(mr2, X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+                            rfx_group_ids_train = g, rfx_basis_train = rb, num_mcmc = 8,
+                            random_effects_params = list(variance_prior_shape = 2, variance_prior_scale = 2))
+  )
+  expect_equal(mr2$model_params$num_samples, 18)
 })
 
 test_that("BCF continuation is deterministic", {
@@ -428,6 +439,37 @@ test_that("BCF continuation drops stale test predictions with a warning", {
     "test-set predictions are stale"
   )
   expect_equal(m$model_params$num_samples, 18)
+})
+
+test_that("BCF continuation supports a re-supplied test set", {
+  skip_on_cran()
+
+  set.seed(313)
+  n <- 200
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- 0.25 + 0.5 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  y <- X[, 1] * 2 + X[, 2] * (-1) * Z + rnorm(n)
+  test_inds <- 1:40
+  Xte <- X[test_inds, ]
+  Zte <- Z[test_inds]
+  pite <- pi_x[test_inds]
+
+  # Continuation recomputes the FULL test-prediction trace from all retained forests, so the stored
+  # test preds match a direct predict() call on the same test set (no warning when X_test is supplied).
+  m <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+           num_gfr = 0, num_burnin = 5, num_mcmc = 10, general_params = list(random_seed = 5))
+  expect_no_warning(
+    m <- continueSampling(m, X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+                          X_test = Xte, Z_test = Zte, propensity_test = pite, num_mcmc = 8)
+  )
+  expect_equal(m$model_params$num_samples, 18)
+  y_hat_test <- matrix(m$samples$y_hat_test(), nrow = length(test_inds))
+  expect_equal(dim(y_hat_test), c(length(test_inds), 18))
+  # Stored test preds equal a direct predict() over the full posterior.
+  pred <- predict(m, X = Xte, Z = Zte, propensity = pite)
+  expect_equal(y_hat_test, pred$y_hat, tolerance = 1e-8)
 })
 
 test_that("BCF continuation supports multivariate treatment", {

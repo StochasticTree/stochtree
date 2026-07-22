@@ -3198,6 +3198,14 @@ extractForest.bcfmodel <- function(object, term) {
 #'   covariate and no internal propensity model is available to re-derive them.
 #' @param rfx_group_ids_train (Optional) Training random effects group labels (required if the model has rfx).
 #' @param rfx_basis_train (Optional) Training random effects basis (required for a custom rfx model).
+#' @param X_test (Optional) Test covariates. When supplied, test-set predictions are recomputed in full
+#'   from all retained forests, so the test set need not match any test set used in the original fit (the
+#'   model may have been fit with none). When omitted, any cached test predictions are dropped.
+#' @param Z_test (Optional) Test treatment assignments (required when `X_test` is provided).
+#' @param propensity_test (Optional) Test propensity scores. Required if the model used a propensity covariate
+#'   and no internal propensity model is available to re-derive them.
+#' @param rfx_group_ids_test (Optional) Test random effects group labels (required when `X_test` is provided and the model has rfx).
+#' @param rfx_basis_test (Optional) Test random effects basis (required for a custom rfx model when `X_test` is provided).
 #' @param num_burnin Number of additional burn-in iterations to discard. Default `0`.
 #' @param num_mcmc Number of additional retained MCMC draws. Default `100`.
 #' @param general_params (Optional) List of changeable general parameters (e.g. `random_seed`, `keep_every`,
@@ -3212,6 +3220,9 @@ extractForest.bcfmodel <- function(object, term) {
 #' @param variance_forest_params (Optional) Changeable variance forest parameters (`alpha`, `beta`,
 #'   `min_samples_leaf`, `max_depth`, `num_features_subsample`, `var_forest_prior_shape`, `var_forest_prior_scale`,
 #'   and `keep_vars` / `drop_vars`).
+#' @param random_effects_params (Optional) Changeable random effects parameters (`variance_prior_shape`,
+#'   `variance_prior_scale` — the inverse-gamma prior on the random effects group-parameter variance).
+#'   Ignored if the model has no random effects.
 #' @param ... Other parameters (ignored).
 #' @return The updated `bcfmodel` (mutated in place; the sampled forests are extended).
 #' @export
@@ -3223,12 +3234,18 @@ continueSampling.bcfmodel <- function(
   propensity_train = NULL,
   rfx_group_ids_train = NULL,
   rfx_basis_train = NULL,
+  X_test = NULL,
+  Z_test = NULL,
+  propensity_test = NULL,
+  rfx_group_ids_test = NULL,
+  rfx_basis_test = NULL,
   num_burnin = 0,
   num_mcmc = 100,
   general_params = list(),
   prognostic_forest_params = list(),
   treatment_effect_forest_params = list(),
   variance_forest_params = list(),
+  random_effects_params = list(),
   ...
 ) {
   if (!inherits(object, "bcfmodel")) {
@@ -3282,6 +3299,10 @@ continueSampling.bcfmodel <- function(
     var_forest_prior_shape = "shape_variance_forest",
     var_forest_prior_scale = "scale_variance_forest"
   )
+  random_effects_map <- list(
+    variance_prior_shape = "rfx_variance_prior_shape",
+    variance_prior_scale = "rfx_variance_prior_scale"
+  )
   # keep_every is passed to the binding as an explicit arg (not a config key); pull it out so the
   # overlay does not flag it as unchangeable.
   user_keep_every <- general_params[["keep_every"]]
@@ -3327,6 +3348,12 @@ continueSampling.bcfmodel <- function(
     variance_forest_params,
     variance_map,
     "variance_forest_params"
+  )
+  config <- overlayContinuationParams(
+    config,
+    random_effects_params,
+    random_effects_map,
+    "random_effects_params"
   )
   keep_every <- if (!is.null(user_keep_every)) user_keep_every else 1
 
@@ -3475,13 +3502,85 @@ continueSampling.bcfmodel <- function(
     config[["var_weights_variance"]] <- variable_weights_list$variance
   }
 
-  # A model fit with a test set: continuation takes no test set, so the cached test predictions become
-  # stale. Warn; the sampler drops them (postprocess clears test predictions when no test set present).
-  if (isTRUE(object$model_params$has_test)) {
+  # --- Re-supplied test data (optional) -----------------------------------------------------------
+  # When X_test is supplied, the sampler recomputes the full test-prediction trace from all retained
+  # forests (assign, not append), so the test set need not match any test set used in the original fit.
+  # When it is NOT supplied, any cached test predictions from the original fit are stale and the
+  # sampler drops them (postprocess clears test predictions when no test set is present).
+  has_test <- !is.null(X_test)
+  X_test_combined <- NULL
+  rfx_group_ids_test_int <- NULL
+  n_test <- 0L
+  if (!has_test && isTRUE(object$model_params$has_test)) {
     warning(
-      "Continuing a BCF model fit with a test set: the existing test-set predictions are stale and ",
-      "will be dropped (BCF continuation does not accept a test set)."
+      "Continuing without X_test on a model fit with a test set: the existing test-set predictions ",
+      "are stale and will be dropped. Re-supply X_test to retain test-set predictions."
     )
+  }
+  if (has_test) {
+    if (ncol(X_test) != object$model_params$num_covariates) {
+      stop(sprintf(
+        "X_test has %d columns; the model was trained on %d covariates",
+        ncol(X_test),
+        object$model_params$num_covariates
+      ))
+    }
+    X_test <- preprocessPredictionData(X_test, train_set_metadata)
+    if (is.null(Z_test)) {
+      stop("Z_test must be supplied when X_test is provided")
+    }
+    Z_test <- as.matrix(Z_test)
+    if (nrow(X_test) != nrow(Z_test)) {
+      stop("X_test and Z_test must have the same number of observations")
+    }
+    # Test propensity: re-derive from the internal model if not supplied.
+    if (
+      object$model_params$propensity_covariate != "none" &&
+        is.null(propensity_test)
+    ) {
+      if (!object$model_params$internal_propensity_model) {
+        stop(
+          "propensity_test must be provided to continue sampling this model with a test set"
+        )
+      }
+      propensity_test <- predict(
+        object$bart_propensity_model,
+        X_test,
+        type = "mean",
+        terms = "y_hat"
+      )
+    }
+    X_test_combined <- X_test
+    if (object$model_params$propensity_covariate != "none") {
+      X_test_combined <- cbind(X_test, propensity_test)
+    }
+    n_test <- nrow(X_test_combined)
+    if (has_rfx) {
+      if (is.null(rfx_group_ids_test)) {
+        stop(
+          "This model was fit with random effects; rfx_group_ids_test must be supplied when X_test is provided"
+        )
+      }
+      group_ids_test_factor <- factor(
+        rfx_group_ids_test,
+        levels = object$rfx_unique_group_ids
+      )
+      if (any(is.na(group_ids_test_factor))) {
+        stop(
+          "rfx_group_ids_test contains group labels not present in the fitted model"
+        )
+      }
+      rfx_group_ids_test_int <- as.integer(group_ids_test_factor)
+      if (spec == "custom" && is.null(rfx_basis_test)) {
+        stop(
+          "A user-provided rfx_basis_test must be supplied for a 'custom' random effects model"
+        )
+      } else if (spec == "intercept_only" && is.null(rfx_basis_test)) {
+        rfx_basis_test <- matrix(rep(1, nrow(X_test)), ncol = 1)
+      } else if (spec == "intercept_plus_treatment" && is.null(rfx_basis_test)) {
+        rfx_basis_test <- cbind(rep(1, nrow(X_test)), Z_test)
+      }
+    }
   }
 
   # Update or restore RNG state
@@ -3501,12 +3600,17 @@ continueSampling.bcfmodel <- function(
     X_train = X_combined,
     Z_train = Z_train,
     y_train = y_train,
+    X_test = if (has_test) X_test_combined else NULL,
+    Z_test = if (has_test) Z_test else NULL,
     n_train = nrow(X_combined),
+    n_test = as.integer(n_test),
     p = ncol(X_combined),
     treatment_dim = ncol(Z_train),
     obs_weights_train = NULL,
     rfx_group_ids_train = if (has_rfx) rfx_group_ids_train else NULL,
     rfx_basis_train = if (has_rfx) rfx_basis_train else NULL,
+    rfx_group_ids_test = if (has_test && has_rfx) rfx_group_ids_test_int else NULL,
+    rfx_basis_test = if (has_test && has_rfx) rfx_basis_test else NULL,
     rfx_num_groups = as.integer(rfx_num_groups),
     rfx_basis_dim = as.integer(rfx_basis_dim),
     num_burnin = as.integer(num_burnin),
@@ -3521,6 +3625,8 @@ continueSampling.bcfmodel <- function(
   object$model_params$num_samples <- bcf_samples$num_samples()
   object$model_params$num_mcmc <- object$model_params$num_mcmc + num_mcmc
   object$model_params$rng_state <- bcf_metadata[["rng_state"]]
+  object$model_params$has_test <- has_test
+  object$model_params$num_test <- if (has_test) n_test else 0L
 
   return(object)
 }

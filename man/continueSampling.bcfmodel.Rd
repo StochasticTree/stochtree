@@ -12,12 +12,18 @@
   propensity_train = NULL,
   rfx_group_ids_train = NULL,
   rfx_basis_train = NULL,
+  X_test = NULL,
+  Z_test = NULL,
+  propensity_test = NULL,
+  rfx_group_ids_test = NULL,
+  rfx_basis_test = NULL,
   num_burnin = 0,
   num_mcmc = 100,
   general_params = list(),
   prognostic_forest_params = list(),
   treatment_effect_forest_params = list(),
   variance_forest_params = list(),
+  random_effects_params = list(),
   ...
 )
 }
@@ -36,6 +42,19 @@ covariate and no internal propensity model is available to re-derive them.}
 \item{rfx_group_ids_train}{(Optional) Training random effects group labels (required if the model has rfx).}
 
 \item{rfx_basis_train}{(Optional) Training random effects basis (required for a custom rfx model).}
+
+\item{X_test}{(Optional) Test covariates. When supplied, test-set predictions are recomputed in full
+from all retained forests, so the test set need not match any test set used in the original fit (the
+model may have been fit with none). When omitted, any cached test predictions are dropped.}
+
+\item{Z_test}{(Optional) Test treatment assignments (required when \code{X_test} is provided).}
+
+\item{propensity_test}{(Optional) Test propensity scores. Required if the model used a propensity covariate
+and no internal propensity model is available to re-derive them.}
+
+\item{rfx_group_ids_test}{(Optional) Test random effects group labels (required when \code{X_test} is provided and the model has rfx).}
+
+\item{rfx_basis_test}{(Optional) Test random effects basis (required for a custom rfx model when \code{X_test} is provided).}
 
 \item{num_burnin}{Number of additional burn-in iterations to discard. Default \code{0}.}
 
@@ -56,6 +75,10 @@ prognostic, including \code{keep_vars} / \code{drop_vars}).}
 \item{variance_forest_params}{(Optional) Changeable variance forest parameters (\code{alpha}, \code{beta},
 \code{min_samples_leaf}, \code{max_depth}, \code{num_features_subsample}, \code{var_forest_prior_shape}, \code{var_forest_prior_scale},
 and \code{keep_vars} / \code{drop_vars}).}
+
+\item{random_effects_params}{(Optional) Changeable random effects parameters (\code{variance_prior_shape},
+\code{variance_prior_scale} — the inverse-gamma prior on the random effects group-parameter variance).
+Ignored if the model has no random effects.}
 
 \item{...}{Other parameters (ignored).}
 }

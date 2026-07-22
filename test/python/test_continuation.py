@@ -394,6 +394,31 @@ class TestBCFContinuation:
         assert m.y_hat_test is None
         assert m.num_samples == 18
 
+    def test_continuation_supports_resupplied_test_set(self):
+        # Continuation recomputes the FULL test trace from all retained forests, so stored test preds
+        # match a direct predict() over the full posterior (no warning when X_test is supplied).
+        rng = np.random.default_rng(515)
+        n, p = 200, 5
+        X = rng.uniform(0, 1, (n, p))
+        pi = (0.3 + 0.4 * X[:, 1]).reshape(-1, 1)
+        Z = rng.binomial(1, pi[:, 0]).astype(np.float64).reshape(-1, 1)
+        y = 1.0 + 2.0 * X[:, 0] - 1.0 * X[:, 1] * Z[:, 0] + 0.5 * rng.standard_normal(n)
+        Xte = rng.uniform(0, 1, (40, p))
+        pite = (0.3 + 0.4 * Xte[:, 1]).reshape(-1, 1)
+        Zte = rng.binomial(1, pite[:, 0]).astype(np.float64).reshape(-1, 1)
+
+        m = BCFModel()
+        m.sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+                 num_gfr=0, num_burnin=5, num_mcmc=10, general_params={"random_seed": 5})
+        m.continue_sampling(X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+                            X_test=Xte, Z_test=Zte, propensity_test=pite, num_mcmc=8)
+        assert m.num_samples == 18
+        assert m.has_test
+        assert m.y_hat_test.shape == (40, 18)
+        # Stored test preds equal a direct predict() over the full posterior.
+        pred = m.predict(Xte, Zte, propensity=pite, terms="y_hat")
+        np.testing.assert_allclose(m.y_hat_test, pred, atol=1e-8, rtol=0)
+
     def test_continuation_variance_forest_supported(self):
         X, Z, y, pi = _make_bcf_data()
         m = BCFModel()
@@ -443,6 +468,13 @@ class TestBCFContinuation:
             m2.continue_sampling(X_train=X, Z_train=Z, y_train=y, propensity_train=pi.reshape(-1, 1), num_mcmc=5)
         # Deterministic
         np.testing.assert_allclose(run().y_hat_train, m.y_hat_train, atol=1e-10, rtol=0)
+        # random_effects_params is a changeable dict on continuation (no warning, proceeds).
+        m.continue_sampling(
+            X_train=X, Z_train=Z, y_train=y, propensity_train=pi.reshape(-1, 1),
+            rfx_group_ids_train=g, rfx_basis_train=rb, num_mcmc=5,
+            random_effects_params={"variance_prior_shape": 2.0, "variance_prior_scale": 2.0},
+        )
+        assert m.num_samples == 23
 
     def test_continuation_probit_supported(self):
         def run():

@@ -16,8 +16,8 @@ bcf_sample_cpp <- function(samples, X_train, Z_train, y_train, X_test, Z_test, n
   .Call(`_stochtree_bcf_sample_cpp`, samples, X_train, Z_train, y_train, X_test, Z_test, n_train, n_test, p, treatment_dim, obs_weights_train, obs_weights_test, rfx_group_ids_train, rfx_group_ids_test, rfx_basis_train, rfx_basis_test, rfx_num_groups, rfx_basis_dim, num_gfr, num_burnin, keep_every, num_mcmc, num_chains, adaptive_coding, config_input)
 }
 
-bcf_continue_sample_cpp <- function(samples, X_train, Z_train, y_train, n_train, p, treatment_dim, obs_weights_train, rfx_group_ids_train, rfx_basis_train, rfx_num_groups, rfx_basis_dim, num_burnin, keep_every, num_mcmc, rng_state_in, override_seed, config_input) {
-  .Call(`_stochtree_bcf_continue_sample_cpp`, samples, X_train, Z_train, y_train, n_train, p, treatment_dim, obs_weights_train, rfx_group_ids_train, rfx_basis_train, rfx_num_groups, rfx_basis_dim, num_burnin, keep_every, num_mcmc, rng_state_in, override_seed, config_input)
+bcf_continue_sample_cpp <- function(samples, X_train, Z_train, y_train, X_test, Z_test, n_train, n_test, p, treatment_dim, obs_weights_train, rfx_group_ids_train, rfx_basis_train, rfx_group_ids_test, rfx_basis_test, rfx_num_groups, rfx_basis_dim, num_burnin, keep_every, num_mcmc, rng_state_in, override_seed, config_input) {
+  .Call(`_stochtree_bcf_continue_sample_cpp`, samples, X_train, Z_train, y_train, X_test, Z_test, n_train, n_test, p, treatment_dim, obs_weights_train, rfx_group_ids_train, rfx_basis_train, rfx_group_ids_test, rfx_basis_test, rfx_num_groups, rfx_basis_dim, num_burnin, keep_every, num_mcmc, rng_state_in, override_seed, config_input)
 }
 
 bcf_predict_cpp <- function(bcf_samples_ptr, bcf_model_metadata, X, Z, n, p, treatment_dim, obs_weights, rfx_group_ids, rfx_basis, rfx_num_groups, rfx_basis_dim, posterior, scale, predict_y_hat, predict_mu_x, predict_tau_x, predict_prognostic_function, predict_cate, predict_conditional_variance, predict_random_effects) {

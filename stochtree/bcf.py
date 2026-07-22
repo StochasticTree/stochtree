@@ -2223,12 +2223,18 @@ class BCFModel:
         propensity_train: np.array = None,
         rfx_group_ids_train: np.array = None,
         rfx_basis_train: np.array = None,
+        X_test: Optional[Union[np.array, pd.DataFrame]] = None,
+        Z_test: np.array = None,
+        propensity_test: np.array = None,
+        rfx_group_ids_test: np.array = None,
+        rfx_basis_test: np.array = None,
         num_burnin: int = 0,
         num_mcmc: int = 100,
         general_params: Optional[Dict[str, Any]] = None,
         prognostic_forest_params: Optional[Dict[str, Any]] = None,
         treatment_effect_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
+        random_effects_params: Optional[Dict[str, Any]] = None,
         observation_weights_train: Optional[np.ndarray] = None,
     ):
         """Continue (warm-start) MCMC sampling from an already-fit BCF model, appending
@@ -2265,6 +2271,19 @@ class BCFModel:
             Training random effects group labels (required if the model has random effects).
         rfx_basis_train : np.array, optional
             Training random effects basis (required for a custom random effects model).
+        X_test : np.array or pd.DataFrame, optional
+            Test-set covariates. When supplied, test-set predictions are recomputed in full from all
+            retained forests, so the test set need not match any test set used in the original fit (the
+            model may have been fit with none). When omitted, any cached test predictions are dropped.
+        Z_test : np.array, optional
+            Test-set treatment assignments (required when ``X_test`` is provided).
+        propensity_test : np.array, optional
+            Test-set propensity scores. Required if the model used a propensity covariate and no
+            internal propensity model is available to re-derive them.
+        rfx_group_ids_test : np.array, optional
+            Test-set random effects group labels (required when ``X_test`` is provided and the model has rfx).
+        rfx_basis_test : np.array, optional
+            Test-set random effects basis (required for a custom rfx model when ``X_test`` is provided).
         num_burnin : int, optional
             Number of additional burn-in iterations to discard before retaining. Defaults to ``0``.
         num_mcmc : int, optional
@@ -2285,6 +2304,10 @@ class BCFModel:
             Changeable variance forest parameters. Honored keys: ``alpha``, ``beta``,
             ``min_samples_leaf``, ``max_depth``, ``num_features_subsample``, ``var_forest_prior_shape``,
             ``var_forest_prior_scale``, and ``keep_vars`` / ``drop_vars``.
+        random_effects_params : dict, optional
+            Changeable random effects parameters. Honored keys: ``variance_prior_shape`` and
+            ``variance_prior_scale`` (the inverse-gamma prior on the random effects group-parameter
+            variance). Ignored if the model has no random effects.
         observation_weights_train : np.array, optional
             Optional training observation weights (must match those used to fit the model).
 
@@ -2323,6 +2346,7 @@ class BCFModel:
             dict(treatment_effect_forest_params) if treatment_effect_forest_params else {}
         )
         variance_forest_params = dict(variance_forest_params) if variance_forest_params else {}
+        random_effects_params = dict(random_effects_params) if random_effects_params else {}
 
         # keep_every / random_seed / variable_weights / keep_vars / drop_vars are handled specially
         # (not overlaid as raw config keys), so pull them out before the overlay so they are not
@@ -2372,6 +2396,10 @@ class BCFModel:
             "var_forest_prior_shape": "shape_variance_forest",
             "var_forest_prior_scale": "scale_variance_forest",
         }
+        random_effects_map = {
+            "variance_prior_shape": "rfx_variance_prior_shape",
+            "variance_prior_scale": "rfx_variance_prior_scale",
+        }
 
         config = dict(cfg)
 
@@ -2395,6 +2423,7 @@ class BCFModel:
             treatment_effect_forest_params, treatment_map, "treatment_effect_forest_params"
         )
         overlay(variance_forest_params, variance_map, "variance_forest_params")
+        overlay(random_effects_params, random_effects_map, "random_effects_params")
 
         # Reconstruct the covariate matrix exactly as sample() did: preprocess, then append the
         # propensity score column(s) if the model uses a propensity covariate.
@@ -2421,6 +2450,64 @@ class BCFModel:
                     propensity_train = propensity_train.T
             ncol_propensity = propensity_train.shape[1]
             X_train_processed = np.c_[X_train_processed, propensity_train]
+
+        # Re-supplied test data (optional). When X_test is supplied, the sampler recomputes the full
+        # test-prediction trace from all retained forests, so the test set need not match any test set
+        # used in the original fit. Preprocess + append propensity exactly as the train path does.
+        has_test = X_test is not None
+        X_test_cpp = None
+        Z_test_cpp = None
+        rfx_group_ids_test_cpp = None
+        rfx_basis_test_cpp = None
+        n_test = 0
+        if has_test:
+            X_test_processed = self._covariate_preprocessor.transform(X_test).astype(np.float64)
+            if getattr(self, "propensity_covariate", "none") != "none":
+                if propensity_test is None:
+                    if getattr(self, "internal_propensity_model", False) and hasattr(
+                        self, "bart_propensity_model"
+                    ):
+                        propensity_test = np.expand_dims(
+                            self.bart_propensity_model.predict(
+                                X=X_test_processed, terms="y_hat", type="mean"
+                            ),
+                            1,
+                        )
+                    else:
+                        raise ValueError(
+                            "propensity_test must be supplied to continue sampling this model with a test set"
+                        )
+                else:
+                    propensity_test = np.atleast_2d(propensity_test)
+                    if propensity_test.shape[0] == 1 and propensity_test.shape[1] != 1:
+                        propensity_test = propensity_test.T
+                X_test_processed = np.c_[X_test_processed, propensity_test]
+            if Z_test is None:
+                raise ValueError("Z_test must be supplied when X_test is provided")
+            Z_test = np.atleast_2d(Z_test)
+            if Z_test.shape[0] == 1 and Z_test.shape[1] != X_test_processed.shape[0]:
+                Z_test = Z_test.T
+            if Z_test.shape[1] != self.treatment_dim:
+                raise ValueError(
+                    f"Re-supplied test treatment has {Z_test.shape[1]} columns; model expects {self.treatment_dim}"
+                )
+            n_test = X_test_processed.shape[0]
+            X_test_cpp = np.asfortranarray(X_test_processed)
+            Z_test_cpp = np.asfortranarray(Z_test.astype(np.float64))
+            if self.has_rfx:
+                if rfx_group_ids_test is None:
+                    raise ValueError(
+                        "This model was fit with random effects; rfx_group_ids_test must be supplied when X_test is provided"
+                    )
+                rfx_group_ids_test_cpp = np.asarray(rfx_group_ids_test).astype(np.int32).reshape(-1)
+                if rfx_basis_test is not None:
+                    rfx_basis_test_cpp = np.asfortranarray(np.atleast_2d(rfx_basis_test).astype(np.float64))
+        elif getattr(self, "has_test", False):
+            warnings.warn(
+                "Continuing without X_test on a BCF model fit with a test set: the existing test-set "
+                "predictions are stale and will be dropped. Re-supply X_test to retain them.",
+                UserWarning,
+            )
 
         # If the user overrode variable_weights / keep_vars / drop_vars for any forest, recompute that
         # forest's weights; otherwise reuse the cached fit-time values. The full BCF weight pipeline
@@ -2510,24 +2597,16 @@ class BCFModel:
             else ""
         )
 
-        # BCF continuation does not accept a test set, so if the model was fit with one its cached
-        # test predictions become stale on continuation (they cover only the pre-continuation draws).
-        # The sampler drops them (postprocess clears test predictions when no test set is present); warn
-        # and reset the test flags below so the y_hat_test / sigma2_x_test properties reflect that.
-        if getattr(self, "has_test", False):
-            warnings.warn(
-                "Continuing a BCF model that was fit with a test set: the existing test-set predictions "
-                "are stale and will be dropped (BCF continuation does not accept a test set).",
-                UserWarning,
-            )
-
         # Modify the stored samples in place by taking more draws from the posterior
         bcf_metadata = bcf_continue_sample_cpp(
             samples=self._samples,
             X_train=X_train_cpp,
             Z_train=Z_train_cpp,
             y_train=y_train_cpp,
+            X_test=X_test_cpp,
+            Z_test=Z_test_cpp,
             n_train=X_train_cpp.shape[0],
+            n_test=n_test,
             p=X_train_cpp.shape[1],
             treatment_dim=self.treatment_dim,
             obs_weights_train=observation_weights_train
@@ -2535,6 +2614,8 @@ class BCFModel:
             else None,
             rfx_group_ids_train=rfx_group_ids_cpp,
             rfx_basis_train=rfx_basis_cpp,
+            rfx_group_ids_test=rfx_group_ids_test_cpp,
+            rfx_basis_test=rfx_basis_test_cpp,
             rfx_num_groups=rfx_num_groups,
             rfx_basis_dim=rfx_basis_dim,
             num_burnin=num_burnin,
@@ -2548,9 +2629,10 @@ class BCFModel:
         self.num_mcmc = (self.num_mcmc or 0) + num_mcmc
         # Store the new RNG state
         self.rng_state = bcf_metadata.get("rng_state", None)
-        # The sampler cleared any stale test-prediction trace; reflect that in the test flags.
-        self.has_test = False
-        self.n_test = 0
+        # Reflect the continuation's test-set state in the flags the test-pred properties gate on: a
+        # supplied test set produces a full recomputed trace; otherwise the sampler cleared any stale one.
+        self.has_test = has_test
+        self.n_test = n_test
 
         return self
 

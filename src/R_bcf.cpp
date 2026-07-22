@@ -263,12 +263,17 @@ cpp11::writable::list bcf_continue_sample_cpp(
     cpp11::sexp X_train,
     cpp11::sexp Z_train,
     cpp11::sexp y_train,
+    cpp11::sexp X_test,
+    cpp11::sexp Z_test,
     int n_train,
+    int n_test,
     int p,
     int treatment_dim,
     cpp11::sexp obs_weights_train,
     cpp11::sexp rfx_group_ids_train,
     cpp11::sexp rfx_basis_train,
+    cpp11::sexp rfx_group_ids_test,
+    cpp11::sexp rfx_basis_test,
     int rfx_num_groups,
     int rfx_basis_dim,
     int num_burnin,
@@ -282,23 +287,31 @@ cpp11::writable::list bcf_continue_sample_cpp(
   double* X_train_ptr = extract_numeric_pointer(X_train, "X_train", protect_count);
   double* Z_train_ptr = extract_numeric_pointer(Z_train, "Z_train", protect_count);
   double* y_train_ptr = extract_numeric_pointer(y_train, "y_train", protect_count);
+  double* X_test_ptr = extract_numeric_pointer(X_test, "X_test", protect_count);
+  double* Z_test_ptr = extract_numeric_pointer(Z_test, "Z_test", protect_count);
   double* obs_weights_train_ptr = extract_numeric_pointer(obs_weights_train, "obs_weights_train", protect_count);
   int* rfx_group_ids_train_ptr = extract_integer_pointer(rfx_group_ids_train, "rfx_group_ids_train", protect_count);
   double* rfx_basis_train_ptr = extract_numeric_pointer(rfx_basis_train, "rfx_basis_train", protect_count);
+  int* rfx_group_ids_test_ptr = extract_integer_pointer(rfx_group_ids_test, "rfx_group_ids_test", protect_count);
+  double* rfx_basis_test_ptr = extract_numeric_pointer(rfx_basis_test, "rfx_basis_test", protect_count);
 
-  // Load the BCFData struct from re-supplied data (no test data; the R wrapper recomputes
-  // predictions via predict()).
+  // Load the BCFData struct from re-supplied data. A test set is optional on continuation; when
+  // supplied, postprocess_samples recomputes the full test-prediction trace from all retained forests.
   StochTree::BCFData data;
   data.X_train = X_train_ptr;
   data.treatment_train = Z_train_ptr;
   data.y_train = y_train_ptr;
+  data.X_test = X_test_ptr;
+  data.treatment_test = Z_test_ptr;
   data.n_train = n_train;
   data.p = p;
-  data.n_test = 0;
+  data.n_test = n_test;
   data.treatment_dim = treatment_dim;
   data.obs_weights_train = obs_weights_train_ptr;
   data.rfx_group_ids_train = rfx_group_ids_train_ptr;
   data.rfx_basis_train = rfx_basis_train_ptr;
+  data.rfx_group_ids_test = rfx_group_ids_test_ptr;
+  data.rfx_basis_test = rfx_basis_test_ptr;
   data.rfx_num_groups = rfx_num_groups;
   data.rfx_basis_dim = rfx_basis_dim;
 

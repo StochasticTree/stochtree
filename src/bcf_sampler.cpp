@@ -761,21 +761,27 @@ void BCFSampler::postprocess_samples(BCFSamples& samples, int start_sample) {
   // Unpack test set predictions for mean and variance forest. Guarded on start_sample == 0: the
   // test block predicts from ALL retained forests and appends, so it only runs for an initial sample
   // (continuation supplies no test data and re-derives test predictions via predict()).
-  if (has_test_ && start_sample == 0) {
+  if (has_test_) {
+    // Recompute the FULL test-prediction trace (all retained forests) and assign (not append), so this
+    // is correct on both an initial run and a continuation that re-supplies a (possibly new) test set.
     std::vector<double> mu_predictions = samples.mu_forests->Predict(*forest_dataset_test_);
     std::vector<double> tau_predictions = samples.tau_forests->PredictRaw(*forest_dataset_test_, /*row_major=*/false);
     // Add tau_0 to the treatment effect function predictions if it was sampled.
     // tau_0_samples layout: col-major (treatment dim k, sample j) -> j * treatment_dim + k.
     // For treatment_dim==1 this collapses to samples.tau_0_samples[j].
-    // NOTE: this runs BEFORE tau_0_samples is scaled to the original outcome scale below, so the
-    // values here are still standardized -- matching the standardized tau_predictions from PredictRaw.
+    // tau_predictions (from PredictRaw) is standardized. tau_0_samples is standardized for the NEW
+    // draws (j >= start_sample; this call scales them to original below) but already original-scale
+    // for the history (j < start_sample; scaled by a prior postprocess call). Divide the history
+    // values by y_std so every tau_0 added here is in the standardized space of tau_predictions.
     if (sample_tau_0_) {
       const int treatment_dim = data_.treatment_dim;
       for (int j = 0; j < samples.num_samples; j++) {
         for (int k = 0; k < treatment_dim; k++) {
+          double tau_0_val = samples.tau_0_samples[j * treatment_dim + k];
+          if (j < start_sample) tau_0_val /= samples.y_std;
           for (int i = 0; i < data_.n_test; i++) {
             const int idx = j * data_.n_test * treatment_dim + data_.n_test * k + i;
-            tau_predictions[idx] += samples.tau_0_samples[j * treatment_dim + k];
+            tau_predictions[idx] += tau_0_val;
           }
         }
       }
@@ -800,14 +806,10 @@ void BCFSampler::postprocess_samples(BCFSamples& samples, int start_sample) {
         }
       }
     }
-    samples.mu_forest_predictions_test.insert(samples.mu_forest_predictions_test.end(),
-                                              mu_predictions.data(), mu_predictions.data() + mu_predictions.size());
-    samples.tau_forest_predictions_test.insert(samples.tau_forest_predictions_test.end(),
-                                               tau_predictions.data(), tau_predictions.data() + tau_predictions.size());
+    samples.mu_forest_predictions_test = std::move(mu_predictions);
+    samples.tau_forest_predictions_test = std::move(tau_predictions);
     if (has_variance_forest_) {
-      std::vector<double> predictions = samples.variance_forests->Predict(*forest_dataset_test_);
-      samples.variance_forest_predictions_test.insert(samples.variance_forest_predictions_test.end(),
-                                                      predictions.data(), predictions.data() + predictions.size());
+      samples.variance_forest_predictions_test = samples.variance_forests->Predict(*forest_dataset_test_);
     }
     if (has_random_effects_) {
       RandomEffectsDataset rfx_dataset_test;
@@ -877,7 +879,8 @@ void BCFSampler::postprocess_samples(BCFSamples& samples, int start_sample) {
   //   which already applies exp() internally, so just multiply by y_std^2.
   // - Global error variance samples are in standardized space; multiply by y_std^2.
   // Train predictions + params are scaled only over the newly-appended range [start_sample, end);
-  // test arrays are full-range (populated only on an initial run, empty on continuation).
+  // test arrays are full-range (recomputed in full from all retained forests whenever a test set is
+  // present, on both an initial run and a continuation).
   const size_t train_off = static_cast<size_t>(start_sample) * static_cast<size_t>(data_.n_train);
   const size_t tau_train_off = train_off * static_cast<size_t>(treatment_dim);
   if (has_variance_forest_) {

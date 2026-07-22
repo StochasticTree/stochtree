@@ -3601,12 +3601,17 @@ py::dict bcf_continue_sample_cpp(
     py::object X_train,
     py::object Z_train,
     py::object y_train,
+    py::object X_test,
+    py::object Z_test,
     int n_train,
+    int n_test,
     int p,
     int treatment_dim,
     py::object obs_weights_train,
     py::object rfx_group_ids_train,
     py::object rfx_basis_train,
+    py::object rfx_group_ids_test,
+    py::object rfx_basis_test,
     int rfx_num_groups,
     int rfx_basis_dim,
     int num_burnin,
@@ -3618,13 +3623,14 @@ py::dict bcf_continue_sample_cpp(
   // Convert config dict to BCFConfig struct
   StochTree::BCFConfig bcf_config = convert_dict_to_bcf_config(config_input);
 
-  // Unpack pointers to (re-supplied) input data to BCFData object (no test data; the Python
-  // wrapper recomputes predictions via predict()).
+  // Unpack pointers to (re-supplied) input data to BCFData object. A test set is optional on
+  // continuation; when supplied, postprocess_samples recomputes the full test-prediction trace from
+  // all retained forests.
   StochTree::BCFData bcf_data = convert_numpy_to_bcf_data(
-      X_train, Z_train, y_train, /*X_test=*/py::none(), /*Z_test=*/py::none(),
-      n_train, /*n_test=*/0, p, treatment_dim, obs_weights_train, /*obs_weights_test=*/py::none(),
-      rfx_group_ids_train, /*rfx_group_ids_test=*/py::none(),
-      rfx_basis_train, /*rfx_basis_test=*/py::none(),
+      X_train, Z_train, y_train, X_test, Z_test,
+      n_train, n_test, p, treatment_dim, obs_weights_train, /*obs_weights_test=*/py::none(),
+      rfx_group_ids_train, rfx_group_ids_test,
+      rfx_basis_train, rfx_basis_test,
       rfx_num_groups, rfx_basis_dim);
 
   // Continuation appends new MCMC draws in place onto the model's single-owner samples object,
@@ -3962,12 +3968,17 @@ PYBIND11_MODULE(stochtree_cpp, m) {
         py::arg("X_train"),
         py::arg("Z_train"),
         py::arg("y_train"),
+        py::arg("X_test") = py::none(),
+        py::arg("Z_test") = py::none(),
         py::arg("n_train"),
+        py::arg("n_test") = 0,
         py::arg("p"),
         py::arg("treatment_dim"),
         py::arg("obs_weights_train") = py::none(),
         py::arg("rfx_group_ids_train") = py::none(),
         py::arg("rfx_basis_train") = py::none(),
+        py::arg("rfx_group_ids_test") = py::none(),
+        py::arg("rfx_basis_test") = py::none(),
         py::arg("rfx_num_groups") = 0,
         py::arg("rfx_basis_dim") = 0,
         py::arg("num_burnin"),
