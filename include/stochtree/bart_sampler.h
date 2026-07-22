@@ -65,12 +65,14 @@ class BARTSampler {
     iss >> rng_;
   }
 
-  // Regenerate the probit latent outcome for a continuation warm-start. The latent z is not persisted
-  // (it is re-drawn each MCMC iteration), so this draws a fresh z ~ p(z | y, f_last) to place the
-  // residual in a valid, stationary state before the first continued draw. No-op unless the model
-  // uses a probit link and has a mean forest. MUST be called after SetRngState so the draw comes from
-  // the resumed (or user-re-seeded) stream rather than the pre-seed default RNG.
-  void RegenerateProbitLatent(BARTSamples& samples);
+  // Regenerate the latent outcome for a continuation warm-start (probit or cloglog). The latent is not
+  // persisted (it is re-drawn each MCMC iteration), so this draws a fresh latent to place the residual
+  // / auxiliary state in a valid, stationary state before the first continued draw. No-op unless the
+  // model uses a latent-augmentation link (probit or cloglog) and has a mean forest. MUST be called
+  // after SetRngState so the draw comes from the resumed (or user-re-seeded) stream rather than the
+  // pre-seed default RNG. For cloglog, the deterministic auxiliary state (eta / cutpoints / residual)
+  // is set up in InitializeState's continuation cloglog block before this draw.
+  void RegenerateLatentOutcome(BARTSamples& samples);
 
  private:
   /*! Initialize state variables */
@@ -186,7 +188,11 @@ class BARTSampler {
       WarmStart();
     }
     void operator()(CloglogOrdinalLeafModel& model) {
-      Log::Fatal("Continued sampling is not yet supported for cloglog ordinal models");
+      // Reconstitute the forest from the last sample exactly as the Gaussian case. The tracker
+      // residual swap corrupts the cloglog residual (which holds raw y, not y - f), but
+      // InitializeState's continuation cloglog block overwrites the residual with raw y and sets the
+      // auxiliary state (eta / cutpoints) afterward; the latent is regenerated post-SetRngState.
+      WarmStart();
     }
   };
 

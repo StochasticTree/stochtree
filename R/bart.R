@@ -1873,11 +1873,6 @@ continueSampling.bartmodel <- function(
       "Continuation is not supported for deserialized models (a model loaded from JSON)."
     )
   }
-  if (object$model_params$outcome_model$link == "cloglog") {
-    stop(
-      "Continued sampling is not yet supported for cloglog link functions"
-    )
-  }
 
   # `observation_weights` is a deprecated alias for `observation_weights_train` (mirrors bart()).
   if (!is.null(observation_weights)) {

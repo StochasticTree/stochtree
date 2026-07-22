@@ -304,7 +304,7 @@ cpp11::writable::list bart_continue_sample_cpp(
 
   // Probit warm-start: regenerate the (unpersisted) latent outcome now that the RNG is positioned at
   // the resumed/re-seeded stream, so the first continued draw starts from a valid stationary state.
-  bart_sampler.RegenerateProbitLatent(bart_samples);
+  bart_sampler.RegenerateLatentOutcome(bart_samples);
 
   // Optionally append GFR warm-start draws (num_gfr, retained iff keep_gfr), then MCMC draws, then
   // post-process only the newly appended range. Single-chain continuation, so num_chains = 1.

@@ -198,6 +198,44 @@ class TestBARTContinuation:
         Xt = np.random.default_rng(99).uniform(0, 1, (20, 4))
         np.testing.assert_allclose(run().predict(Xt, terms="y_hat"), m.predict(Xt, terms="y_hat"))
 
+    def test_continuation_cloglog_binary_supported(self):
+        def run():
+            rng = np.random.default_rng(21)
+            n, p = 300, 4
+            X = rng.uniform(0, 1, (n, p))
+            f_X = 2.0 * (X[:, 0] > 0.5).astype(float) - 1.0
+            y = rng.binomial(1, 1.0 - np.exp(-np.exp(f_X)), n).astype(float)
+            m = BARTModel()
+            m.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=5, num_mcmc=10,
+                     general_params={"random_seed": 1, "sample_sigma2_global": False,
+                                     "outcome_model": OutcomeModel(outcome="binary", link="cloglog")})
+            m.continue_sampling(X_train=X, y_train=y, num_mcmc=8)
+            return m
+        m = run()
+        assert m.num_samples == 18
+        assert m.y_hat_train.shape[1] == 18
+        # Deterministic under a fixed seed (RNG resumed).
+        np.testing.assert_allclose(run().y_hat_train, m.y_hat_train, atol=1e-10, rtol=0)
+
+    def test_continuation_cloglog_ordinal_supported(self):
+        def run():
+            rng = np.random.default_rng(22)
+            n, p = 300, 4
+            X = rng.uniform(0, 1, (n, p))
+            lin = 1.5 * X[:, 0] - 0.5 + rng.normal(0, 0.5, n)
+            y = np.digitize(lin, bins=[-0.3, 0.3]).astype(float)  # 0/1/2
+            m = BARTModel()
+            m.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=5, num_mcmc=10,
+                     general_params={"random_seed": 1, "sample_sigma2_global": False,
+                                     "outcome_model": OutcomeModel(outcome="ordinal", link="cloglog")})
+            m.continue_sampling(X_train=X, y_train=y, num_mcmc=8)
+            return m
+        m = run()
+        assert m.num_samples == 18
+        # Cutpoint trace extended to the full posterior (2 cutpoints for 3 categories).
+        assert m.cloglog_cutpoint_samples.shape[-1] == 18
+        np.testing.assert_allclose(run().y_hat_train, m.y_hat_train, atol=1e-10, rtol=0)
+
     def test_continuation_multivariate_leaf_supported(self):
         def run():
             rng = np.random.default_rng(7)

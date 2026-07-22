@@ -1694,10 +1694,6 @@ class BARTModel:
                 "Cannot continue sampling: cached sampler configuration is unavailable "
                 "(continuation is not supported for deserialized models yet)"
             )
-        if cfg.get("link_function", 0) == 2:
-            raise NotImplementedError(
-                "Continued sampling is not yet supported for cloglog link functions"
-            )
         if getattr(self, "_cont_variable_weights", None) is None:
             raise RuntimeError(
                 "Cannot continue sampling: cached continuation state is unavailable for this model."

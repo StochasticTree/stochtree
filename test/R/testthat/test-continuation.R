@@ -500,6 +500,50 @@ test_that("BART probit continuation is supported", {
   expect_equal(m$model_params$num_samples, 18)
 })
 
+test_that("BART cloglog binary continuation is supported", {
+  skip_on_cran()
+  set.seed(21)
+  n <- 300; p <- 4
+  X <- matrix(runif(n * p), ncol = p)
+  f_X <- 2 * (X[, 1] > 0.5) - 1
+  y <- rbinom(n, 1, 1 - exp(-exp(f_X)))
+  run <- function() {
+    m <- bart(X_train = X, y_train = y, num_gfr = 0, num_burnin = 5, num_mcmc = 10,
+              general_params = list(random_seed = 1, sample_sigma2_global = FALSE,
+                                    outcome_model = OutcomeModel(outcome = "binary", link = "cloglog")))
+    m <- continueSampling(m, X_train = X, y_train = y, num_mcmc = 8)
+    m
+  }
+  m <- run()
+  expect_equal(m$model_params$num_samples, 18)
+  expect_equal(ncol(m$samples$y_hat_train()), 18)
+  # Deterministic under a fixed seed (RNG state resumed).
+  expect_equal(run()$samples$y_hat_train(), m$samples$y_hat_train(), tolerance = 1e-10)
+})
+
+test_that("BART cloglog ordinal continuation is supported", {
+  skip_on_cran()
+  set.seed(22)
+  n <- 300; p <- 4
+  X <- matrix(runif(n * p), ncol = p)
+  # 3-category ordinal outcome
+  lin <- 1.5 * X[, 1] - 0.5
+  y <- as.integer(cut(lin + rnorm(n, 0, 0.5), breaks = c(-Inf, -0.3, 0.3, Inf))) - 1L
+  run <- function() {
+    m <- bart(X_train = X, y_train = y, num_gfr = 0, num_burnin = 5, num_mcmc = 10,
+              general_params = list(random_seed = 1, sample_sigma2_global = FALSE,
+                                    outcome_model = OutcomeModel(outcome = "ordinal", link = "cloglog")))
+    m <- continueSampling(m, X_train = X, y_train = y, num_mcmc = 8)
+    m
+  }
+  m <- run()
+  expect_equal(m$model_params$num_samples, 18)
+  # Cutpoint samples extended to the full trace (2 cutpoints for 3 categories).
+  expect_equal(ncol(m$samples$cloglog_cutpoint_samples()), 18)
+  # Deterministic under a fixed seed.
+  expect_equal(run()$samples$y_hat_train(), m$samples$y_hat_train(), tolerance = 1e-10)
+})
+
 test_that("BCF probit continuation is supported", {
   skip_on_cran()
   set.seed(12)

@@ -51,17 +51,13 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
     }
   }
 
-  // Continued sampling warm-starts the mean forest, variance forest, and random effects from their
-  // last retained samples. Reject configurations whose warm-start init is not yet implemented so that
-  // unsupported continuations fail loudly rather than silently re-initializing from root. (Multivariate
-  // leaf regression and cloglog ordinal mean leaf models are additionally rejected in
-  // MeanForestContinuationInitVisitor.)
+  // Continued sampling warm-starts the mean forest, variance forest, random effects, and (for probit /
+  // cloglog) the latent-augmentation auxiliary state from their last retained samples. Reject
+  // configurations whose warm-start init is not implemented so that unsupported continuations fail
+  // loudly rather than silently re-initializing from root.
   if (continuation) {
     if (config_.num_trees_mean <= 0) {
       Log::Fatal("Continued sampling requires an existing mean forest");
-    }
-    if (config_.link_function == LinkFunction::Cloglog) {
-      Log::Fatal("Continued sampling is not yet supported for cloglog link functions");
     }
   }
 
@@ -436,21 +432,48 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
     // even the largest categorical index has a valid value of sum_{j < i} exp(gamma_j)
     forest_dataset_->AddAuxiliaryDimension(config_.num_classes_cloglog);
 
-    // Set initial values for auxiliary data
-    // Initialize latent variables to zero (slot 0)
-    for (int i = 0; i < data_.n_train; i++) {
-      forest_dataset_->SetAuxiliaryDataValue(0, i, 0.0);
+    if (continuation) {
+      // Continuation warm-start of the cloglog auxiliary state. The mean forest has already been
+      // reconstituted from the last retained sample (MeanForestContinuationInitVisitor), so the
+      // tracker's sum-predictions are the last forest's contributions (eta). Cutpoints are restored
+      // from the last retained sample for ordinal outcomes; binary cloglog has a single fixed cutpoint
+      // at gamma_0 (cloglog_cutpoint_0). The latent (slot 0) is left at 0 here and regenerated from the
+      // resumed RNG stream by RegenerateLatentOutcome after SetRngState. The residual holds raw y for
+      // cloglog (not y - f), so restore it after the forest reconstitute corrupted it via the tracker
+      // residual swap.
+      for (int i = 0; i < data_.n_train; i++) {
+        forest_dataset_->SetAuxiliaryDataValue(0, i, 0.0);
+        forest_dataset_->SetAuxiliaryDataValue(1, i, mean_forest_tracker_->GetSamplePrediction(i));
+      }
+      if (config_.outcome_type == OutcomeType::Ordinal) {
+        const int ncut = config_.num_classes_cloglog - 1;
+        const int last = static_cast<int>(samples.cloglog_cutpoint_samples.size()) / ncut - 1;
+        for (int i = 0; i < ncut; i++) {
+          forest_dataset_->SetAuxiliaryDataValue(2, i, samples.cloglog_cutpoint_samples[last * ncut + i]);
+        }
+      } else {
+        // Binary cloglog: a single fixed cutpoint at gamma_0 (UpdateGammaParams overrides gamma[0]).
+        forest_dataset_->SetAuxiliaryDataValue(2, 0, config_.cloglog_cutpoint_0);
+      }
+      ordinal_sampler_->UpdateCumulativeExpSums(*forest_dataset_);
+      residual_->OverwriteData(data_.y_train, data_.n_train);
+    } else {
+      // Set initial values for auxiliary data
+      // Initialize latent variables to zero (slot 0)
+      for (int i = 0; i < data_.n_train; i++) {
+        forest_dataset_->SetAuxiliaryDataValue(0, i, 0.0);
+      }
+      // Initialize forest predictions to zero (slot 1)
+      for (int i = 0; i < data_.n_train; i++) {
+        forest_dataset_->SetAuxiliaryDataValue(1, i, 0.0);
+      }
+      // Initialize log-scale cutpoints to 0
+      for (int i = 0; i < config_.num_classes_cloglog - 1; i++) {
+        forest_dataset_->SetAuxiliaryDataValue(2, i, 0.0);
+      }
+      // Convert to cumulative exponentiated cutpoints directly in C++
+      ordinal_sampler_->UpdateCumulativeExpSums(*forest_dataset_);
     }
-    // Initialize forest predictions to zero (slot 1)
-    for (int i = 0; i < data_.n_train; i++) {
-      forest_dataset_->SetAuxiliaryDataValue(1, i, 0.0);
-    }
-    // Initialize log-scale cutpoints to 0
-    for (int i = 0; i < config_.num_classes_cloglog - 1; i++) {
-      forest_dataset_->SetAuxiliaryDataValue(2, i, 0.0);
-    }
-    // Convert to cumulative exponentiated cutpoints directly in C++
-    ordinal_sampler_->UpdateCumulativeExpSums(*forest_dataset_);
   }
 
   // Other internal model state
@@ -485,14 +508,21 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
   initialized_ = true;
 }
 
-void BARTSampler::RegenerateProbitLatent(BARTSamples& samples) {
-  // No-op unless this is a probit model with a mean forest. Called by the continuation wrappers after
-  // SetRngState so the fresh latent draw z ~ p(z | y, f_last) comes from the resumed (or user-re-
-  // seeded) stream. This places the residual in a valid, stationary state before the first continued
-  // draw (which is retained when num_burnin == 0).
-  if (config_.link_function != LinkFunction::Probit || config_.num_trees_mean <= 0) return;
-  sample_probit_latent_outcome(rng_, outcome_raw_->GetData().data(), mean_forest_tracker_->GetSumPredictions(),
-                               residual_->GetData().data(), samples.y_bar, data_.n_train);
+void BARTSampler::RegenerateLatentOutcome(BARTSamples& samples) {
+  // No-op unless this is a latent-augmentation model (probit or cloglog) with a mean forest. Called by
+  // the continuation wrappers after SetRngState so the fresh latent draw comes from the resumed (or
+  // user-re-seeded) stream. This places the augmented state in a valid, stationary configuration before
+  // the first continued draw (which is retained when num_burnin == 0).
+  if (config_.num_trees_mean <= 0) return;
+  if (config_.link_function == LinkFunction::Probit) {
+    // Fresh z ~ p(z | y, f_last).
+    sample_probit_latent_outcome(rng_, outcome_raw_->GetData().data(), mean_forest_tracker_->GetSumPredictions(),
+                                 residual_->GetData().data(), samples.y_bar, data_.n_train);
+  } else if (config_.link_function == LinkFunction::Cloglog) {
+    // The deterministic auxiliary state (eta / cutpoints / cumulative sums / raw-y residual) was set up
+    // in InitializeState's continuation cloglog block; draw the truncated-exponential latent z given it.
+    ordinal_sampler_->UpdateLatentVariables(*forest_dataset_, residual_->GetData(), rng_);
+  }
 }
 
 void BARTSampler::run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr, int num_chains) {
