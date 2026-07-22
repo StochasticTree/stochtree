@@ -25,6 +25,30 @@ on:
           Example: tools/debug/my_demo.R:tools/my_demo.R
         required: false
         default: ''
+  # Callable as a reusable workflow (e.g. from rc-refresh.yml) so a push to an
+  # rc-* branch can rebuild the R/Python RC install branches automatically. Inputs
+  # mirror workflow_dispatch above; the jobs read inputs.* uniformly for both triggers.
+  workflow_call:
+    inputs:
+      source_branch:
+        required: true
+        type: string
+      r_target_branch:
+        required: false
+        type: string
+        default: ''
+      python_target_branch:
+        required: false
+        type: string
+        default: ''
+      custom_readme:
+        required: false
+        type: string
+        default: ''
+      extra_files:
+        required: false
+        type: string
+        default: ''
 
 name: Create Release Candidate Branch
 
