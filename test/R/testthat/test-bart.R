@@ -325,9 +325,9 @@ test_that("Warmstart BART", {
     )
   )
   expect_equal(bart_model$model_params$num_samples, 10)
-  # Stage 1: multi-chain warm-start from a previous model is not yet supported and errors clearly.
-  expect_error(
-    bart(
+  # Multi-chain warm-start: each chain seeds from a distinct previous sample; N chains x num_mcmc draws.
+  expect_no_error(
+    bart_model <- bart(
       X_train = X_train,
       y_train = y_train,
       num_gfr = 0,
@@ -335,9 +335,23 @@ test_that("Warmstart BART", {
       num_mcmc = 10,
       previous_model_json = bart_model_json_string,
       previous_model_warmstart_sample_num = 10,
-      general_params = list(num_chains = 3, keep_every = 5)
+      general_params = list(num_chains = 3, keep_every = 1)
+    )
+  )
+  expect_equal(bart_model$model_params$num_samples, 30)
+  # More chains than available samples at the position -> warns (extra chains reuse the first sample).
+  expect_warning(
+    bart(
+      X_train = X_train,
+      y_train = y_train,
+      num_gfr = 0,
+      num_burnin = 10,
+      num_mcmc = 5,
+      previous_model_json = bart_model_json_string,
+      previous_model_warmstart_sample_num = 2,
+      general_params = list(num_chains = 4, keep_every = 1)
     ),
-    "not yet supported"
+    "exceeds the number of previous model samples"
   )
 
   # Generate simulated data with random effects
@@ -388,8 +402,9 @@ test_that("Warmstart BART", {
   # Save to JSON string
   bart_model_json_string <- saveBARTModelToJsonString(bart_model)
 
-  # Run a new (single-chain) BART model with random effects warm-started from the existing model.
-  general_param_list <- list(num_chains = 1, keep_every = 1)
+  # Run a new multi-chain BART model with random effects warm-started from the existing model
+  # (exercises the rfx reset path in the per-chain warm-start).
+  general_param_list <- list(num_chains = 2, keep_every = 1)
   expect_no_error(
     bart_model <- bart(
       X_train = X_train,
@@ -407,7 +422,7 @@ test_that("Warmstart BART", {
       general_params = general_param_list
     )
   )
-  expect_equal(bart_model$model_params$num_samples, 10)
+  expect_equal(bart_model$model_params$num_samples, 20)
 })
 
 test_that("BART Predictions", {

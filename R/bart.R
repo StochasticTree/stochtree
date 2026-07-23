@@ -430,9 +430,16 @@ bart <- function(
         stop("`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`")
       }
     }
-    # Stage 1: multi-chain warm-start from a previous model is not yet wired through the C++ sampler.
-    if (num_chains > 1) {
-      stop("Warm-starting from `previous_model_json` with `num_chains > 1` is not yet supported; use num_chains = 1.")
+    # Multi-chain warm-start: each chain seeds from a distinct previous sample, counting backwards from
+    # previous_model_warmstart_sample_num. If more chains are requested than there are samples at/below
+    # that position, the extra chains all seed from the earliest available sample (the C++ sampler
+    # clamps the index at the first sample).
+    if (num_chains > previous_model_warmstart_sample_num) {
+      warning(
+        "The number of chains being sampled exceeds the number of previous model samples available ",
+        "from the requested position in `previous_model_json`. The earliest chains will be initialized ",
+        "from the first available sample."
+      )
     }
   }
 

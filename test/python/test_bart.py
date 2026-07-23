@@ -1797,10 +1797,13 @@ class TestBARTFloat32:
         with pytest.raises(ValueError, match="covariate structure"):
             BARTModel().sample(X_train=X[:, :3], y_train=y, num_mcmc=5, previous_model_json=js)
 
-        # Stage 1: multi-chain warm-start is not yet supported.
-        with pytest.raises(NotImplementedError, match="num_chains > 1"):
-            BARTModel().sample(X_train=X, y_train=y, num_mcmc=5, previous_model_json=js,
-                               general_params={"num_chains": 3})
+        # Multi-chain warm-start: each chain seeds from a distinct previous sample; N chains x num_mcmc.
+        m_mc = BARTModel()
+        m_mc.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=5, num_mcmc=10,
+                    previous_model_json=js, previous_model_warmstart_sample_num=9,
+                    general_params={"random_seed": 2, "num_chains": 3})
+        assert m_mc.num_samples == 30
+        assert np.all(np.isfinite(m_mc.y_hat_train))
 
     def test_bart_warmstart_probit_regenerates_latent(self):
         # Probit warm-start regenerates the (unpersisted) latent so the seed is stationary even with

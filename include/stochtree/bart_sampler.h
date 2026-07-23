@@ -91,6 +91,13 @@ class BARTSampler {
   /*! Internal function to restore sampler state based on a GFR snapshot */
   void RestoreStateFromGFRSnapshot(BARTSamples& samples, int snapshot_index);
 
+  /*! Re-seed the (already-constructed) sampler's active state from an external source sample at `idx`.
+   *  Used by run_mcmc_chains for multi-chain previous-model warm-start (chains 1..N-1 each seed from a
+   *  distinct source index). Reconstitutes the active forests, restores scalars / rfx / cloglog, and
+   *  regenerates the latent -- mirroring InitializeState's warm_start branch but reusing the existing
+   *  forests/trackers rather than creating them. */
+  void WarmStartResetFromSample(BARTSamples& samples, BARTSamples& source, int idx);
+
   /*! Internal function to restore sampler state to root / initial values */
   void RestoreStateDefault();
 

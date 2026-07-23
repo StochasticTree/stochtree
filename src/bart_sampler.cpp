@@ -610,7 +610,15 @@ void BARTSampler::run_mcmc(BARTSamples& samples, int num_burnin, int keep_every,
 
 void BARTSampler::run_mcmc_chains(BARTSamples& samples, int num_chains, int num_burnin, int keep_every, int num_mcmc) {
   for (int chain_idx = 0; chain_idx < num_chains; chain_idx++) {
-    if (chain_idx > 0 && !gfr_snapshots_.empty()) {
+    if (chain_idx > 0 && warmstart_source_ != nullptr) {
+      // Previous-model warm-start: chain 0 was seeded (in InitializeState) from the source sample at
+      // warmstart_sample_num-1; each additional chain seeds from a distinct earlier sample, counting
+      // backwards (matching main). Clamp at index 0 when there are fewer source samples than chains
+      // (the wrapper warns about this case).
+      int idx_c = (warmstart_sample_num_ - 1) - chain_idx;
+      if (idx_c < 0) idx_c = 0;
+      WarmStartResetFromSample(samples, *warmstart_source_, idx_c);
+    } else if (chain_idx > 0 && !gfr_snapshots_.empty()) {
       // Re-initialize the sampler state for each new chain.
       // gfr_snapshots_ holds num_chains-1 states (oldest-first): index 0 = GFR[num_gfr-num_chains],
       // index num_chains-2 = GFR[num_gfr-2].  Chain j (1-indexed, j>=2) uses index num_chains-j.
@@ -940,6 +948,58 @@ void BARTSampler::RestoreStateFromGFRSnapshot(BARTSamples& samples, int snapshot
       leaf_scale_ = snap.leaf_scale;
     }
   }
+}
+
+void BARTSampler::WarmStartResetFromSample(BARTSamples& samples, BARTSamples& source, int idx) {
+  // Mean forest: reconstitute the active forest from source[idx]. The tracker swap (is_mean_model=true)
+  // adjusts the residual: residual += prev_forest_preds - seed_forest_preds. Before this call the
+  // residual holds the previous chain's state (e.g. y_std - f_prev for Gaussian), so it lands at
+  // y_std - f_seed. For cloglog/probit the residual is overwritten / regenerated below.
+  if (config_.num_trees_mean > 0) {
+    std::visit(MeanForestResetVisitor{*this, samples, *source.mean_forests->GetEnsemble(idx)}, mean_leaf_model_);
+  }
+  // Variance forest: reconstitute the active forest from source[idx] (var-weight slot swap), reusing
+  // the existing tracker -- mirrors InitializeState's warm_start variance block.
+  if (config_.num_trees_variance > 0) {
+    TreeEnsemble& seed_variance_forest = *source.variance_forests->GetEnsemble(idx);
+    variance_forest_->ReconstituteFromForest(seed_variance_forest);
+    variance_forest_tracker_->ReconstituteFromForest(seed_variance_forest, *forest_dataset_, *residual_, /*is_mean_model=*/false);
+  }
+  // Random effects: restore the sampled state from source[idx]; the tracker swaps the rfx contribution
+  // into the residual.
+  if (config_.has_random_effects) {
+    random_effects_model_->ResetFromSample(*source.rfx_container, idx);
+    random_effects_tracker_->ResetFromSample(*random_effects_model_, *random_effects_dataset_, *residual_);
+  }
+  // Cloglog auxiliary state (mirrors InitializeState's warm_start cloglog block, sourced from source[idx]).
+  if (config_.link_function == LinkFunction::Cloglog) {
+    for (int i = 0; i < data_.n_train; i++) {
+      forest_dataset_->SetAuxiliaryDataValue(0, i, 0.0);
+      forest_dataset_->SetAuxiliaryDataValue(1, i, mean_forest_tracker_->GetSamplePrediction(i));
+    }
+    if (config_.outcome_type == OutcomeType::Ordinal) {
+      const int ncut = config_.num_classes_cloglog - 1;
+      for (int i = 0; i < ncut; i++) {
+        forest_dataset_->SetAuxiliaryDataValue(2, i, source.cloglog_cutpoint_samples[idx * ncut + i]);
+      }
+    } else {
+      forest_dataset_->SetAuxiliaryDataValue(2, 0, config_.cloglog_cutpoint_0);
+    }
+    ordinal_sampler_->UpdateCumulativeExpSums(*forest_dataset_);
+    residual_->OverwriteData(data_.y_train, data_.n_train);
+  }
+  // Scalar variance state (same scaling convention as InitializeState's warm_start branch).
+  if (sample_sigma2_global_ && !source.global_error_variance_samples.empty()) {
+    global_variance_ = source.global_error_variance_samples[idx] / (source.y_std * source.y_std);
+  }
+  if (sample_sigma2_leaf_ && !source.leaf_scale_samples.empty()) {
+    leaf_scale_ = source.leaf_scale_samples[idx];
+  }
+  if (has_mean_forest_) {
+    std::visit(ScaleUpdateVisitor{*this, leaf_scale_}, mean_leaf_model_);
+  }
+  // Probit/cloglog: regenerate the latent from the current RNG stream so the seed is stationary.
+  RegenerateLatentOutcome(samples);
 }
 
 }  // namespace StochTree
