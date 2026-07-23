@@ -3230,7 +3230,10 @@ continueSampling.bcfmodel <- function(
     )
   }
   if (object$model_params$outcome_model$link == "cloglog") {
-    stop("Continued sampling is not yet supported for cloglog link functions")
+    # Defensive only: BCF does not support the cloglog link at all (bcf() itself errors when fitting a
+    # cloglog model), so no cloglog bcfmodel can reach this path. Kept as a clear message in case that
+    # ever changes.
+    stop("The cloglog link function is not supported in BCF, so continued sampling is unavailable for it")
   }
 
   # Update any changeable model parameters

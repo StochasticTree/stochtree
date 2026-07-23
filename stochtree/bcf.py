@@ -2350,10 +2350,11 @@ class BCFModel:
                 "Cannot continue sampling: cached sampler configuration is unavailable "
                 "(continuation is not supported for deserialized models yet)"
             )
-        # Probit continuation is supported; BCF does not support cloglog at all.
+        # Probit continuation is supported. BCF does not support the cloglog link at all (fitting a
+        # cloglog BCF model errors in C++), so no cloglog model can reach this path; this is defensive.
         if cfg.get("link_function", 0) == 2:
             raise NotImplementedError(
-                "Continued sampling is not yet supported for cloglog link functions"
+                "The cloglog link function is not supported in BCF, so continued sampling is unavailable for it"
             )
         if getattr(self, "_cont_variable_weights", None) is None:
             raise RuntimeError(
