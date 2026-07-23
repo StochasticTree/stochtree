@@ -48,6 +48,13 @@ For tutorials on the "proper" usage of the stochtree's advanced workflow, we pro
 \item \href{#method-CppJson-get_integer}{\code{CppJson$get_integer()}}
 \item \href{#method-CppJson-get_boolean}{\code{CppJson$get_boolean()}}
 \item \href{#method-CppJson-get_string}{\code{CppJson$get_string()}}
+\item \href{#method-CppJson-contains}{\code{CppJson$contains()}}
+\item \href{#method-CppJson-get_scalar_or_default}{\code{CppJson$get_scalar_or_default()}}
+\item \href{#method-CppJson-get_integer_or_default}{\code{CppJson$get_integer_or_default()}}
+\item \href{#method-CppJson-get_boolean_or_default}{\code{CppJson$get_boolean_or_default()}}
+\item \href{#method-CppJson-get_string_or_default}{\code{CppJson$get_string_or_default()}}
+\item \href{#method-CppJson-rename_field}{\code{CppJson$rename_field()}}
+\item \href{#method-CppJson-erase_field}{\code{CppJson$erase_field()}}
 \item \href{#method-CppJson-get_vector}{\code{CppJson$get_vector()}}
 \item \href{#method-CppJson-get_integer_vector}{\code{CppJson$get_integer_vector()}}
 \item \href{#method-CppJson-get_string_vector}{\code{CppJson$get_string_vector()}}
@@ -78,13 +85,16 @@ A new \code{CppJson} object.
 \subsection{Method \code{add_forest()}}{
 Convert a forest container to json and add to the current \code{CppJson} object
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CppJson$add_forest(forest_samples)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CppJson$add_forest(forest_samples, forest_label = "")}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{forest_samples}}{\code{ForestSamples} R class}
+
+\item{\code{forest_label}}{Key under the \code{forests} subfolder to store this
+container. Defaults to an auto-numbered \verb{forest_<n>} label when empty.}
 }
 \if{html}{\out{</div>}}
 }
@@ -405,6 +415,172 @@ Retrieve a string value from the json object under the name "field_name" (with o
 \item{\code{field_name}}{The name of the field to be accessed from json}
 
 \item{\code{subfolder_name}}{(Optional) Name of the subfolder / hierarchy under which the field is stored}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+None
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CppJson-contains"></a>}}
+\if{latex}{\out{\hypertarget{method-CppJson-contains}{}}}
+\subsection{Method \code{contains()}}{
+Whether the json object contains a field "field_name" (with optional subfolder "subfolder_name")
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CppJson$contains(field_name, subfolder_name = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{field_name}}{The name of the field to check for}
+
+\item{\code{subfolder_name}}{(Optional) Name of the subfolder / hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Logical, \code{TRUE} if the field is present
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CppJson-get_scalar_or_default"></a>}}
+\if{latex}{\out{\hypertarget{method-CppJson-get_scalar_or_default}{}}}
+\subsection{Method \code{get_scalar_or_default()}}{
+Retrieve a scalar value, returning \code{default} if the field is absent. Used to
+"augment" older JSON within a schema version (see RFC 0005).
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CppJson$get_scalar_or_default(field_name, default, subfolder_name = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{field_name}}{The name of the field}
+
+\item{\code{default}}{Value returned if the field is absent}
+
+\item{\code{subfolder_name}}{(Optional) Name of the subfolder / hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+The stored value, or \code{default} if absent
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CppJson-get_integer_or_default"></a>}}
+\if{latex}{\out{\hypertarget{method-CppJson-get_integer_or_default}{}}}
+\subsection{Method \code{get_integer_or_default()}}{
+Retrieve an integer value, returning \code{default} if the field is absent.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CppJson$get_integer_or_default(field_name, default, subfolder_name = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{field_name}}{The name of the field}
+
+\item{\code{default}}{Value returned if the field is absent}
+
+\item{\code{subfolder_name}}{(Optional) Name of the subfolder / hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+The stored value, or \code{default} if absent
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CppJson-get_boolean_or_default"></a>}}
+\if{latex}{\out{\hypertarget{method-CppJson-get_boolean_or_default}{}}}
+\subsection{Method \code{get_boolean_or_default()}}{
+Retrieve a boolean value, returning \code{default} if the field is absent.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CppJson$get_boolean_or_default(field_name, default, subfolder_name = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{field_name}}{The name of the field}
+
+\item{\code{default}}{Value returned if the field is absent}
+
+\item{\code{subfolder_name}}{(Optional) Name of the subfolder / hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+The stored value, or \code{default} if absent
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CppJson-get_string_or_default"></a>}}
+\if{latex}{\out{\hypertarget{method-CppJson-get_string_or_default}{}}}
+\subsection{Method \code{get_string_or_default()}}{
+Retrieve a string value, returning \code{default} if the field is absent.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CppJson$get_string_or_default(field_name, default, subfolder_name = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{field_name}}{The name of the field}
+
+\item{\code{default}}{Value returned if the field is absent}
+
+\item{\code{subfolder_name}}{(Optional) Name of the subfolder / hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+The stored value, or \code{default} if absent
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CppJson-rename_field"></a>}}
+\if{latex}{\out{\hypertarget{method-CppJson-rename_field}{}}}
+\subsection{Method \code{rename_field()}}{
+Rename a field "old_name" to "new_name" (with optional subfolder). No-op if
+"old_name" is absent. Used by JSON schema migrations (RFC 0005).
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CppJson$rename_field(old_name, new_name, subfolder_name = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{old_name}}{Current field name}
+
+\item{\code{new_name}}{New field name}
+
+\item{\code{subfolder_name}}{(Optional) Name of the subfolder / hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+None
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CppJson-erase_field"></a>}}
+\if{latex}{\out{\hypertarget{method-CppJson-erase_field}{}}}
+\subsection{Method \code{erase_field()}}{
+Erase a field "field_name" (with optional subfolder). No-op if absent.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CppJson$erase_field(field_name, subfolder_name = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{field_name}}{The name of the field to erase}
+
+\item{\code{subfolder_name}}{(Optional) Name of the subfolder / hierarchy}
 }
 \if{html}{\out{</div>}}
 }

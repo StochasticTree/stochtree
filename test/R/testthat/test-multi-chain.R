@@ -60,9 +60,9 @@ test_that("BART multi-chain: sample counts with no GFR", {
     general_params = list(num_chains = n_chains, num_threads = 1)
   )
   expected <- n_chains * n_mcmc
-  expect_length(m$sigma2_global_samples, expected)
-  expect_equal(dim(m$y_hat_train), c(d$n_train, expected))
-  expect_equal(dim(m$y_hat_test),  c(d$n_test,  expected))
+  expect_length(m$samples$global_var_samples(), expected)
+  expect_equal(dim(m$samples$y_hat_train()), c(d$n_train, expected))
+  expect_equal(dim(m$samples$y_hat_test()),  c(d$n_test,  expected))
 })
 
 test_that("BART multi-chain: sample counts with GFR warm-start", {
@@ -75,8 +75,8 @@ test_that("BART multi-chain: sample counts with GFR warm-start", {
     general_params = list(num_chains = n_chains, num_threads = 1)
   )
   expected <- n_chains * n_mcmc
-  expect_length(m$sigma2_global_samples, expected)
-  expect_equal(dim(m$y_hat_train), c(d$n_train, expected))
+  expect_length(m$samples$global_var_samples(), expected)
+  expect_equal(dim(m$samples$y_hat_train()), c(d$n_train, expected))
 })
 
 test_that("BART multi-chain: leaf-scale sample count", {
@@ -92,7 +92,7 @@ test_that("BART multi-chain: leaf-scale sample count", {
     ),
     mean_forest_params = list(sample_sigma2_leaf = TRUE)
   )
-  expect_length(m$sigma2_leaf_samples, n_chains * n_mcmc)
+  expect_length(m$samples$leaf_scale_samples(), n_chains * n_mcmc)
 })
 
 test_that("BART multi-chain: chain independence (no GFR)", {
@@ -104,8 +104,8 @@ test_that("BART multi-chain: chain independence (no GFR)", {
     num_gfr = 0, num_burnin = 0, num_mcmc = n_mcmc,
     general_params = list(num_chains = 2, num_threads = 1)
   )
-  chain1 <- m$sigma2_global_samples[seq_len(n_mcmc)]
-  chain2 <- m$sigma2_global_samples[seq(n_mcmc + 1, 2 * n_mcmc)]
+  chain1 <- m$samples$global_var_samples()[seq_len(n_mcmc)]
+  chain2 <- m$samples$global_var_samples()[seq(n_mcmc + 1, 2 * n_mcmc)]
   expect_false(isTRUE(all.equal(chain1, chain2)),
                label = "Chains should produce distinct sigma2 samples")
 })
@@ -119,8 +119,8 @@ test_that("BART multi-chain: chain independence (with GFR)", {
     num_gfr = n_gfr, num_burnin = 5, num_mcmc = n_mcmc,
     general_params = list(num_chains = 2, num_threads = 1)
   )
-  chain1 <- m$sigma2_global_samples[seq_len(n_mcmc)]
-  chain2 <- m$sigma2_global_samples[seq(n_mcmc + 1, 2 * n_mcmc)]
+  chain1 <- m$samples$global_var_samples()[seq_len(n_mcmc)]
+  chain2 <- m$samples$global_var_samples()[seq(n_mcmc + 1, 2 * n_mcmc)]
   expect_false(isTRUE(all.equal(chain1, chain2)))
 })
 
@@ -189,8 +189,8 @@ test_that("BART multi-chain: sigma2 samples are finite and positive with GFR", {
     num_gfr = 6, num_burnin = 10, num_mcmc = 10,
     general_params = list(num_chains = 3, num_threads = 1)
   )
-  expect_true(all(is.finite(m$sigma2_global_samples)))
-  expect_true(all(m$sigma2_global_samples > 0))
+  expect_true(all(is.finite(m$samples$global_var_samples())))
+  expect_true(all(m$samples$global_var_samples() > 0))
 })
 
 # ---------------------------------------------------------------------------
@@ -209,10 +209,10 @@ test_that("BCF multi-chain: sample counts with no GFR", {
     general_params = list(num_chains = n_chains, num_threads = 1)
   )
   expected <- n_chains * n_mcmc
-  expect_length(m$sigma2_global_samples, expected)
-  expect_equal(dim(m$tau_hat_train), c(d$n_train, expected))
-  expect_equal(dim(m$mu_hat_train),  c(d$n_train, expected))
-  expect_equal(dim(m$tau_hat_test),  c(d$n_test,  expected))
+  expect_length(m$samples$global_var_samples(), expected)
+  expect_equal(dim(m$samples$tau_forest_predictions_train()), c(d$n_train, expected))
+  expect_equal(dim(m$samples$mu_forest_predictions_train()),  c(d$n_train, expected))
+  expect_equal(dim(m$samples$tau_forest_predictions_test()),  c(d$n_test,  expected))
 })
 
 test_that("BCF multi-chain: sample counts with GFR warm-start", {
@@ -227,13 +227,13 @@ test_that("BCF multi-chain: sample counts with GFR warm-start", {
     general_params = list(num_chains = n_chains, num_threads = 1, adaptive_coding = TRUE)
   )
   expected <- n_chains * n_mcmc
-  expect_length(m$sigma2_global_samples, expected)
-  expect_equal(dim(m$tau_hat_train), c(d$n_train, expected))
-  expect_equal(dim(m$mu_hat_train),  c(d$n_train, expected))
+  expect_length(m$samples$global_var_samples(), expected)
+  expect_equal(dim(m$samples$tau_forest_predictions_train()), c(d$n_train, expected))
+  expect_equal(dim(m$samples$mu_forest_predictions_train()),  c(d$n_train, expected))
   # BCF-specific scalar parameter arrays
-  expect_length(m$b_0_samples, expected)
-  expect_length(m$b_1_samples, expected)
-  expect_length(m$sigma2_leaf_mu_samples, expected)
+  expect_length(m$samples$b0_samples(), expected)
+  expect_length(m$samples$b1_samples(), expected)
+  expect_length(m$samples$leaf_scale_mu_samples(), expected)
 })
 
 test_that("BCF multi-chain: chain independence (no GFR)", {
@@ -247,8 +247,8 @@ test_that("BCF multi-chain: chain independence (no GFR)", {
     num_gfr = 0, num_burnin = 10, num_mcmc = n_mcmc,
     general_params = list(num_chains = 2, num_threads = 1)
   )
-  chain1 <- m$sigma2_global_samples[seq_len(n_mcmc)]
-  chain2 <- m$sigma2_global_samples[seq(n_mcmc + 1, 2 * n_mcmc)]
+  chain1 <- m$samples$global_var_samples()[seq_len(n_mcmc)]
+  chain2 <- m$samples$global_var_samples()[seq(n_mcmc + 1, 2 * n_mcmc)]
   expect_false(isTRUE(all.equal(chain1, chain2)),
                label = "BCF chains should produce distinct sigma2 samples")
 })
@@ -264,8 +264,8 @@ test_that("BCF multi-chain: chain independence (with GFR)", {
     num_gfr = 4, num_burnin = 5, num_mcmc = n_mcmc,
     general_params = list(num_chains = 2, num_threads = 1)
   )
-  chain1 <- m$sigma2_global_samples[seq_len(n_mcmc)]
-  chain2 <- m$sigma2_global_samples[seq(n_mcmc + 1, 2 * n_mcmc)]
+  chain1 <- m$samples$global_var_samples()[seq_len(n_mcmc)]
+  chain2 <- m$samples$global_var_samples()[seq(n_mcmc + 1, 2 * n_mcmc)]
   expect_false(isTRUE(all.equal(chain1, chain2)))
 })
 
@@ -281,11 +281,11 @@ test_that("BCF multi-chain: all samples finite with GFR + multiple chains", {
     num_gfr = 6, num_burnin = 20, num_mcmc = 10,
     general_params = list(num_chains = 3, num_threads = 1, adaptive_coding = TRUE)
   )
-  expect_true(all(is.finite(m$sigma2_global_samples)),
+  expect_true(all(is.finite(m$samples$global_var_samples())),
               label = "sigma2 samples must be finite (no chain-transition blowup)")
-  expect_true(all(m$sigma2_global_samples > 0))
-  expect_true(all(is.finite(m$b_0_samples)))
-  expect_true(all(is.finite(m$b_1_samples)))
+  expect_true(all(m$samples$global_var_samples() > 0))
+  expect_true(all(is.finite(m$samples$b0_samples())))
+  expect_true(all(is.finite(m$samples$b1_samples())))
 })
 
 test_that("BCF multi-chain: extractParameter dimensions", {

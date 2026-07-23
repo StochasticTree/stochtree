@@ -17,9 +17,9 @@ double OrdinalSampler::SampleTruncatedExponential(std::mt19937& gen, double rate
 
 void OrdinalSampler::UpdateLatentVariables(ForestDataset& dataset, Eigen::VectorXd& outcome, std::mt19937& gen) {
   // Get auxiliary data vectors
-  const std::vector<double>& gamma = dataset.GetAuxiliaryDataVector(2);  // gamma cutpoints
+  const std::vector<double>& gamma = dataset.GetAuxiliaryDataVector(2);       // gamma cutpoints
   const std::vector<double>& lambda_hat = dataset.GetAuxiliaryDataVector(1);  // forest predictions: lambda_hat_i = sum_t lambda_t(x_i)
-  std::vector<double>& Z = dataset.GetAuxiliaryDataVector(0);  // latent variables: z_i ~ TExp(e^{gamma[y_i] + lambda_hat_i}; 0, 1)
+  std::vector<double>& Z = dataset.GetAuxiliaryDataVector(0);                 // latent variables: z_i ~ TExp(e^{gamma[y_i] + lambda_hat_i}; 0, 1)
 
   int K = gamma.size() + 1;  // Number of ordinal categories
   int N = dataset.NumObservations();
@@ -41,12 +41,12 @@ void OrdinalSampler::UpdateLatentVariables(ForestDataset& dataset, Eigen::Vector
   }
 }
 
-void OrdinalSampler::UpdateGammaParams(ForestDataset& dataset, Eigen::VectorXd& outcome, 
-                                       double alpha_gamma, double beta_gamma, 
+void OrdinalSampler::UpdateGammaParams(ForestDataset& dataset, Eigen::VectorXd& outcome,
+                                       double alpha_gamma, double beta_gamma,
                                        double gamma_0, std::mt19937& gen) {
   // Get auxiliary data vectors
-  std::vector<double>& gamma = dataset.GetAuxiliaryDataVector(2);  // cutpoints gamma_k's
-  const std::vector<double>& Z = dataset.GetAuxiliaryDataVector(0);  // latent variables z_i's
+  std::vector<double>& gamma = dataset.GetAuxiliaryDataVector(2);             // cutpoints gamma_k's
+  const std::vector<double>& Z = dataset.GetAuxiliaryDataVector(0);           // latent variables z_i's
   const std::vector<double>& lambda_hat = dataset.GetAuxiliaryDataVector(1);  // forest predictions: lambda_hat_i = sum_t lambda_t(x_i)
 
   int K = gamma.size() + 1;  // Number of ordinal categories
@@ -78,23 +78,23 @@ void OrdinalSampler::UpdateGammaParams(ForestDataset& dataset, Eigen::VectorXd& 
 
   // Set the first gamma parameter to gamma_0 (e.g., 0) for identifiability
   // if (K > 2) {
-    gamma[0] = gamma_0;
+  gamma[0] = gamma_0;
   // }
 }
 
 void OrdinalSampler::UpdateCumulativeExpSums(ForestDataset& dataset) {
   // Get auxiliary data vectors
   const std::vector<double>& gamma = dataset.GetAuxiliaryDataVector(2);  // cutpoints gamma_k's
-  std::vector<double>& seg = dataset.GetAuxiliaryDataVector(3);    // seg_k = sum_{j=0}^{k-1} exp(gamma_j)
+  std::vector<double>& seg = dataset.GetAuxiliaryDataVector(3);          // seg_k = sum_{j=0}^{k-1} exp(gamma_j)
 
   // Update seg (sum of exponentials of gamma cutpoints)
   for (int j = 0; j < static_cast<int>(seg.size()); j++) {
     if (j == 0) {
-      seg[j] = 0.0; // checked and it is correct
+      seg[j] = 0.0;  // checked and it is correct
     } else {
       seg[j] = seg[j - 1] + std::exp(gamma[j - 1]);  // checked and it is correct
     }
   }
 }
 
-} // namespace StochTree
+}  // namespace StochTree

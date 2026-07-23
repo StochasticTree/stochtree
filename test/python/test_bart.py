@@ -3,7 +3,16 @@ import pandas as pd
 import pytest
 from sklearn.model_selection import train_test_split
 
-from stochtree import BARTModel, OutcomeModel
+from stochtree import BARTModel, OutcomeModel, RandomEffectsContainer
+
+
+def _rfx_predict(model, group_labels, basis):
+    # model.rfx_container was removed (single-owner). Materialize the rfx container on demand from the
+    # canonical samples object; returns the same standardized rfx predictions the old accessor did.
+    rfx = RandomEffectsContainer()
+    rfx.rfx_container_cpp = model.samples.materialize_rfx_container()
+    rfx.rfx_label_mapper_cpp = model.samples.materialize_rfx_label_mapper()
+    return rfx.predict(group_labels, basis)
 
 
 class TestBART:
@@ -772,9 +781,7 @@ class TestBART:
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
             )
-        rfx_preds_train = bart_model.rfx_container.predict(
-            group_labels_train, rfx_basis_train
-        )
+        rfx_preds_train = _rfx_predict(bart_model, group_labels_train, rfx_basis_train)
 
         # Assertions
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -797,9 +804,7 @@ class TestBART:
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
             )
-        rfx_preds_train_2 = bart_model_2.rfx_container.predict(
-            group_labels_train, rfx_basis_train
-        )
+        rfx_preds_train_2 = _rfx_predict(bart_model_2, group_labels_train, rfx_basis_train)
 
         # Assertions
         assert bart_model_2.y_hat_train.shape == (n_train, num_mcmc)
@@ -809,9 +814,7 @@ class TestBART:
         bart_models_json = [bart_model.to_json(), bart_model_2.to_json()]
         bart_model_3 = BARTModel()
         bart_model_3.from_json_string_list(bart_models_json)
-        rfx_preds_train_3 = bart_model_3.rfx_container.predict(
-            group_labels_train, rfx_basis_train
-        )
+        rfx_preds_train_3 = _rfx_predict(bart_model_3, group_labels_train, rfx_basis_train)
 
         # Assertions
         bart_preds_combined = bart_model_3.predict(
@@ -938,9 +941,7 @@ class TestBART:
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
             )
-        rfx_preds_train = bart_model.rfx_container.predict(
-            group_labels_train, rfx_basis_train
-        )
+        rfx_preds_train = _rfx_predict(bart_model, group_labels_train, rfx_basis_train)
 
         # Assertions
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -965,9 +966,7 @@ class TestBART:
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
             )
-        rfx_preds_train_2 = bart_model_2.rfx_container.predict(
-            group_labels_train, rfx_basis_train
-        )
+        rfx_preds_train_2 = _rfx_predict(bart_model_2, group_labels_train, rfx_basis_train)
 
         # Assertions
         assert bart_model_2.y_hat_train.shape == (n_train, num_mcmc)
@@ -977,9 +976,7 @@ class TestBART:
         bart_models_json = [bart_model.to_json(), bart_model_2.to_json()]
         bart_model_3 = BARTModel()
         bart_model_3.from_json_string_list(bart_models_json)
-        rfx_preds_train_3 = bart_model_3.rfx_container.predict(
-            group_labels_train, rfx_basis_train
-        )
+        rfx_preds_train_3 = _rfx_predict(bart_model_3, group_labels_train, rfx_basis_train)
 
         # Assertions
         bart_preds_combined = bart_model_3.predict(
@@ -1233,8 +1230,8 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            general_params={"outcome_model": OutcomeModel(outcome="binary", link="probit"), 
-                            "sample_sigma2_global": False}
+            general_params={"outcome_model": OutcomeModel(outcome="binary", link="probit"),
+                            "sample_sigma2_global": False},
         )
 
         # Assertions
@@ -1250,8 +1247,8 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            general_params={"outcome_model": OutcomeModel(outcome="binary", link="probit"), 
-                            "sample_sigma2_global": False}
+            general_params={"outcome_model": OutcomeModel(outcome="binary", link="probit"),
+                            "sample_sigma2_global": False},
         )
 
         # Assertions
@@ -1411,6 +1408,16 @@ class TestBART:
         assert not hasattr(bart_model, 'cloglog_cutpoint_samples') or bart_model.cloglog_cutpoint_samples is None
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
+
+        # Structural validity: GFR cloglog warm-starts with unconverged latent variables,
+        # making correlation-based checks unreliable across platforms and seeds. Instead
+        # verify that predictions are finite and in a valid range — corrupted residuals
+        # from a reconstitute_from_forest bug would produce NaN or extreme clipping.
+        p_hat_mean = bart_model.predict(
+            X=X_test, type="mean", scale="probability", terms="y_hat"
+        )
+        assert np.all(np.isfinite(p_hat_mean))
+        assert np.all((p_hat_mean >= 0.0) & (p_hat_mean <= 1.0))
 
     def test_cloglog_ordinal_bart(self):
         # RNG
@@ -1578,6 +1585,17 @@ class TestBART:
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
         assert bart_model.cloglog_cutpoint_samples.shape == (2, num_mcmc)
+
+        # Structural validity: GFR cloglog warm-starts with unconverged latent variables,
+        # making correlation-based checks unreliable across platforms and seeds. Instead
+        # verify that predictions are finite and valid — corrupted residuals from a
+        # reconstitute_from_forest bug would produce NaN or extreme clipping.
+        preds_mean_prob = bart_model.predict(
+            X=X_test, type="mean", scale="probability", terms="y_hat"
+        )
+        assert np.all(np.isfinite(preds_mean_prob))
+        assert np.all((preds_mean_prob >= 0.0) & (preds_mean_prob <= 1.0))
+        assert np.allclose(preds_mean_prob.sum(axis=1), 1.0, atol=1e-6)
 
     def test_categorical_covariates_mean_only(self):
         """A mean-only BART model with categorical (one-hot expanded) covariates
@@ -1749,3 +1767,66 @@ class TestBARTFloat32:
         pred32 = bart32.predict(X=self.X_test, rfx_group_ids=group_ids_test, rfx_basis=rfx_basis_test)
         pred64 = bart32.predict(X=self.X_test.astype(np.float64), rfx_group_ids=group_ids_test, rfx_basis=rfx_basis_test.astype(np.float64))
         np.testing.assert_allclose(pred32["y_hat"], pred64["y_hat"], rtol=1e-4)
+
+    def test_bart_warmstart_from_previous_model(self):
+        # Warm-start a fresh single-chain run from a serialized previous model (bart(previous_model_json=...)).
+        rng = np.random.default_rng(1)
+        n, p = 200, 4
+        X = rng.uniform(0, 1, (n, p))
+        y = 2 * X[:, 0] - 1 + rng.normal(0, 0.5, n)
+        m1 = BARTModel()
+        m1.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=5, num_mcmc=10,
+                  general_params={"random_seed": 1})
+        js = m1.to_json()
+
+        def run():
+            m = BARTModel()
+            m.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=5, num_mcmc=10,
+                     previous_model_json=js, previous_model_warmstart_sample_num=9,
+                     general_params={"random_seed": 2})
+            return m
+
+        m2 = run()
+        assert m2.num_samples == 10
+        assert m2.y_hat_train.shape == (n, 10)
+        assert np.all(np.isfinite(m2.y_hat_train))
+        # Deterministic under a fixed seed.
+        np.testing.assert_allclose(run().y_hat_train, m2.y_hat_train, atol=1e-10, rtol=0)
+
+        # Feature-space mismatch is rejected clearly.
+        with pytest.raises(ValueError, match="covariate structure"):
+            BARTModel().sample(X_train=X[:, :3], y_train=y, num_mcmc=5, previous_model_json=js)
+
+        # Multi-chain warm-start: each chain seeds from a distinct previous sample; N chains x num_mcmc.
+        m_mc = BARTModel()
+        m_mc.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=5, num_mcmc=10,
+                    previous_model_json=js, previous_model_warmstart_sample_num=9,
+                    general_params={"random_seed": 2, "num_chains": 3})
+        assert m_mc.num_samples == 30
+        assert np.all(np.isfinite(m_mc.y_hat_train))
+
+    def test_bart_warmstart_probit_regenerates_latent(self):
+        # Probit warm-start regenerates the (unpersisted) latent so the seed is stationary even with
+        # num_burnin=0. Verifies valid output + determinism under a fixed seed.
+        rng = np.random.default_rng(3)
+        n, p = 300, 4
+        X = rng.uniform(0, 1, (n, p))
+        z = 2 * X[:, 0] - 1 + rng.normal(0, 1, n)
+        y = (z > 0).astype(float)
+        pm = {"random_seed": 1, "sample_sigma2_global": False,
+              "outcome_model": OutcomeModel(outcome="binary", link="probit")}
+        m1 = BARTModel()
+        m1.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=5, num_mcmc=10, general_params=pm)
+        js = m1.to_json()
+
+        def run():
+            m = BARTModel()
+            m.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=10,
+                     previous_model_json=js, previous_model_warmstart_sample_num=9,
+                     general_params={**pm, "random_seed": 2})
+            return m
+
+        m2 = run()
+        assert m2.num_samples == 10
+        assert np.all(np.isfinite(m2.y_hat_train))
+        np.testing.assert_allclose(run().y_hat_train, m2.y_hat_train, atol=1e-10, rtol=0)

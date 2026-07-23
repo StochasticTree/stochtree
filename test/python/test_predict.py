@@ -586,6 +586,34 @@ class TestPredict:
         expected_y_no_int = bcf_no_intercept.mu_hat_test + Z_test[:, None] * bcf_no_intercept.tau_hat_test
         np.testing.assert_allclose(bcf_no_intercept.y_hat_test, expected_y_no_int)
 
+    def test_bcf_tau_0_reported_in_original_scale(self):
+        """tau_0_samples is stored/reported in the original outcome scale, mirroring sigma2_global
+        and the other parametric terms. The sampler is scale-equivariant under a fixed seed, so
+        scaling y by c scales an original-scale tau_0 by ~c; a standardized-scale tau_0 (the pre-fix
+        behavior) would instead be invariant to the outcome scale."""
+        rng = np.random.default_rng(7)
+        n, p = 200, 5
+        X = rng.uniform(size=(n, p))
+        pi_x = 0.4 + 0.2 * X[:, 0]
+        Z = rng.binomial(1, pi_x).astype(float)
+        # Strong constant treatment intercept so tau_0's posterior mean is clearly non-zero.
+        y = (1 + 2 * X[:, 0]) + (5 + X[:, 1]) * Z + rng.normal(size=n)
+
+        def fit_tau0_mean(scale):
+            m = BCFModel()
+            m.sample(
+                X_train=X, Z_train=Z, y_train=scale * y, propensity_train=pi_x,
+                num_gfr=0, num_burnin=10, num_mcmc=40,
+                general_params={"random_seed": 1234},
+            )
+            return float(np.mean(np.asarray(m.tau_0_samples)))
+
+        t1 = fit_tau0_mean(1.0)
+        t10 = fit_tau0_mean(10.0)
+        assert abs(t1) > 0.5  # clear non-zero treatment intercept
+        # Original scale => ratio ~10; standardized storage (the bug) => ratio ~1.
+        assert 7.0 < t10 / t1 < 13.0, (t1, t10)
+
     def test_bart_cloglog_binary_interval_and_contrast(self):
         # Generate binary cloglog data
         rng = np.random.default_rng(42)
@@ -916,15 +944,19 @@ class TestPredict:
         assert set(np.unique(ppd1)).issubset(set(range(1, n_categories + 1)))
 
     def test_bart_cloglog_ordinal_probability_transform_k4(self):
+        # K=4 is the minimal case that exposes cumulative-product bugs;
+        # K=3 is accidentally correct via the residual-last-class formula.
         rng = np.random.default_rng(123)
-        n = 500; p = 3; n_categories = 4
+        n = 500
+        p = 3
+        n_categories = 4
         X = rng.uniform(size=(n, p))
         beta = np.full(p, 1 / np.sqrt(p))
         true_lambda = X @ beta
         # Balanced cutpoints: ~25% per category so all 4 are reliably observed.
-        # Unbalanced cutpoints give ~0.3% K=4 probability, often no K=4 training obs.
         gamma_true = np.array([-2.1, -1.7, -1.2])
 
+        # Sequential DGP: P(Y=k) = prod_{j<k} S_j * (1-S_k), S_k = exp(-exp(gamma_k + f))
         true_probs = np.zeros((n, n_categories))
         surv_prod = np.ones(n)
         for k in range(n_categories - 1):
@@ -933,19 +965,36 @@ class TestPredict:
             surv_prod = surv_prod * S_k
         true_probs[:, n_categories - 1] = surv_prod
 
-        y = np.array([rng.choice(np.arange(1, n_categories+1), p=true_probs[i,:])
-                      for i in range(n)]).astype(float)
+        y = np.array([
+            rng.choice(np.arange(1, n_categories + 1), p=true_probs[i, :])
+            for i in range(n)
+        ]).astype(float)
 
-        train_inds, test_inds = train_test_split(np.arange(n), test_size=0.2, random_state=42)
-        X_train = X[train_inds, :]; X_test = X[test_inds, :]
-        y_train = y[train_inds]; n_test = X_test.shape[0]; num_mcmc = 10
+        train_inds, test_inds = train_test_split(
+            np.arange(n), test_size=0.2, random_state=42
+        )
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        y_train = y[train_inds]
+        n_test = X_test.shape[0]
+        num_mcmc = 10
 
         bart_model = BARTModel()
-        bart_model.sample(X_train=X_train, y_train=y_train, num_gfr=10, num_burnin=0,
-            num_mcmc=num_mcmc, general_params={"sample_sigma2_global": False,
-                "outcome_model": OutcomeModel(outcome="ordinal", link="cloglog")})
+        bart_model.sample(
+            X_train=X_train,
+            y_train=y_train,
+            num_gfr=10,
+            num_burnin=0,
+            num_mcmc=num_mcmc,
+            general_params={
+                "sample_sigma2_global": False,
+                "outcome_model": OutcomeModel(outcome="ordinal", link="cloglog"),
+            },
+        )
 
+        # Helper: manually assemble class probabilities from forest + cutpoints.
         def assemble_probs(f_hat, gamma_samples, K):
+            # f_hat: (n_test, num_mcmc), gamma_samples: (K-1, num_mcmc)
             n, S = f_hat.shape
             p_manual = np.zeros((n, K, S))
             surv_prod = np.ones((n, S))
@@ -959,16 +1008,19 @@ class TestPredict:
         gamma_samples = bart_model.cloglog_cutpoint_samples  # (K-1, num_mcmc)
         assert gamma_samples.shape == (n_categories - 1, num_mcmc)
 
+        # Linear-scale forest predictions: (n_test, num_mcmc)
         f_hat = bart_model.predict(X=X_test, scale="linear", terms="mean_forest")
         assert f_hat.shape == (n_test, num_mcmc)
 
         p_manual = assemble_probs(f_hat, gamma_samples, n_categories)
+
+        # Model probability predictions: (n_test, n_categories, num_mcmc)
         p_model = bart_model.predict(X=X_test, scale="probability", terms="y_hat")
         assert p_model.shape == (n_test, n_categories, num_mcmc)
 
         np.testing.assert_allclose(p_manual, p_model, atol=1e-10)
         assert np.all(p_model >= 0)
-        row_sums = p_model.sum(axis=1)
+        row_sums = p_model.sum(axis=1)  # (n_test, num_mcmc)
         np.testing.assert_allclose(row_sums, np.ones((n_test, num_mcmc)), atol=1e-10)
 
     def test_bart_gaussian_interval_and_contrast(self):

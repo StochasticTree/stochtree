@@ -1,0 +1,86 @@
+name: Cross-Language Parity Tests
+
+# Runs on every push/PR to main. Ubuntu only. Two checks:
+#   1. Prediction parity — R reproduces the same model with the same seed and
+#      compares posterior predictions to Python's.
+#   2. Cross-platform serialization (WS-E) — each side loads the OTHER language's
+#      written model and asserts the forest reconstructs bit-exactly, both
+#      directions (R<-Py via verify_predictions.R, Py<-R via verify_r_models.py).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  parity:
+    name: cross-language-parity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      # -----------------------------------------------------------------------
+      # Python
+      # -----------------------------------------------------------------------
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Python package
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install .
+
+      # -----------------------------------------------------------------------
+      # R
+      # -----------------------------------------------------------------------
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::testthat, any::decor, any::rcmdcheck, any::jsonlite, any::devtools
+          needs: check
+
+      - name: Build and install R package
+        run: |
+          Rscript cran-bootstrap.R 0 0 1
+          R CMD INSTALL stochtree_cran
+
+      # -----------------------------------------------------------------------
+      # Parity tests
+      # -----------------------------------------------------------------------
+      - name: Generate Python predictions
+        run: |
+          python test/cross_language/generate_predictions.py \
+            --output-dir /tmp/parity_fixtures
+
+      - name: Verify R predictions match Python (incl. R<-Py cross-load)
+        run: |
+          Rscript test/cross_language/verify_predictions.R /tmp/parity_fixtures
+
+      # verify_predictions.R writes <scenario>_r_model.json for each scenario;
+      # load each R-written model in Python and assert bit-exact forest round-trip.
+      - name: Verify Python loads R-written models (Py<-R cross-load)
+        run: |
+          python test/cross_language/verify_r_models.py /tmp/parity_fixtures
+
+      # Upload fixtures on failure so they can be inspected
+      - name: Upload fixtures on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-fixtures
+          path: /tmp/parity_fixtures

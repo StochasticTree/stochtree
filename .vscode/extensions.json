@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "ms-vscode.cmake-tools",
+    "vadimcn.vscode-lldb",
+    "llvm-vs-code-extensions.vscode-clangd",
+    "Posit.air-vscode"
+  ]
+}
