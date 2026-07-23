@@ -95,6 +95,34 @@ test_that("BART variance forest continuation is supported", {
   expect_true(all(is.finite(vf)))
 })
 
+test_that("BART variance-only (no mean forest) continuation is supported", {
+  skip_on_cran()
+
+  n <- 200
+  p <- 4
+  X <- matrix(runif(n * p), ncol = p)
+  y <- rnorm(n, 0, exp(0.5 * X[, 1]))  # heteroskedastic, ~constant mean
+
+  run <- function() {
+    m <- suppressWarnings(bart(
+      X_train = X, y_train = y, num_gfr = 0, num_burnin = 5, num_mcmc = 10,
+      mean_forest_params = list(num_trees = 0),
+      variance_forest_params = list(num_trees = 50),
+      general_params = list(random_seed = 1)
+    ))
+    m <- continueSampling(m, X_train = X, y_train = y, num_mcmc = 8)
+    m
+  }
+  m <- run()
+  expect_false(m$model_params$include_mean_forest)
+  expect_equal(m$model_params$num_samples, 18)
+  vf <- predict(m, X, terms = "variance_forest")
+  expect_equal(ncol(vf), 18)
+  expect_true(all(vf > 0) && all(is.finite(vf)))
+  # Deterministic under a fixed seed (RNG resumed).
+  expect_equal(predict(run(), X, terms = "variance_forest"), vf, tolerance = 1e-10)
+})
+
 test_that("BART random effects continuation is supported", {
   skip_on_cran()
 

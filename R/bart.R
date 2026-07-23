@@ -1863,9 +1863,6 @@ continueSampling.bartmodel <- function(
   if (!inherits(object, "bartmodel")) {
     stop("object must be a bartmodel")
   }
-  if (!object$model_params$include_mean_forest) {
-    stop("Continued sampling currently requires a mean forest")
-  }
   bart_config <- object[["bart_config"]]
   if (is.null(bart_config)) {
     stop(

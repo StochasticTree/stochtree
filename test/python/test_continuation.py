@@ -117,6 +117,31 @@ class TestBARTContinuation:
         assert vf.shape == (X.shape[0], 10)
         assert np.all(vf > 0) and np.all(np.isfinite(vf))
 
+    def test_continuation_variance_only_supported(self):
+        # A variance-only model (no mean forest) can be continued: only the variance forest is
+        # warm-started; the residual stays at standardized y (constant mean), no latent involved.
+        rng = np.random.default_rng(1)
+        n, p = 200, 4
+        X = rng.uniform(0, 1, (n, p))
+        y = rng.normal(0, np.exp(0.5 * X[:, 0]), n)  # heteroskedastic, ~constant mean
+
+        def run():
+            m = BARTModel()
+            m.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=5, num_mcmc=10,
+                     mean_forest_params={"num_trees": 0},
+                     variance_forest_params={"num_trees": 50},
+                     general_params={"random_seed": 1})
+            m.continue_sampling(X_train=X, y_train=y, num_mcmc=8)
+            return m
+
+        m = run()
+        assert not m.include_mean_forest
+        assert m.num_samples == 18
+        assert m.sigma2_x_train.shape == (n, 18)
+        assert np.all(m.sigma2_x_train > 0) and np.all(np.isfinite(m.sigma2_x_train))
+        # Deterministic under a fixed seed (RNG resumed).
+        np.testing.assert_allclose(run().sigma2_x_train, m.sigma2_x_train, atol=1e-10, rtol=0)
+
     def test_continuation_rfx_requires_group_ids(self):
         # An rfx model must be re-supplied its group ids to continue.
         rng = np.random.default_rng(3)

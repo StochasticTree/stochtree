@@ -52,12 +52,12 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
   }
 
   // Continued sampling warm-starts the mean forest, variance forest, random effects, and (for probit /
-  // cloglog) the latent-augmentation auxiliary state from their last retained samples. Reject
-  // configurations whose warm-start init is not implemented so that unsupported continuations fail
-  // loudly rather than silently re-initializing from root.
+  // cloglog) the latent-augmentation auxiliary state from their last retained samples. A model may have
+  // a mean forest, a variance forest, or both; require at least one so continuation has something to
+  // warm-start from (a model with neither cannot have been fit).
   if (continuation) {
-    if (config_.num_trees_mean <= 0) {
-      Log::Fatal("Continued sampling requires an existing mean forest");
+    if (config_.num_trees_mean <= 0 && config_.num_trees_variance <= 0) {
+      Log::Fatal("Continued sampling requires at least one forest (mean or variance)");
     }
   }
 

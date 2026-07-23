@@ -1686,8 +1686,6 @@ class BARTModel:
         """
         if not getattr(self, "sampled", False):
             raise RuntimeError("Cannot continue sampling: this model has not been sampled yet")
-        if not self.include_mean_forest:
-            raise NotImplementedError("Continued sampling currently requires a mean forest")
         cfg = getattr(self, "_cached_bart_config", None)
         if cfg is None:
             raise RuntimeError(
