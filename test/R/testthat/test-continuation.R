@@ -363,6 +363,56 @@ test_that("BCF continuation appends draws (basic + adaptive + variance + rfx)", 
   expect_equal(mr2$model_params$num_samples, 18)
 })
 
+test_that("BCF continuation appends and matches one-shot in distribution", {
+  skip_on_cran()
+
+  set.seed(303)
+  n <- 200
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- 0.25 + 0.5 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  y <- X[, 1] * 2 + X[, 2] * (-1) * Z + rnorm(n)
+  N <- 10
+  M <- 90
+  seed <- 42
+
+  ref <- bcf(
+    X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+    num_gfr = 0, num_burnin = 10, num_mcmc = N + M,
+    general_params = list(random_seed = seed)
+  )
+  cont <- bcf(
+    X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+    num_gfr = 0, num_burnin = 10, num_mcmc = N,
+    general_params = list(random_seed = seed)
+  )
+  cont <- continueSampling(
+    cont, X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+    num_mcmc = M
+  )
+
+  expect_equal(cont$model_params$num_samples, N + M)
+
+  pr <- predict(ref, X = X, Z = Z, propensity = pi_x)$y_hat
+  pc <- predict(cont, X = X, Z = Z, propensity = pi_x)$y_hat
+  expect_equal(ncol(pr), ncol(pc))
+
+  # The retained history (first N draws) is carried forward verbatim (bit-identical),
+  # including the global variance trace.
+  expect_equal(pr[, 1:N], pc[, 1:N], tolerance = 1e-9)
+  expect_equal(
+    extractParameter(ref, "sigma2")[1:N],
+    extractParameter(cont, "sigma2")[1:N],
+    tolerance = 1e-9
+  )
+
+  # Continuation resumes the RNG stream but not the pre-drawn leaf-normal cache, so the
+  # continued draws are only statistically equivalent: full-posterior mean agrees within
+  # Monte Carlo noise.
+  expect_lt(max(abs(rowMeans(pr) - rowMeans(pc))), 0.25)
+})
+
 test_that("BCF continuation is deterministic", {
   skip_on_cran()
 

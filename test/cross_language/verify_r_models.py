@@ -73,7 +73,7 @@ def scenario_bart_basic(fixture_dir):
     m = BARTModel()
     m.from_json(read_text(r_path))
     check_forest_bitexact(
-        f"{name} / py<-R mean_forest", m.forest_container_mean, envelope, "mean_forest"
+        f"{name} / py<-R mean_forest", m.extract_forest("mean"), envelope, "mean_forest"
     )
     X = read_matrix(os.path.join(fixture_dir, f"{name}_X_train.csv"))
     py = read_matrix(os.path.join(fixture_dir, f"{name}_yhat_train.csv"))
@@ -91,10 +91,10 @@ def scenario_bcf_basic(fixture_dir):
     m = BCFModel()
     m.from_json(read_text(r_path))
     check_forest_bitexact(
-        f"{name} / py<-R prognostic", m.forest_container_mu, envelope, "prognostic_forest"
+        f"{name} / py<-R prognostic", m.extract_forest("prognostic"), envelope, "prognostic_forest"
     )
     check_forest_bitexact(
-        f"{name} / py<-R treatment", m.forest_container_tau, envelope, "treatment_forest"
+        f"{name} / py<-R treatment", m.extract_forest("treatment"), envelope, "treatment_forest"
     )
     X = read_matrix(os.path.join(fixture_dir, f"{name}_X_train.csv"))
     Z = read_matrix(os.path.join(fixture_dir, f"{name}_Z_train.csv")).ravel()
@@ -114,7 +114,7 @@ def scenario_bart_rfx(fixture_dir):
     m = BARTModel()
     m.from_json(read_text(r_path))
     check_forest_bitexact(
-        f"{name} / py<-R mean_forest", m.forest_container_mean, envelope, "mean_forest"
+        f"{name} / py<-R mean_forest", m.extract_forest("mean"), envelope, "mean_forest"
     )
     X = read_matrix(os.path.join(fixture_dir, f"{name}_X_train.csv"))
     g = read_matrix(os.path.join(fixture_dir, f"{name}_group_train.csv")).ravel().astype(np.int32)
@@ -138,13 +138,13 @@ def scenario_bcf_varforest(fixture_dir):
     m = BCFModel()
     m.from_json(read_text(r_path))
     check_forest_bitexact(
-        f"{name} / py<-R prognostic", m.forest_container_mu, envelope, "prognostic_forest"
+        f"{name} / py<-R prognostic", m.extract_forest("prognostic"), envelope, "prognostic_forest"
     )
     check_forest_bitexact(
-        f"{name} / py<-R treatment", m.forest_container_tau, envelope, "treatment_forest"
+        f"{name} / py<-R treatment", m.extract_forest("treatment"), envelope, "treatment_forest"
     )
     check_forest_bitexact(
-        f"{name} / py<-R variance", m.forest_container_variance, envelope, "variance_forest"
+        f"{name} / py<-R variance", m.extract_forest("variance"), envelope, "variance_forest"
     )
     X = read_matrix(os.path.join(fixture_dir, f"{name}_X_train.csv"))
     Z = read_matrix(os.path.join(fixture_dir, f"{name}_Z_train.csv")).ravel()

@@ -1,8 +1,11 @@
 name: Cross-Language Parity Tests
 
-# Runs on every push/PR to main. Ubuntu only — this is a correctness check,
-# not a platform-portability check. Python generates prediction fixtures;
-# R reproduces the same model with the same seed and compares.
+# Runs on every push/PR to main. Ubuntu only. Two checks:
+#   1. Prediction parity — R reproduces the same model with the same seed and
+#      compares posterior predictions to Python's.
+#   2. Cross-platform serialization (WS-E) — each side loads the OTHER language's
+#      written model and asserts the forest reconstructs bit-exactly, both
+#      directions (R<-Py via verify_predictions.R, Py<-R via verify_r_models.py).
 
 on:
   push:
@@ -64,9 +67,15 @@ jobs:
           python test/cross_language/generate_predictions.py \
             --output-dir /tmp/parity_fixtures
 
-      - name: Verify R predictions match Python
+      - name: Verify R predictions match Python (incl. R<-Py cross-load)
         run: |
           Rscript test/cross_language/verify_predictions.R /tmp/parity_fixtures
+
+      # verify_predictions.R writes <scenario>_r_model.json for each scenario;
+      # load each R-written model in Python and assert bit-exact forest round-trip.
+      - name: Verify Python loads R-written models (Py<-R cross-load)
+        run: |
+          python test/cross_language/verify_r_models.py /tmp/parity_fixtures
 
       # Upload fixtures on failure so they can be inspected
       - name: Upload fixtures on failure

@@ -139,7 +139,7 @@ scenario_bart_basic <- function(fixture_dir) {
   envelope <- fromJSON(read_text(py_path), simplifyVector = FALSE)
   py_model <- createBARTModelFromJsonString(read_text(py_path))
   check_forest_bitexact(
-    "bart_basic / R<-py mean_forest", py_model$mean_forests, envelope, "mean_forest"
+    "bart_basic / R<-py mean_forest", extractForest(py_model, "mean"), envelope, "mean_forest"
   )
   soft_pred_info("bart_basic / R<-py yhat_train", py_yhat_train,
                  predict(py_model, X_train, terms = "y_hat"))
@@ -208,10 +208,10 @@ scenario_bcf_basic <- function(fixture_dir) {
   envelope <- fromJSON(read_text(py_path), simplifyVector = FALSE)
   py_model <- createBCFModelFromJsonString(read_text(py_path))
   check_forest_bitexact(
-    "bcf_basic / R<-py prognostic", py_model$forests_mu, envelope, "prognostic_forest"
+    "bcf_basic / R<-py prognostic", extractForest(py_model, "prognostic"), envelope, "prognostic_forest"
   )
   check_forest_bitexact(
-    "bcf_basic / R<-py treatment", py_model$forests_tau, envelope, "treatment_forest"
+    "bcf_basic / R<-py treatment", extractForest(py_model, "treatment"), envelope, "treatment_forest"
   )
   soft_pred_info(
     "bcf_basic / R<-py yhat_train",
@@ -276,7 +276,7 @@ scenario_bart_rfx <- function(fixture_dir) {
   envelope <- fromJSON(read_text(py_path), simplifyVector = FALSE)
   py_model <- createBARTModelFromJsonString(read_text(py_path))
   check_forest_bitexact(
-    "bart_rfx / R<-py mean_forest", py_model$mean_forests, envelope, "mean_forest"
+    "bart_rfx / R<-py mean_forest", extractForest(py_model, "mean"), envelope, "mean_forest"
   )
   soft_pred_info(
     "bart_rfx / R<-py yhat_train",
@@ -357,13 +357,13 @@ scenario_bcf_varforest <- function(fixture_dir) {
   envelope <- fromJSON(read_text(py_path), simplifyVector = FALSE)
   py_model <- createBCFModelFromJsonString(read_text(py_path))
   check_forest_bitexact(
-    "bcf_varforest / R<-py prognostic", py_model$forests_mu, envelope, "prognostic_forest"
+    "bcf_varforest / R<-py prognostic", extractForest(py_model, "prognostic"), envelope, "prognostic_forest"
   )
   check_forest_bitexact(
-    "bcf_varforest / R<-py treatment", py_model$forests_tau, envelope, "treatment_forest"
+    "bcf_varforest / R<-py treatment", extractForest(py_model, "treatment"), envelope, "treatment_forest"
   )
   check_forest_bitexact(
-    "bcf_varforest / R<-py variance", py_model$forests_variance, envelope, "variance_forest"
+    "bcf_varforest / R<-py variance", extractForest(py_model, "variance"), envelope, "variance_forest"
   )
   soft_pred_info(
     "bcf_varforest / R<-py yhat_train",

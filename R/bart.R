@@ -3224,7 +3224,7 @@ createBARTModelFromJson <- function(json_object) {
   if (model_params[["has_rfx"]]) {
     output[["rfx_unique_group_ids"]] <- resolveRfxUniqueGroupIds(
       json_object,
-      output[["rfx_samples"]]$materialize_rfx()
+      output[["samples"]]$materialize_rfx()
     )
   }
 
@@ -3496,7 +3496,7 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   if (model_params[["has_rfx"]]) {
     output[["rfx_unique_group_ids"]] <- resolveRfxUniqueGroupIds(
       json_object_default,
-      output[["rfx_samples"]] ## TODO: write materialize wrapper for RFX
+      output[["samples"]]$materialize_rfx()
     )
   }
 

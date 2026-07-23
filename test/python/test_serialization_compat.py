@@ -615,6 +615,52 @@ class TestCrossPlatformGate:
         assert m.sampled
 
 
+def _forest_bitexact(loaded_container, envelope: dict, forest_name: str) -> bool:
+    """Re-serialize a loaded foreign forest and compare to the original envelope's
+    named forest at full precision -- the real cross-platform serialization
+    guarantee (the foreign forest reconstructs byte-for-byte)."""
+    from stochtree.serialization import JSONSerializer
+
+    s = JSONSerializer()
+    s.add_forest(loaded_container)
+    got = json.loads(s.return_json_string())["forests"]["forest_0"]
+    return got == envelope["forests"][forest_name]
+
+
+class TestGenuineForeignCrossLoad:
+    """Load a genuinely R-written (all-numeric) model in Python and assert the
+    forest reconstructs bit-exactly. The fixtures are the real R-written v1 goldens
+    copied verbatim from the R suite (platform == "R"), so this exercises the true
+    cross-platform load path -- not a relabeled own fixture."""
+
+    def test_bart_py_from_r(self):
+        raw = (FIXTURES_DIR / "bart_numeric_v1_rwritten.json").read_text()
+        envelope = json.loads(raw)
+        assert envelope["platform"] == "R"
+        m = BARTModel()
+        m.from_json(raw)  # gate must ACCEPT (all-numeric, portable)
+        assert m.sampled
+        assert _forest_bitexact(m.extract_forest("mean"), envelope, "mean_forest")
+        rng = np.random.default_rng(0)
+        preds = m.predict(rng.uniform(size=(8, 4)), terms="y_hat")
+        assert preds.shape[0] == 8 and np.all(np.isfinite(preds))
+
+    def test_bcf_py_from_r(self):
+        raw = (FIXTURES_DIR / "bcf_numeric_v1_rwritten.json").read_text()
+        envelope = json.loads(raw)
+        assert envelope["platform"] == "R"
+        m = BCFModel()
+        m.from_json(raw)
+        assert m.sampled
+        assert _forest_bitexact(m.extract_forest("prognostic"), envelope, "prognostic_forest")
+        assert _forest_bitexact(m.extract_forest("treatment"), envelope, "treatment_forest")
+        rng = np.random.default_rng(0)
+        X = rng.uniform(size=(8, 4))
+        Z = rng.binomial(1, 0.5, 8).astype(float)
+        preds = m.predict(X, Z, np.full(8, 0.5), terms="y_hat")
+        assert preds.shape[0] == 8 and np.all(np.isfinite(preds))
+
+
 def test_future_schema_version_raises():
     """A model stamped with a newer schema_version than this install supports must error."""
     from stochtree.serialization import SCHEMA_VERSION
@@ -654,6 +700,18 @@ def test_absent_schema_version_is_legacy_v0():
     m = BARTModel()
     m.from_json(_strip_fields(_load_fixture("bart_numeric_v1.json"), "schema_version"))
     assert m.sampled
+
+
+def test_v0_golden_fixtures_stay_v0():
+    """The legacy v0 golden fixtures must remain genuinely v0 (no schema_version
+    stamp) so the v0 read path stays exercised. If someone regenerates them at the
+    current version, this guard flags it -- old fixtures must load indefinitely and
+    must not be silently upgraded."""
+    for name in ("bart_mcmc.json", "bcf_mcmc.json"):
+        obj = _load_fixture(name)
+        assert "schema_version" not in obj, (
+            f"{name} was expected to stay a v0 golden (no schema_version stamp)"
+        )
 
 
 class TestV0PlatformFingerprint:

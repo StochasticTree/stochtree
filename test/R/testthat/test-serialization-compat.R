@@ -572,9 +572,104 @@ test_that("an absent schema_version stamp loads as legacy v0", {
   expect_s3_class(m, "bartmodel")
 })
 
+test_that("legacy v0 golden fixtures stay genuinely v0", {
+  skip_on_cran()
+  skip_if_not_installed("jsonlite")
+  # The v0 goldens must remain unstamped so the v0 read path stays exercised; if
+  # someone regenerates them at the current version this guard flags it.
+  for (name in c("bart_mcmc.json", "bcf_mcmc.json")) {
+    obj <- read_fixture_json(name)
+    expect_false(
+      "schema_version" %in% names(obj),
+      info = paste(name, "should stay a v0 golden (no schema_version stamp)")
+    )
+  }
+})
+
 # ===========================================================================
 # v0 platform-fingerprint fallback (inferPlatformV0)
 # ===========================================================================
+
+# ===========================================================================
+# Genuine cross-platform load: load a real Python-written (all-numeric) model
+# and assert the forest reconstructs bit-exactly. Fixtures are the real
+# Python-written v1 goldens copied verbatim from the Python suite (platform ==
+# "python"), so this is the true cross-platform load path -- not a relabeled own
+# fixture.
+# ===========================================================================
+
+forest_bitexact <- function(forest_samples, envelope, forest_name) {
+  reser <- createCppJson()
+  reser$add_forest(forest_samples)
+  got <- jsonlite::fromJSON(reser$return_json_string(), simplifyVector = FALSE)$forests$forest_0
+  identical(got, envelope$forests[[forest_name]])
+}
+
+test_that("R loads a genuinely Python-written BART model bit-exactly", {
+  skip_on_cran()
+  skip_if_not_installed("jsonlite")
+  raw <- read_fixture_raw("bart_numeric_v1_pywritten.json")
+  envelope <- jsonlite::fromJSON(raw, simplifyVector = FALSE)
+  expect_equal(envelope$platform, "python")
+  m <- createBARTModelFromJsonString(raw) # gate must ACCEPT (all-numeric, portable)
+  expect_s3_class(m, "bartmodel")
+  expect_true(forest_bitexact(
+    extractForest(m, "mean"),
+    envelope,
+    "mean_forest"
+  ))
+  set.seed(0)
+  preds <- predict(m, X = matrix(runif(8 * 4), ncol = 4))$y_hat
+  expect_equal(nrow(preds), 8)
+  expect_true(all(is.finite(preds)))
+})
+
+test_that("R loads a genuinely Python-written BCF model bit-exactly", {
+  skip_on_cran()
+  skip_if_not_installed("jsonlite")
+  raw <- read_fixture_raw("bcf_numeric_v1_pywritten.json")
+  envelope <- jsonlite::fromJSON(raw, simplifyVector = FALSE)
+  expect_equal(envelope$platform, "python")
+  m <- createBCFModelFromJsonString(raw)
+  expect_s3_class(m, "bcfmodel")
+  expect_true(forest_bitexact(
+    extractForest(m, "prognostic"),
+    envelope,
+    "prognostic_forest"
+  ))
+  expect_true(forest_bitexact(
+    extractForest(m, "treatment"),
+    envelope,
+    "treatment_forest"
+  ))
+  set.seed(0)
+  preds <- predict(
+    m,
+    X = matrix(runif(8 * 4), ncol = 4),
+    Z = rbinom(8, 1, 0.5),
+    propensity = rep(0.5, 8)
+  )$y_hat
+  expect_equal(nrow(preds), 8)
+  expect_true(all(is.finite(preds)))
+})
+
+test_that("R loads a genuinely Python-written RFX BART model cross-platform", {
+  skip_on_cran()
+  skip_if_not_installed("jsonlite")
+  # Regression guard: a Python-written model has no `rfx_unique_group_ids` string
+  # levels, so R's cross-load resolves the group ids from the sampled label mapper
+  # (`samples$materialize_rfx()`). This path was broken by the single-owner refactor
+  # (it referenced the removed `output$rfx_samples`) and is only reachable via a
+  # genuinely foreign RFX model -- never a same-platform R load.
+  raw <- read_fixture_raw("bart_numeric_rfx_v1_pywritten.json")
+  envelope <- jsonlite::fromJSON(raw, simplifyVector = FALSE)
+  expect_equal(envelope$platform, "python")
+  m <- createBARTModelFromJsonString(raw)
+  expect_s3_class(m, "bartmodel")
+  # Group ids were resolved from the label mapper (not read from a string-levels field).
+  expect_true(length(m$rfx_unique_group_ids) > 0)
+  expect_true(forest_bitexact(extractForest(m, "mean"), envelope, "mean_forest"))
+})
 
 test_that("v0 platform fingerprint classifies legacy envelopes", {
   skip_on_cran()
@@ -584,15 +679,15 @@ test_that("v0 platform fingerprint classifies legacy envelopes", {
     obj <- read_fixture_json(name)
     expect_false("schema_version" %in% names(obj)) # genuinely v0
     cj <- createCppJsonString(read_fixture_raw(name))
-    expect_equal(inferPlatformV0(cj, "python"), "R")
+    expect_equal(stochtree:::inferPlatformV0(cj, "python"), "R")
   }
   # A Python-written envelope carries `covariate_preprocessor`.
   cj_py <- createCppJsonString(write_json_string(list(
     covariate_preprocessor = list(a = 1)
   )))
-  expect_equal(inferPlatformV0(cj_py, "R"), "python")
+  expect_equal(stochtree:::inferPlatformV0(cj_py, "R"), "python")
   # No decisive fingerprint -> fall back to the loading platform.
   cj_none <- createCppJsonString(write_json_string(list(some_key = 1)))
-  expect_equal(inferPlatformV0(cj_none, "R"), "R")
-  expect_equal(inferPlatformV0(cj_none, "python"), "python")
+  expect_equal(stochtree:::inferPlatformV0(cj_none, "R"), "R")
+  expect_equal(stochtree:::inferPlatformV0(cj_none, "python"), "python")
 })
