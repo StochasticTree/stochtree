@@ -520,8 +520,14 @@ bcf <- function(
   }
 
   # Check if previous model JSON is provided and parse it if so
+  # Warm-start from a serialized previous model. The previous model is deserialized here via the
+  # version/platform-aware constructor; its in-memory BCFSamples pointer is passed to the C++ sampler,
+  # which reconstitutes the active forests (+ scalars / tau_0 / adaptive-coding / rfx) from the requested
+  # retained sample. Same-scale is assumed. The feature-space compatibility guard runs below, after the
+  # new run's covariates are preprocessed.
   has_prev_model <- !is.null(previous_model_json)
   has_prev_model_index <- !is.null(previous_model_warmstart_sample_num)
+  previous_bcf_model <- NULL
   if (has_prev_model) {
     previous_bcf_model <- createBCFModelFromJsonString(previous_model_json)
     prev_num_samples <- previous_bcf_model$model_params$num_samples
@@ -532,84 +538,16 @@ bcf <- function(
       )
     } else {
       if (previous_model_warmstart_sample_num < 1) {
-        stop(
-          "`previous_model_warmstart_sample_num` must be a positive integer"
-        )
+        stop("`previous_model_warmstart_sample_num` must be a positive integer")
       }
       if (previous_model_warmstart_sample_num > prev_num_samples) {
-        stop(
-          "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
-        )
+        stop("`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`")
       }
     }
-    previous_model_decrement <- T
-    if (num_chains > previous_model_warmstart_sample_num) {
-      warning(
-        "The number of chains being sampled exceeds the number of previous model samples available from the requested position in `previous_model_json`. All chains will be initialized from the same sample."
-      )
-      previous_model_decrement <- F
+    # Stage 1: multi-chain warm-start from a previous model is not yet wired through the C++ sampler.
+    if (num_chains > 1) {
+      stop("Warm-starting from `previous_model_json` with `num_chains > 1` is not yet supported; use num_chains = 1.")
     }
-    previous_y_bar <- previous_bcf_model$model_params$outcome_mean
-    previous_y_scale <- previous_bcf_model$model_params$outcome_scale
-    previous_forest_samples_mu <- previous_bcf_model$samples$materialize_mu_forest()
-    previous_forest_samples_tau <- previous_bcf_model$samples$materialize_tau_forest()
-    if (previous_bcf_model$model_params$include_variance_forest) {
-      previous_forest_samples_variance <- previous_bcf_model$samples$materialize_variance_forest()
-    } else {
-      previous_forest_samples_variance <- NULL
-    }
-    if (previous_bcf_model$model_params$sample_sigma2_global) {
-      previous_global_var_samples <- previous_bcf_model$samples$global_var_samples() /
-        (previous_y_scale * previous_y_scale)
-    } else {
-      previous_global_var_samples <- NULL
-    }
-    if (previous_bcf_model$model_params$sample_sigma2_leaf_mu) {
-      previous_leaf_var_mu_samples <- previous_bcf_model$samples$leaf_scale_mu_samples()
-    } else {
-      previous_leaf_var_mu_samples <- NULL
-    }
-    if (previous_bcf_model$model_params$sample_sigma2_leaf_tau) {
-      previous_leaf_var_tau_samples <- previous_bcf_model$samples$leaf_scale_tau_samples()
-    } else {
-      previous_leaf_var_tau_samples <- NULL
-    }
-    if (previous_bcf_model$model_params$has_rfx) {
-      previous_rfx_samples <- previous_bcf_model$samples$materialize_rfx()
-    } else {
-      previous_rfx_samples <- NULL
-    }
-    if (previous_bcf_model$model_params$adaptive_coding) {
-      previous_b_1_samples <- previous_bcf_model$samples$b1_samples()
-      previous_b_0_samples <- previous_bcf_model$samples$b0_samples()
-    } else {
-      previous_b_1_samples <- NULL
-      previous_b_0_samples <- NULL
-    }
-    if (previous_bcf_model$model_params$sample_tau_0) {
-      previous_tau_0_samples <- previous_bcf_model$samples$tau_0_samples()
-    } else {
-      previous_tau_0_samples <- NULL
-    }
-    previous_model_num_samples <- previous_bcf_model$model_params$num_samples
-    if (previous_model_warmstart_sample_num > previous_model_num_samples) {
-      stop(
-        "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
-      )
-    }
-  } else {
-    previous_y_bar <- NULL
-    previous_y_scale <- NULL
-    previous_global_var_samples <- NULL
-    previous_leaf_var_mu_samples <- NULL
-    previous_leaf_var_tau_samples <- NULL
-    previous_rfx_samples <- NULL
-    previous_forest_samples_mu <- NULL
-    previous_forest_samples_tau <- NULL
-    previous_forest_samples_variance <- NULL
-    previous_b_1_samples <- NULL
-    previous_b_0_samples <- NULL
-    previous_tau_0_samples <- NULL
   }
 
   # Determine whether conditional variance will be modeled
@@ -964,6 +902,23 @@ bcf <- function(
   original_var_indices <- X_train_metadata$original_var_indices
   feature_types <- X_train_metadata$feature_types
   X_test_raw <- X_test
+
+  # Feature-space compatibility guard for a previous-model warm-start: the previous model's forests
+  # split on preprocessed feature indices, so the new run must produce the same preprocessed layout
+  # (feature count + per-feature original-variable mapping), or those split indices would point at the
+  # wrong features. `original_var_indices` encodes the expansion mapping (before the propensity column
+  # is appended, which both models append identically), so comparing it catches both a covariate-count
+  # mismatch and a categorical-expansion mismatch.
+  if (has_prev_model) {
+    prev_var_indices <- previous_bcf_model$train_set_metadata$original_var_indices
+    if (!identical(as.integer(prev_var_indices), as.integer(original_var_indices))) {
+      stop(
+        "`previous_model_json` was fit on a different covariate structure than the current data ",
+        "(preprocessed feature layout does not match). Warm-start requires the same covariates, ",
+        "types, and categorical levels."
+      )
+    }
+  }
   if (!is.null(X_test)) {
     X_test <- preprocessPredictionData(X_test, X_train_metadata)
   }
@@ -1740,6 +1695,16 @@ bcf <- function(
     num_mcmc = as.integer(num_mcmc),
     num_chains = as.integer(num_chains),
     adaptive_coding = adaptive_coding,
+    warmstart_samples = if (has_prev_model) {
+      previous_bcf_model$samples$samples_ptr
+    } else {
+      NULL
+    },
+    warmstart_sample_num = if (has_prev_model) {
+      as.integer(previous_model_warmstart_sample_num)
+    } else {
+      0L
+    },
     config_input = bcf_config
   )
   result <- list()

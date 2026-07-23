@@ -31,7 +31,10 @@ void AddModelTermsForProbit(double* outcome_preds, ForestTracker* mu_forest_trac
   }
 }
 
-BCFSampler::BCFSampler(BCFSamples& samples, BCFConfig& config, BCFData& data, bool continuation) : config_{config}, data_{data}, mu_leaf_model_(GaussianConstantLeafModel(0.0)), tau_leaf_model_(GaussianUnivariateRegressionLeafModel(0.0)), variance_leaf_model_(0.0, 0.0) {
+BCFSampler::BCFSampler(BCFSamples& samples, BCFConfig& config, BCFData& data, bool continuation,
+                       BCFSamples* warmstart_source, int warmstart_sample_num)
+    : config_{config}, data_{data}, warmstart_source_{warmstart_source}, warmstart_sample_num_{warmstart_sample_num},
+      mu_leaf_model_(GaussianConstantLeafModel(0.0)), tau_leaf_model_(GaussianUnivariateRegressionLeafModel(0.0)), variance_leaf_model_(0.0, 0.0) {
   InitializeState(samples, continuation);
 }
 
@@ -68,17 +71,28 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
     config_.sample_sigma2_leaf_tau = false;
   }
 
+  // Determine the warm-start seed source and index, unifying continuation (self's last sample; append
+  // in place) and previous-model warm-start (external model's sample at warmstart_sample_num-1; fresh
+  // destination containers). The forest / scalar / tau_0 / adaptive-coding / rfx warm-start reads the
+  // same fields, just from a different (source, index). When neither applies, seed_src == nullptr and
+  // forests init to root.
+  const bool warmstart_external = (!continuation && warmstart_source_ != nullptr);
+  const bool warm_start = continuation || warmstart_external;
+  BCFSamples* seed_src = continuation ? &samples : (warmstart_external ? warmstart_source_ : nullptr);
+  const int seed_idx = continuation ? (seed_src != nullptr ? seed_src->num_samples - 1 : -1)
+                                    : (warmstart_external ? warmstart_sample_num_ - 1 : -1);
+
   // Adaptive coding model
   if (config_.adaptive_coding) {
     if (data_.treatment_dim != 1) {
       Log::Fatal("Adaptive coding is currently only supported for binary treatments (treatment_dim=1)");
     }
     adaptive_coding_ = true;
-    // On continuation, warm-start b0/b1 from the last retained sample (stored raw; postprocess does
-    // not touch them) so the adaptive basis built below + the tau-forest warm-start use them.
-    if (continuation && !samples.b0_samples.empty()) {
-      b_0_ = samples.b0_samples.back();
-      b_1_ = samples.b1_samples.back();
+    // On warm-start, restore b0/b1 from the seed sample (stored raw; postprocess does not touch them)
+    // so the adaptive basis built below + the tau-forest warm-start use them.
+    if (warm_start && !seed_src->b0_samples.empty()) {
+      b_0_ = seed_src->b0_samples[seed_idx];
+      b_1_ = seed_src->b1_samples[seed_idx];
     } else {
       b_0_ = config_.b_0_init;
       b_1_ = config_.b_1_init;
@@ -283,13 +297,12 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
   mu_forest_->SetLeafValue(init_val_mu_ / config_.num_trees_mu);
   UpdateResidualEntireForest(*mu_forest_tracker_, *forest_dataset_, *residual_, mu_forest_.get(), !config_.leaf_constant_mu, std::minus<double>());
   mu_forest_tracker_->UpdatePredictions(mu_forest_.get(), *forest_dataset_.get());
-  if (continuation) {
-    // Warm-start from the last retained mu sample. The reset requires the already-populated
-    // tracker established by the root init above (mirrors RestoreStateFromGFRSnapshot).
-    int last_mu_idx = samples.mu_forests->NumSamples() - 1;
-    TreeEnsemble& last_mu = *samples.mu_forests->GetEnsemble(last_mu_idx);
-    mu_forest_->ReconstituteFromForest(last_mu);
-    mu_forest_tracker_->ReconstituteFromForest(last_mu, *forest_dataset_, *residual_, true);
+  if (warm_start) {
+    // Warm-start from the seed mu sample. The reset requires the already-populated tracker established
+    // by the root init above (mirrors RestoreStateFromGFRSnapshot).
+    TreeEnsemble& seed_mu = *seed_src->mu_forests->GetEnsemble(seed_idx);
+    mu_forest_->ReconstituteFromForest(seed_mu);
+    mu_forest_tracker_->ReconstituteFromForest(seed_mu, *forest_dataset_, *residual_, true);
     mu_forest_tracker_->UpdatePredictions(mu_forest_.get(), *forest_dataset_.get());
   }
 
@@ -305,15 +318,14 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
     tau_forest_->SetLeafValue(init_val_tau_ / config_.num_trees_tau);
     UpdateResidualEntireForest(*tau_forest_tracker_, *forest_dataset_, *residual_, tau_forest_.get(), !config_.leaf_constant_tau, std::minus<double>());
     tau_forest_tracker_->UpdatePredictions(tau_forest_.get(), *forest_dataset_.get());
-    if (continuation) {
-      // Warm-start from the last retained tau sample. At this point the residual already has the
-      // warm-started mu contribution removed; reconstitution swaps the root tau contribution out
-      // and the last-sample tau contribution in. The treatment intercept tau_0 is restored
-      // separately (below), after both forests are warm-started.
-      int last_tau_idx = samples.tau_forests->NumSamples() - 1;
-      TreeEnsemble& last_tau = *samples.tau_forests->GetEnsemble(last_tau_idx);
-      tau_forest_->ReconstituteFromForest(last_tau);
-      tau_forest_tracker_->ReconstituteFromForest(last_tau, *forest_dataset_, *residual_, true);
+    if (warm_start) {
+      // Warm-start from the seed tau sample. At this point the residual already has the warm-started mu
+      // contribution removed; reconstitution swaps the root tau contribution out and the seed-sample tau
+      // contribution in. The treatment intercept tau_0 is restored separately (below), after both
+      // forests are warm-started.
+      TreeEnsemble& seed_tau = *seed_src->tau_forests->GetEnsemble(seed_idx);
+      tau_forest_->ReconstituteFromForest(seed_tau);
+      tau_forest_tracker_->ReconstituteFromForest(seed_tau, *forest_dataset_, *residual_, true);
       tau_forest_tracker_->UpdatePredictions(tau_forest_.get(), *forest_dataset_.get());
     }
   } else if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
@@ -327,12 +339,11 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
     tau_forest_->SetLeafVector(init_val_tau_vec_);
     UpdateResidualEntireForest(*tau_forest_tracker_, *forest_dataset_, *residual_, tau_forest_.get(), true, std::minus<double>());
     tau_forest_tracker_->UpdatePredictions(tau_forest_.get(), *forest_dataset_.get());
-    if (continuation) {
-      // Warm-start the multivariate treatment forest from the last retained sample.
-      int last_tau_idx = samples.tau_forests->NumSamples() - 1;
-      TreeEnsemble& last_tau = *samples.tau_forests->GetEnsemble(last_tau_idx);
-      tau_forest_->ReconstituteFromForest(last_tau);
-      tau_forest_tracker_->ReconstituteFromForest(last_tau, *forest_dataset_, *residual_, true);
+    if (warm_start) {
+      // Warm-start the multivariate treatment forest from the seed sample.
+      TreeEnsemble& seed_tau = *seed_src->tau_forests->GetEnsemble(seed_idx);
+      tau_forest_->ReconstituteFromForest(seed_tau);
+      tau_forest_tracker_->ReconstituteFromForest(seed_tau, *forest_dataset_, *residual_, true);
       tau_forest_tracker_->UpdatePredictions(tau_forest_.get(), *forest_dataset_.get());
     }
   } else {
@@ -369,11 +380,10 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
     // reconstitution (is_mean_model=false) swaps the flat-init leaves out of the variance-weight
     // slot and the last forest's leaves in, so the slot lands at exp(sum of last-forest leaves) =
     // the last sample's per-observation variance prediction. Mirrors the mu/tau warm-start + BART.
-    if (continuation) {
-      int last_var_idx = samples.variance_forests->NumSamples() - 1;
-      TreeEnsemble& last_variance_forest = *samples.variance_forests->GetEnsemble(last_var_idx);
-      variance_forest_->ReconstituteFromForest(last_variance_forest);
-      variance_forest_tracker_->ReconstituteFromForest(last_variance_forest, *forest_dataset_, *residual_, /*is_mean_model=*/false);
+    if (warm_start) {
+      TreeEnsemble& seed_variance_forest = *seed_src->variance_forests->GetEnsemble(seed_idx);
+      variance_forest_->ReconstituteFromForest(seed_variance_forest);
+      variance_forest_tracker_->ReconstituteFromForest(seed_variance_forest, *forest_dataset_, *residual_, /*is_mean_model=*/false);
     }
   }
 
@@ -531,9 +541,8 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
     // sigma) from the persisted container; the FIXED priors were just set above from config. The
     // tracker ResetFromSample then swaps the last sample's rfx contribution into the residual.
     // Mirrors BART + BCF RestoreStateFromGFRSnapshot.
-    if (continuation) {
-      int last_rfx_idx = samples.rfx_container->NumSamples() - 1;
-      random_effects_model_->ResetFromSample(*samples.rfx_container, last_rfx_idx);
+    if (warm_start) {
+      random_effects_model_->ResetFromSample(*seed_src->rfx_container, seed_idx);
       random_effects_tracker_->ResetFromSample(*random_effects_model_, *random_effects_dataset_, *residual_);
     }
   }
@@ -542,50 +551,50 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
   rng_ = std::mt19937(config_.random_seed >= 0 ? config_.random_seed : std::random_device{}());
 
   // Other internal model state
-  if (continuation) {
-    // Warm-start the scalar state from the last retained sample. Continuation now appends in place
-    // onto the model's samples object, whose global variance history is POST-PROCESSED (x y_std^2)
-    // and whose tau_0 history is scaled by y_std; the sampler works in standardized space, so divide
-    // those back out here. Leaf scales are stored standardized (postprocess does not touch them).
-    const double y_std2 = samples.y_std * samples.y_std;
-    if (sample_sigma2_global_ && !samples.global_error_variance_samples.empty()) {
-      global_variance_ = samples.global_error_variance_samples.back() / y_std2;
+  if (warm_start) {
+    // Warm-start the scalar state from the seed sample. The seed source's global variance history is
+    // POST-PROCESSED (x y_std^2) and its tau_0 history is scaled by y_std; the sampler works in
+    // standardized space, so divide those back out using the SEED source's y_std (the previous model's
+    // scale for a warm-start, self's for a continuation). Leaf scales are stored standardized. Assumes
+    // the new run's data is on the same scale as the seed (no cross-scale leaf rescale).
+    const double y_std2 = seed_src->y_std * seed_src->y_std;
+    if (sample_sigma2_global_ && !seed_src->global_error_variance_samples.empty()) {
+      global_variance_ = seed_src->global_error_variance_samples[seed_idx] / y_std2;
     } else {
       global_variance_ = config_.sigma2_global_init;
     }
-    if (sample_sigma2_leaf_mu_ && !samples.leaf_scale_mu_samples.empty()) {
-      leaf_scale_mu_ = samples.leaf_scale_mu_samples.back();
+    if (sample_sigma2_leaf_mu_ && !seed_src->leaf_scale_mu_samples.empty()) {
+      leaf_scale_mu_ = seed_src->leaf_scale_mu_samples[seed_idx];
     } else {
       leaf_scale_mu_ = config_.sigma2_mu_init;
     }
-    if (sample_sigma2_leaf_tau_ && !samples.leaf_scale_tau_samples.empty()) {
-      leaf_scale_tau_ = samples.leaf_scale_tau_samples.back();
+    if (sample_sigma2_leaf_tau_ && !seed_src->leaf_scale_tau_samples.empty()) {
+      leaf_scale_tau_ = seed_src->leaf_scale_tau_samples[seed_idx];
     } else {
       leaf_scale_tau_ = config_.sigma2_tau_init;
     }
     leaf_scale_tau_multivariate_ = config_.sigma2_leaf_tau_matrix;
     // Sync the leaf models' scales with the warm-started leaf scales so the first continued
-    // iteration samples each forest using the last retained scale (matching the one-shot run).
+    // iteration samples each forest using the seed scale (matching the one-shot run).
     mu_leaf_model_.SetScale(leaf_scale_mu_);
     std::visit(ScaleUpdateVisitor{*this, leaf_scale_tau_}, tau_leaf_model_);
     // Restore the treatment intercept and remove its contribution from the residual.
-    // After the forest warm-starts above, residual_ = y_std - mu_last - Z*tau_last; the one-shot
-    // sampler additionally carries -Z*tau_0_last at the start of the next iteration.
-    if (sample_tau_0_ && !samples.tau_0_samples.empty()) {
+    // After the forest warm-starts above, residual_ = y_std - mu_seed - Z*tau_seed; the one-shot
+    // sampler additionally carries -Z*tau_0_seed at the start of the next iteration.
+    if (sample_tau_0_ && !seed_src->tau_0_samples.empty()) {
       double* resid_ptr = residual_->GetData().data();
       if (data_.treatment_dim == 1) {
-        tau_0_scalar_ = samples.tau_0_samples.back() / samples.y_std;  // stored x y_std -> standardized
+        tau_0_scalar_ = seed_src->tau_0_samples[seed_idx] / seed_src->y_std;  // stored x y_std -> standardized
         const double* basis = adaptive_coding_ ? tau_basis_vector_train_.data() : data_.treatment_train;
         for (int i = 0; i < data_.n_train; i++) {
           resid_ptr[i] -= tau_0_scalar_ * basis[i];
         }
       } else {
-        // Multivariate treatment: the last sample is the final treatment_dim block (col-major),
-        // stored x y_std. Adaptive coding is binary-only, so the basis is the raw treatment here.
-        const int last = samples.num_samples - 1;
+        // Multivariate treatment: the seed sample is a treatment_dim block (col-major), stored x y_std.
+        // Adaptive coding is binary-only, so the basis is the raw treatment here.
         tau_0_vector_.resize(data_.treatment_dim);
         for (int k = 0; k < data_.treatment_dim; k++) {
-          tau_0_vector_[k] = samples.tau_0_samples[last * data_.treatment_dim + k] / samples.y_std;
+          tau_0_vector_[k] = seed_src->tau_0_samples[seed_idx * data_.treatment_dim + k] / seed_src->y_std;
         }
         for (int i = 0; i < data_.n_train; i++) {
           for (int k = 0; k < data_.treatment_dim; k++) {

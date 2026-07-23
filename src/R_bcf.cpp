@@ -196,6 +196,8 @@ cpp11::writable::list bcf_sample_cpp(
     int num_mcmc,
     int num_chains,
     bool adaptive_coding,
+    cpp11::sexp warmstart_samples,
+    int warmstart_sample_num,
     cpp11::list config_input) {
   // Extract pointers to raw data
   int protect_count = 0;
@@ -235,8 +237,23 @@ cpp11::writable::list bcf_sample_cpp(
   // Create the BCFConfig object
   StochTree::BCFConfig config = convert_list_to_bcf_config(config_input);
 
-  // Initialize a BCF sampler
-  StochTree::BCFSampler bcf_sampler(*samples, config, data);
+  // Optional previous-model warm-start source (bcf(previous_model_json=...)). The R wrapper passes the
+  // deserialized model's BCFSamples external pointer (or NULL); the borrowed pointer need only outlive
+  // this call.
+  StochTree::BCFSamples* warmstart_ptr = nullptr;
+  if (!Rf_isNull(warmstart_samples)) {
+    cpp11::external_pointer<StochTree::BCFSamples> warmstart_ext(warmstart_samples);
+    warmstart_ptr = warmstart_ext.get();
+  }
+
+  // Initialize a BCF sampler (warm-started from the previous model when warmstart_ptr != nullptr)
+  StochTree::BCFSampler bcf_sampler(*samples, config, data, /*continuation=*/false, warmstart_ptr, warmstart_sample_num);
+
+  // Probit warm-start: regenerate the (unpersisted) latent so the seeded state is stationary before the
+  // first draw. No-op for Gaussian or a non-warm-start run.
+  if (warmstart_ptr != nullptr) {
+    bcf_sampler.RegenerateProbitLatent(*samples);
+  }
 
   // Run the sampler
   bcf_sampler.run_gfr(*samples, num_gfr, config.keep_gfr, num_chains);

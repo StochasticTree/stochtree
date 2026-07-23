@@ -3564,6 +3564,8 @@ py::dict bcf_sample_cpp(
     int num_mcmc,
     int num_chains,
     bool adaptive_coding,
+    BCFSamplesCpp* warmstart_samples,
+    int warmstart_sample_num,
     py::dict config_input) {
   // Convert config dict to BCFConfig struct
   StochTree::BCFConfig bcf_config = convert_dict_to_bcf_config(config_input);
@@ -3575,8 +3577,18 @@ py::dict bcf_sample_cpp(
   // place; this function only returns metadata that is NOT part of the samples object.
   StochTree::BCFSamples& bcf_samples = *samples.GetPtr();
 
-  // Initialize a BCF sampler
-  StochTree::BCFSampler bcf_sampler(bcf_samples, bcf_config, bcf_data);
+  // Optional previous-model warm-start source (bcf(previous_model_json=...)). None -> nullptr; the
+  // borrowed pointer need only outlive this call (the wrapper keeps the previous model alive).
+  StochTree::BCFSamples* warmstart_ptr = (warmstart_samples != nullptr) ? warmstart_samples->GetPtr() : nullptr;
+
+  // Initialize a BCF sampler (warm-started from the previous model when warmstart_ptr != nullptr)
+  StochTree::BCFSampler bcf_sampler(bcf_samples, bcf_config, bcf_data, /*continuation=*/false, warmstart_ptr, warmstart_sample_num);
+
+  // Probit warm-start: regenerate the (unpersisted) latent so the seeded state is stationary before the
+  // first draw. No-op for Gaussian or a non-warm-start run.
+  if (warmstart_ptr != nullptr) {
+    bcf_sampler.RegenerateProbitLatent(bcf_samples);
+  }
 
   // Run the sampler
   bcf_sampler.run_gfr(bcf_samples, num_gfr, bcf_config.keep_gfr, num_chains);
@@ -3975,6 +3987,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
         py::arg("num_mcmc"),
         py::arg("num_chains"),
         py::arg("adaptive_coding"),
+        py::arg("warmstart_samples") = nullptr,
+        py::arg("warmstart_sample_num") = 0,
         py::arg("config_input"));
 
   m.def("bcf_continue_sample_cpp", &bcf_continue_sample_cpp, "Continue (warm-start) BCF sampling from an existing model in C++",

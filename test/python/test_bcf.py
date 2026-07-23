@@ -1115,6 +1115,45 @@ class TestBCF:
         assert m2.y_hat_train.shape == (n_train, 10)
         assert m2.y_hat_test.shape == (n - n_train, 10)
 
+    def test_warmstart_from_previous_model(self):
+        # Warm-start a fresh single-chain BCF run from a serialized previous model.
+        rng = np.random.default_rng(1)
+        n, p = 200, 4
+        X = rng.uniform(0, 1, (n, p))
+        pi = (0.25 + 0.5 * X[:, 0]).reshape(-1, 1)
+        Z = rng.binomial(1, pi[:, 0]).astype(float).reshape(-1, 1)
+        y = X[:, 0] * 2 - X[:, 1] * Z[:, 0] + rng.normal(0, 1, n)
+        m1 = BCFModel()
+        m1.sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+                  num_gfr=0, num_burnin=5, num_mcmc=10, general_params={"random_seed": 1})
+        js = m1.to_json()
+
+        def run():
+            m = BCFModel()
+            m.sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+                     num_gfr=0, num_burnin=5, num_mcmc=10,
+                     previous_model_json=js, previous_model_warmstart_sample_num=9,
+                     general_params={"random_seed": 2})
+            return m
+
+        m2 = run()
+        assert m2.num_samples == 10
+        assert m2.y_hat_train.shape == (n, 10)
+        assert np.all(np.isfinite(m2.y_hat_train))
+        # Deterministic under a fixed seed.
+        np.testing.assert_allclose(run().y_hat_train, m2.y_hat_train, atol=1e-10, rtol=0)
+
+        # Feature-space mismatch is rejected clearly.
+        with pytest.raises(ValueError, match="covariate structure"):
+            BCFModel().sample(X_train=X[:, :3], Z_train=Z, y_train=y, propensity_train=pi,
+                              num_mcmc=5, previous_model_json=js)
+
+        # Stage 1: multi-chain warm-start is not yet supported.
+        with pytest.raises(NotImplementedError, match="num_chains > 1"):
+            BCFModel().sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+                              num_mcmc=5, previous_model_json=js,
+                              general_params={"num_chains": 3})
+
 
 class TestBCFFloat32:
     """Tests that float32 inputs are accepted for all BCF array parameters (GH #389)."""

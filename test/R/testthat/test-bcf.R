@@ -372,8 +372,8 @@ test_that("Warmstart BCF", {
   # Save to JSON string
   bcf_model_json_string <- saveBCFModelToJsonString(bcf_model)
 
-  # Run a new BCF chain from the existing (X)BCF model
-  general_param_list <- list(num_chains = 3, keep_every = 5)
+  # Run a new (single-chain) BCF model warm-started from the existing (X)BCF model.
+  general_param_list <- list(num_chains = 1, keep_every = 1)
   expect_no_error(
     bcf_model <- bcf(
       X_train = X_train,
@@ -391,22 +391,22 @@ test_that("Warmstart BCF", {
       general_params = general_param_list
     )
   )
-  expect_warning(
-    bcf_model <- bcf(
+  expect_equal(bcf_model$model_params$num_samples, 10)
+  # Stage 1: multi-chain warm-start from a previous model is not yet supported and errors clearly.
+  expect_error(
+    bcf(
       X_train = X_train,
       y_train = y_train,
       Z_train = Z_train,
       propensity_train = pi_train,
-      X_test = X_test,
-      Z_test = Z_test,
-      propensity_test = pi_test,
       num_gfr = 0,
       num_burnin = 10,
       num_mcmc = 10,
       previous_model_json = bcf_model_json_string,
-      previous_model_warmstart_sample_num = 1,
-      general_params = general_param_list
-    )
+      previous_model_warmstart_sample_num = 10,
+      general_params = list(num_chains = 3, keep_every = 5)
+    ),
+    "not yet supported"
   )
 
   # Generate simulated data with random effects
@@ -480,8 +480,8 @@ test_that("Warmstart BCF", {
   # Save to JSON string
   bcf_model_json_string <- saveBCFModelToJsonString(bcf_model)
 
-  # Run a new BCF chain from the existing (X)BCF model
-  general_param_list <- list(num_chains = 3, keep_every = 5)
+  # Run a new (single-chain) BCF model with random effects warm-started from the existing model.
+  general_param_list <- list(num_chains = 1, keep_every = 1)
   expect_no_error(
     bcf_model <- bcf(
       X_train = X_train,
@@ -502,6 +502,39 @@ test_that("Warmstart BCF", {
       previous_model_warmstart_sample_num = 10,
       general_params = general_param_list
     )
+  )
+  expect_equal(bcf_model$model_params$num_samples, 10)
+})
+
+test_that("BCF warm-start is deterministic and guards feature-space mismatch", {
+  skip_on_cran()
+  set.seed(11)
+  n <- 200
+  p <- 4
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- 0.25 + 0.5 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  y <- X[, 1] * 2 - X[, 2] * Z + rnorm(n)
+  m1 <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+            num_gfr = 0, num_burnin = 5, num_mcmc = 10, general_params = list(random_seed = 1))
+  js <- saveBCFModelToJsonString(m1)
+  run <- function() {
+    bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+        num_gfr = 0, num_burnin = 5, num_mcmc = 10,
+        previous_model_json = js, previous_model_warmstart_sample_num = 10,
+        general_params = list(random_seed = 2))
+  }
+  m2 <- run()
+  expect_equal(m2$model_params$num_samples, 10)
+  p2 <- predict(m2, X = X, Z = Z, propensity = pi_x)$y_hat
+  expect_true(all(is.finite(p2)))
+  # Deterministic under a fixed seed.
+  expect_equal(predict(run(), X = X, Z = Z, propensity = pi_x)$y_hat, p2, tolerance = 1e-10)
+  # Feature-space mismatch is rejected clearly.
+  expect_error(
+    bcf(X_train = X[, 1:3], Z_train = Z, y_train = y, propensity_train = pi_x,
+        num_mcmc = 5, previous_model_json = js),
+    "covariate structure"
   )
 })
 

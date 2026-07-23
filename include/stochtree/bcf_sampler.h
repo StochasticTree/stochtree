@@ -33,7 +33,16 @@ class BCFSampler {
   // the last retained samples already present in `samples` (rather than initializing them
   // to root), and the existing forest containers are preserved so that new samples are
   // appended to them.
-  BCFSampler(BCFSamples& samples, BCFConfig& config, BCFData& data, bool continuation = false);
+  //
+  // If warmstart_source is non-null (and continuation is false), this is a FRESH run whose forests /
+  // scalars / tau_0 / adaptive-coding / rfx are seeded from an EXTERNAL model's samples
+  // (*warmstart_source) at warmstart_sample_num (1-indexed). This backs bcf(previous_model_json=...):
+  // the destination `samples` containers are fresh, but the active forests are reconstituted from the
+  // previous model's retained sample. Same-scale is assumed (no leaf rescale); the previous model's
+  // y_std is used to convert its stored global variance / tau_0 back to standardized space. The
+  // borrowed pointer need only outlive this constructor call.
+  BCFSampler(BCFSamples& samples, BCFConfig& config, BCFData& data, bool continuation = false,
+             BCFSamples* warmstart_source = nullptr, int warmstart_sample_num = 0);
 
   // Main entry point for running the BCF GFR sampler
   // If num_chains > 0, captures snapshots of the last num_chains GFR states for fork_chains()
@@ -95,6 +104,11 @@ class BCFSampler {
   /*! Internal reference to config and data state */
   BCFConfig& config_;
   BCFData& data_;
+
+  /*! External warm-start source for bcf(previous_model_json=...); null for a fresh or continuation
+   *  run. Borrowed pointer, valid only during construction. warmstart_sample_num_ is 1-indexed. */
+  BCFSamples* warmstart_source_ = nullptr;
+  int warmstart_sample_num_ = 0;
 
   /*! Leaf model for mean and variance forests */
   GaussianConstantLeafModel mu_leaf_model_;

@@ -12,8 +12,8 @@ bart_predict_cpp <- function(bart_samples_ptr, bart_model_metadata, X, leaf_basi
   .Call(`_stochtree_bart_predict_cpp`, bart_samples_ptr, bart_model_metadata, X, leaf_basis, n, p, num_basis, obs_weights, rfx_group_ids, rfx_basis, rfx_num_groups, rfx_basis_dim, posterior, scale, predict_y_hat, predict_mean_forest, predict_variance_forest, predict_random_effects)
 }
 
-bcf_sample_cpp <- function(samples, X_train, Z_train, y_train, X_test, Z_test, n_train, n_test, p, treatment_dim, obs_weights_train, obs_weights_test, rfx_group_ids_train, rfx_group_ids_test, rfx_basis_train, rfx_basis_test, rfx_num_groups, rfx_basis_dim, num_gfr, num_burnin, keep_every, num_mcmc, num_chains, adaptive_coding, config_input) {
-  .Call(`_stochtree_bcf_sample_cpp`, samples, X_train, Z_train, y_train, X_test, Z_test, n_train, n_test, p, treatment_dim, obs_weights_train, obs_weights_test, rfx_group_ids_train, rfx_group_ids_test, rfx_basis_train, rfx_basis_test, rfx_num_groups, rfx_basis_dim, num_gfr, num_burnin, keep_every, num_mcmc, num_chains, adaptive_coding, config_input)
+bcf_sample_cpp <- function(samples, X_train, Z_train, y_train, X_test, Z_test, n_train, n_test, p, treatment_dim, obs_weights_train, obs_weights_test, rfx_group_ids_train, rfx_group_ids_test, rfx_basis_train, rfx_basis_test, rfx_num_groups, rfx_basis_dim, num_gfr, num_burnin, keep_every, num_mcmc, num_chains, adaptive_coding, warmstart_samples, warmstart_sample_num, config_input) {
+  .Call(`_stochtree_bcf_sample_cpp`, samples, X_train, Z_train, y_train, X_test, Z_test, n_train, n_test, p, treatment_dim, obs_weights_train, obs_weights_test, rfx_group_ids_train, rfx_group_ids_test, rfx_basis_train, rfx_basis_test, rfx_num_groups, rfx_basis_dim, num_gfr, num_burnin, keep_every, num_mcmc, num_chains, adaptive_coding, warmstart_samples, warmstart_sample_num, config_input)
 }
 
 bcf_continue_sample_cpp <- function(samples, X_train, Z_train, y_train, X_test, Z_test, n_train, n_test, p, treatment_dim, obs_weights_train, rfx_group_ids_train, rfx_basis_train, rfx_group_ids_test, rfx_basis_test, rfx_num_groups, rfx_basis_dim, num_burnin, keep_every, num_mcmc, rng_state_in, override_seed, config_input) {
