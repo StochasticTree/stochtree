@@ -1148,11 +1148,28 @@ class TestBCF:
             BCFModel().sample(X_train=X[:, :3], Z_train=Z, y_train=y, propensity_train=pi,
                               num_mcmc=5, previous_model_json=js)
 
-        # Stage 1: multi-chain warm-start is not yet supported.
-        with pytest.raises(NotImplementedError, match="num_chains > 1"):
+        # Multi-chain warm-start: each chain is seeded from a distinct previous-model sample, so the
+        # returned model holds num_chains * num_mcmc samples and is deterministic under a fixed seed.
+        def run_mc():
+            m = BCFModel()
+            m.sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+                     num_gfr=0, num_burnin=5, num_mcmc=10,
+                     previous_model_json=js, previous_model_warmstart_sample_num=9,
+                     general_params={"random_seed": 3, "num_chains": 3})
+            return m
+
+        m3 = run_mc()
+        assert m3.num_samples == 30
+        assert m3.y_hat_train.shape == (n, 30)
+        assert np.all(np.isfinite(m3.y_hat_train))
+        np.testing.assert_allclose(run_mc().y_hat_train, m3.y_hat_train, atol=1e-10, rtol=0)
+
+        # Requesting more chains than there are usable source samples warns (chains share a seed).
+        with pytest.warns(UserWarning, match="earliest available sample"):
             BCFModel().sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
-                              num_mcmc=5, previous_model_json=js,
-                              general_params={"num_chains": 3})
+                              num_gfr=0, num_burnin=2, num_mcmc=3,
+                              previous_model_json=js, previous_model_warmstart_sample_num=1,
+                              general_params={"num_chains": 4})
 
 
 class TestBCFFloat32:

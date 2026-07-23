@@ -717,7 +717,15 @@ void BCFSampler::run_mcmc(BCFSamples& samples, int num_burnin, int keep_every, i
 
 void BCFSampler::run_mcmc_chains(BCFSamples& samples, int num_chains, int num_burnin, int keep_every, int num_mcmc) {
   for (int chain_idx = 0; chain_idx < num_chains; chain_idx++) {
-    if (chain_idx > 0 && !gfr_snapshots_.empty()) {
+    if (chain_idx > 0 && warmstart_source_ != nullptr) {
+      // Previous-model warm-start multi-chain: num_gfr is typically 0 (no GFR snapshots), so give each
+      // chain a distinct starting point by re-seeding from a different sample of the source model.
+      // Chain j (0-indexed) uses source sample (warmstart_sample_num_-1) - j, clamped at 0. Chain 0 keeps
+      // the InitializeState warm-start (source sample warmstart_sample_num_-1), so start decrementing at j=1.
+      int idx_c = (warmstart_sample_num_ - 1) - chain_idx;
+      if (idx_c < 0) idx_c = 0;
+      WarmStartResetFromSample(samples, *warmstart_source_, idx_c);
+    } else if (chain_idx > 0 && !gfr_snapshots_.empty()) {
       // Re-initialize the sampler state for each new chain.
       // gfr_snapshots_ holds num_chains-1 states (oldest-first): index 0 = GFR[num_gfr-num_chains],
       // index num_chains-2 = GFR[num_gfr-2].  Chain j (1-indexed, j>=2) uses index num_chains-j.
@@ -1304,6 +1312,123 @@ void BCFSampler::RestoreStateFromGFRSnapshot(BCFSamples& samples, int snapshot_i
   } else if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression || config_.tau_leaf_model_type == MeanLeafModelType::GaussianConstant) {
     leaf_scale_tau_ = snap.leaf_scale_tau;
   }
+}
+
+void BCFSampler::WarmStartResetFromSample(BCFSamples& samples, BCFSamples& source, int idx) {
+  // Re-seed an already-running sampler from an EXTERNAL source sample (multi-chain previous-model
+  // warm-start). Mirrors RestoreStateFromGFRSnapshot's residual/tau_0 bookkeeping (remove old tau_0 ->
+  // reconstitute mu -> rebuild adaptive basis -> restore tau_0 -> subtract new tau_0 -> reconstitute
+  // tau) but sources every field from source[idx] with the InitializeState warm_start scaling
+  // (global variance / y_std^2, tau_0 / y_std). Unlike the GFR-snapshot path, the variance forest and
+  // rfx are reconstituted from the source sample (not recreated flat), matching BART.
+  const double y_std2 = source.y_std * source.y_std;
+
+  // Remove the OLD (previous chain's) tau_0 contribution from the residual before forest restoration.
+  if (sample_tau_0_) {
+    double* resid_ptr = residual_->GetData().data();
+    if (data_.treatment_dim == 1) {
+      const double* previous_basis = adaptive_coding_ ? tau_basis_vector_train_.data() : data_.treatment_train;
+      for (int i = 0; i < data_.n_train; i++) {
+        resid_ptr[i] += tau_0_scalar_ * previous_basis[i];
+      }
+    } else {
+      for (int i = 0; i < data_.n_train; i++) {
+        for (int k = 0; k < data_.treatment_dim; k++) {
+          resid_ptr[i] += data_.treatment_train[k * data_.n_train + i] * tau_0_vector_[k];
+        }
+      }
+    }
+  }
+
+  // Prognostic forest
+  {
+    TreeEnsemble& seed_mu = *source.mu_forests->GetEnsemble(idx);
+    mu_forest_->ReconstituteFromForest(seed_mu);
+    mu_forest_tracker_->ReconstituteFromForest(seed_mu, *forest_dataset_, *residual_, true);
+    mu_forest_tracker_->UpdatePredictions(mu_forest_.get(), *forest_dataset_.get());
+  }
+
+  // Adaptive coding parameters and their implied basis
+  if (adaptive_coding_) {
+    b_0_ = source.b0_samples[idx];
+    b_1_ = source.b1_samples[idx];
+    for (int i = 0; i < data_.n_train; i++) {
+      double z = data_.treatment_train[i];
+      tau_basis_vector_train_[i] = b_0_ * (1 - z) + b_1_ * z;
+    }
+    forest_dataset_->UpdateBasis(tau_basis_vector_train_.data(), /*num_row=*/data_.n_train, /*num_col=*/1, /*row_major=*/false);
+    if (has_test_ && data_.treatment_test != nullptr) {
+      for (int i = 0; i < data_.n_test; i++) {
+        double z = data_.treatment_test[i];
+        tau_basis_vector_test_[i] = b_0_ * (1 - z) + b_1_ * z;
+      }
+      forest_dataset_test_->UpdateBasis(tau_basis_vector_test_.data(), /*num_row=*/data_.n_test, /*num_col=*/1, /*row_major=*/false);
+    }
+  }
+
+  // Treatment intercept (stored x y_std -> standardized)
+  if (sample_tau_0_ && !source.tau_0_samples.empty()) {
+    if (data_.treatment_dim > 1) {
+      tau_0_vector_.resize(data_.treatment_dim);
+      for (int k = 0; k < data_.treatment_dim; k++) {
+        tau_0_vector_[k] = source.tau_0_samples[idx * data_.treatment_dim + k] / source.y_std;
+      }
+    } else {
+      tau_0_scalar_ = source.tau_0_samples[idx] / source.y_std;
+    }
+  }
+
+  // Remove the NEW tau_0 contribution from the residual (new basis + restored tau_0).
+  if (sample_tau_0_) {
+    double* resid_ptr = residual_->GetData().data();
+    if (data_.treatment_dim == 1) {
+      const double* current_basis = adaptive_coding_ ? tau_basis_vector_train_.data() : data_.treatment_train;
+      for (int i = 0; i < data_.n_train; i++) {
+        resid_ptr[i] -= tau_0_scalar_ * current_basis[i];
+      }
+    } else {
+      for (int i = 0; i < data_.n_train; i++) {
+        for (int k = 0; k < data_.treatment_dim; k++) {
+          resid_ptr[i] -= data_.treatment_train[k * data_.n_train + i] * tau_0_vector_[k];
+        }
+      }
+    }
+  }
+
+  // Treatment effect forest
+  std::visit(TauForestResetVisitor{*this, samples, *source.tau_forests->GetEnsemble(idx)}, tau_leaf_model_);
+
+  // Variance forest: reconstitute from source[idx] (var-weight slot swap), reusing the existing tracker.
+  if (config_.num_trees_variance > 0) {
+    TreeEnsemble& seed_variance_forest = *source.variance_forests->GetEnsemble(idx);
+    variance_forest_->ReconstituteFromForest(seed_variance_forest);
+    variance_forest_tracker_->ReconstituteFromForest(seed_variance_forest, *forest_dataset_, *residual_, /*is_mean_model=*/false);
+  }
+
+  // Random effects: restore the sampled state from source[idx]; the tracker swaps its contribution in.
+  if (config_.has_random_effects) {
+    random_effects_model_->ResetFromSample(*source.rfx_container, idx);
+    random_effects_tracker_->ResetFromSample(*random_effects_model_, *random_effects_dataset_, *residual_);
+  }
+
+  // Scalar state (same scaling convention as InitializeState's warm_start branch).
+  if (sample_sigma2_global_ && !source.global_error_variance_samples.empty()) {
+    global_variance_ = source.global_error_variance_samples[idx] / y_std2;
+  }
+  if (sample_sigma2_leaf_mu_ && !source.leaf_scale_mu_samples.empty()) {
+    leaf_scale_mu_ = source.leaf_scale_mu_samples[idx];
+  }
+  if (sample_sigma2_leaf_tau_ && !source.leaf_scale_tau_samples.empty()) {
+    leaf_scale_tau_ = source.leaf_scale_tau_samples[idx];
+  }
+  // Sync the leaf models' scales with the warm-started leaf scales.
+  mu_leaf_model_.SetScale(leaf_scale_mu_);
+  if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression || config_.tau_leaf_model_type == MeanLeafModelType::GaussianConstant) {
+    std::visit(ScaleUpdateVisitor{*this, leaf_scale_tau_}, tau_leaf_model_);
+  }
+
+  // Probit: regenerate the latent from the current RNG stream so the seed is stationary.
+  RegenerateProbitLatent(samples);
 }
 
 void BCFSampler::SampleParametricTreatmentEffect() {

@@ -544,9 +544,15 @@ bcf <- function(
         stop("`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`")
       }
     }
-    # Stage 1: multi-chain warm-start from a previous model is not yet wired through the C++ sampler.
-    if (num_chains > 1) {
-      stop("Warm-starting from `previous_model_json` with `num_chains > 1` is not yet supported; use num_chains = 1.")
+    # Multi-chain warm-start: each chain past the first is seeded from a successively earlier sample
+    # of the previous model (counting backwards from previous_model_warmstart_sample_num). If more
+    # chains are requested than there are samples at/below that index, the C++ sampler clamps to the
+    # earliest available sample; warn so the user knows chains will share a starting point.
+    if (num_chains > previous_model_warmstart_sample_num) {
+      warning(sprintf(
+        "`num_chains` (%d) exceeds `previous_model_warmstart_sample_num` (%d); chains beyond sample 1 will all be warm-started from the earliest available sample.",
+        num_chains, previous_model_warmstart_sample_num
+      ))
     }
   }
 

@@ -392,9 +392,10 @@ test_that("Warmstart BCF", {
     )
   )
   expect_equal(bcf_model$model_params$num_samples, 10)
-  # Stage 1: multi-chain warm-start from a previous model is not yet supported and errors clearly.
-  expect_error(
-    bcf(
+  # Multi-chain warm-start: each chain is seeded from a distinct previous-model sample, so the
+  # returned model holds num_chains * num_mcmc samples.
+  expect_no_error(
+    bcf_model_mc <- bcf(
       X_train = X_train,
       y_train = y_train,
       Z_train = Z_train,
@@ -404,9 +405,25 @@ test_that("Warmstart BCF", {
       num_mcmc = 10,
       previous_model_json = bcf_model_json_string,
       previous_model_warmstart_sample_num = 10,
-      general_params = list(num_chains = 3, keep_every = 5)
+      general_params = list(num_chains = 3, keep_every = 1)
+    )
+  )
+  expect_equal(bcf_model_mc$model_params$num_samples, 30)
+  # Requesting more chains than usable source samples warns (chains share the earliest seed).
+  expect_warning(
+    bcf(
+      X_train = X_train,
+      y_train = y_train,
+      Z_train = Z_train,
+      propensity_train = pi_train,
+      num_gfr = 0,
+      num_burnin = 5,
+      num_mcmc = 3,
+      previous_model_json = bcf_model_json_string,
+      previous_model_warmstart_sample_num = 1,
+      general_params = list(num_chains = 4, keep_every = 1)
     ),
-    "not yet supported"
+    "earliest available sample"
   )
 
   # Generate simulated data with random effects

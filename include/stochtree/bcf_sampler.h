@@ -89,6 +89,13 @@ class BCFSampler {
   /*! Internal function to restore sampler state based on a GFR snapshot */
   void RestoreStateFromGFRSnapshot(BCFSamples& samples, int snapshot_index);
 
+  /*! Re-seed the (already-constructed) sampler's active state from an external source sample at `idx`.
+   *  Used by run_mcmc_chains for multi-chain previous-model warm-start. Mirrors
+   *  RestoreStateFromGFRSnapshot (same tau_0 remove-old / rebuild-basis / subtract-new ordering) but
+   *  sources forests / scalars / tau_0 / adaptive-coding / rfx from source[idx] and reconstructs the
+   *  standardized-space values from the post-processed sample, then regenerates the latent. */
+  void WarmStartResetFromSample(BCFSamples& samples, BCFSamples& source, int idx);
+
   /*! Internal function to restore sampler state to root / initial values */
   void RestoreStateDefault();
 
