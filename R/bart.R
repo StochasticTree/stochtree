@@ -408,10 +408,14 @@ bart <- function(
   # Check if previous model JSON is provided and parse it if so
   has_prev_model <- !is.null(previous_model_json)
   has_prev_model_index <- !is.null(previous_model_warmstart_sample_num)
+  # Warm-start from a serialized previous model. The previous model is deserialized here via the
+  # version/platform-aware constructor; its in-memory BARTSamples pointer is passed to the C++ sampler,
+  # which reconstitutes the active forest (+ scalars / rfx / cloglog state) from the requested retained
+  # sample. Same-scale is assumed (no cross-scale leaf rescale). The feature-space compatibility guard
+  # runs below, after the new run's covariates are preprocessed.
+  previous_bart_model <- NULL
   if (has_prev_model) {
-    previous_bart_model <- createBARTModelFromJsonString(
-      previous_model_json
-    )
+    previous_bart_model <- createBARTModelFromJsonString(previous_model_json)
     prev_num_samples <- previous_bart_model$model_params$num_samples
     if (!has_prev_model_index) {
       previous_model_warmstart_sample_num <- prev_num_samples
@@ -420,75 +424,16 @@ bart <- function(
       )
     } else {
       if (previous_model_warmstart_sample_num < 1) {
-        stop(
-          "`previous_model_warmstart_sample_num` must be a positive integer"
-        )
+        stop("`previous_model_warmstart_sample_num` must be a positive integer")
       }
       if (previous_model_warmstart_sample_num > prev_num_samples) {
-        stop(
-          "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
-        )
+        stop("`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`")
       }
     }
-    previous_model_decrement <- T
-    if (num_chains > previous_model_warmstart_sample_num) {
-      warning(
-        "The number of chains being sampled exceeds the number of previous model samples available from the requested position in `previous_model_json`. All chains will be initialized from the same sample."
-      )
-      previous_model_decrement <- F
+    # Stage 1: multi-chain warm-start from a previous model is not yet wired through the C++ sampler.
+    if (num_chains > 1) {
+      stop("Warm-starting from `previous_model_json` with `num_chains > 1` is not yet supported; use num_chains = 1.")
     }
-    previous_y_bar <- previous_bart_model$model_params$outcome_mean
-    previous_y_scale <- previous_bart_model$model_params$outcome_scale
-    if (previous_bart_model$model_params$include_mean_forest) {
-      previous_forest_samples_mean <- previous_bart_model$samples$materialize_mean_forest()
-    } else {
-      previous_forest_samples_mean <- NULL
-    }
-    if (previous_bart_model$model_params$include_variance_forest) {
-      previous_forest_samples_variance <- previous_bart_model$samples$materialize_variance_forest()
-    } else {
-      previous_forest_samples_variance <- NULL
-    }
-    if (previous_bart_model$model_params$sample_sigma2_global) {
-      previous_global_var_samples <- previous_bart_model$samples$global_var_samples() /
-        (previous_y_scale * previous_y_scale)
-    } else {
-      previous_global_var_samples <- NULL
-    }
-    if (previous_bart_model$model_params$sample_sigma2_leaf) {
-      previous_leaf_var_samples <- previous_bart_model$samples$leaf_scale_samples()
-    } else {
-      previous_leaf_var_samples <- NULL
-    }
-    if (previous_bart_model$model_params$has_rfx) {
-      previous_rfx_samples <- previous_bart_model$rfx_samples
-    } else {
-      previous_rfx_samples <- NULL
-    }
-    if (previous_bart_model$model_params$outcome_model$link == "cloglog") {
-      previous_cloglog_cutpoint_samples <- previous_bart_model$samples$cloglog_cutpoint_samples()
-      previous_cloglog_num_categories <- previous_bart_model$cloglog_num_categories
-    } else {
-      previous_cloglog_cutpoint_samples <- NULL
-      previous_cloglog_num_categories <- 0
-    }
-    previous_model_num_samples <- previous_bart_model$model_params$num_samples
-    if (previous_model_warmstart_sample_num > previous_model_num_samples) {
-      stop(
-        "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
-      )
-    }
-  } else {
-    previous_y_bar <- NULL
-    previous_y_scale <- NULL
-    previous_global_var_samples <- NULL
-    previous_leaf_var_samples <- NULL
-    previous_rfx_samples <- NULL
-    previous_forest_samples_mean <- NULL
-    previous_forest_samples_variance <- NULL
-    previous_cloglog_cutpoint_samples <- NULL
-    previous_cloglog_num_categories <- 0
-    previous_model_num_samples <- 0
   }
 
   # Determine whether conditional mean, variance, or both will be modeled
@@ -726,6 +671,22 @@ bart <- function(
   feature_types <- X_train_metadata$feature_types
   if (!is.null(X_test)) {
     X_test <- preprocessPredictionData(X_test, X_train_metadata)
+  }
+
+  # Feature-space compatibility guard for a previous-model warm-start. The previous model's forests
+  # split on preprocessed feature indices; the new run must produce the SAME preprocessed layout
+  # (feature count + per-feature original-variable mapping), or those split indices would point at the
+  # wrong features and silently corrupt the run. `original_var_indices` encodes the expansion mapping,
+  # so comparing it catches both a covariate-count mismatch and a categorical-expansion mismatch.
+  if (has_prev_model) {
+    prev_var_indices <- previous_bart_model$train_set_metadata$original_var_indices
+    if (!identical(as.integer(prev_var_indices), as.integer(original_var_indices))) {
+      stop(
+        "`previous_model_json` was fit on a different covariate structure than the current data ",
+        "(preprocessed feature layout does not match). Warm-start requires the same covariates, ",
+        "types, and categorical levels."
+      )
+    }
   }
 
   # Update variable weights (expand per-variable weights to the preprocessed feature space)
@@ -1252,6 +1213,16 @@ bart <- function(
     keep_every = as.integer(keep_every),
     num_mcmc = as.integer(num_mcmc),
     num_chains = as.integer(num_chains),
+    warmstart_samples = if (has_prev_model) {
+      previous_bart_model$samples$samples_ptr
+    } else {
+      NULL
+    },
+    warmstart_sample_num = if (has_prev_model) {
+      as.integer(previous_model_warmstart_sample_num)
+    } else {
+      0L
+    },
     config_input = bart_config
   )
   result <- list()

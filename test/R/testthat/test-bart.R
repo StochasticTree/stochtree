@@ -309,8 +309,8 @@ test_that("Warmstart BART", {
   # Save to JSON string
   bart_model_json_string <- saveBARTModelToJsonString(bart_model)
 
-  # Run a new BART chain from the existing (X)BART model
-  general_param_list <- list(num_chains = 3, keep_every = 5)
+  # Run a new (single-chain) BART model warm-started from the existing (X)BART model.
+  general_param_list <- list(num_chains = 1, keep_every = 1)
   expect_no_error(
     bart_model <- bart(
       X_train = X_train,
@@ -324,18 +324,20 @@ test_that("Warmstart BART", {
       general_params = general_param_list
     )
   )
-  expect_warning(
-    bart_model <- bart(
+  expect_equal(bart_model$model_params$num_samples, 10)
+  # Stage 1: multi-chain warm-start from a previous model is not yet supported and errors clearly.
+  expect_error(
+    bart(
       X_train = X_train,
       y_train = y_train,
-      X_test = X_test,
       num_gfr = 0,
       num_burnin = 10,
       num_mcmc = 10,
       previous_model_json = bart_model_json_string,
-      previous_model_warmstart_sample_num = 1,
-      general_params = general_param_list
-    )
+      previous_model_warmstart_sample_num = 10,
+      general_params = list(num_chains = 3, keep_every = 5)
+    ),
+    "not yet supported"
   )
 
   # Generate simulated data with random effects
@@ -386,8 +388,8 @@ test_that("Warmstart BART", {
   # Save to JSON string
   bart_model_json_string <- saveBARTModelToJsonString(bart_model)
 
-  # Run a new BART chain from the existing (X)BART model
-  general_param_list <- list(num_chains = 4, keep_every = 5)
+  # Run a new (single-chain) BART model with random effects warm-started from the existing model.
+  general_param_list <- list(num_chains = 1, keep_every = 1)
   expect_no_error(
     bart_model <- bart(
       X_train = X_train,
@@ -405,23 +407,7 @@ test_that("Warmstart BART", {
       general_params = general_param_list
     )
   )
-  expect_warning(
-    bart_model <- bart(
-      X_train = X_train,
-      y_train = y_train,
-      X_test = X_test,
-      rfx_group_ids_train = rfx_group_ids_train,
-      rfx_group_ids_test = rfx_group_ids_test,
-      rfx_basis_train = rfx_basis_train,
-      rfx_basis_test = rfx_basis_test,
-      num_gfr = 0,
-      num_burnin = 10,
-      num_mcmc = 10,
-      previous_model_json = bart_model_json_string,
-      previous_model_warmstart_sample_num = 1,
-      general_params = general_param_list
-    )
-  )
+  expect_equal(bart_model$model_params$num_samples, 10)
 })
 
 test_that("BART Predictions", {

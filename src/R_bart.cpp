@@ -161,6 +161,8 @@ cpp11::writable::list bart_sample_cpp(
     int keep_every,
     int num_mcmc,
     int num_chains,
+    cpp11::sexp warmstart_samples,
+    int warmstart_sample_num,
     cpp11::list config_input) {
   // Extract pointers to raw data
   int protect_count = 0;
@@ -200,8 +202,24 @@ cpp11::writable::list bart_sample_cpp(
   // Create the BARTConfig object
   StochTree::BARTConfig config = convert_list_to_bart_config(config_input);
 
-  // Initialize a BART sampler
-  StochTree::BARTSampler bart_sampler(*samples, config, data);
+  // Optional previous-model warm-start source (bart(previous_model_json=...)). The R wrapper passes the
+  // deserialized model's BARTSamples external pointer (or NULL). The borrowed pointer need only outlive
+  // this call, which the wrapper guarantees by keeping the previous model object alive.
+  StochTree::BARTSamples* warmstart_ptr = nullptr;
+  if (!Rf_isNull(warmstart_samples)) {
+    cpp11::external_pointer<StochTree::BARTSamples> warmstart_ext(warmstart_samples);
+    warmstart_ptr = warmstart_ext.get();
+  }
+
+  // Initialize a BART sampler (warm-started from the previous model when warmstart_ptr != nullptr)
+  StochTree::BARTSampler bart_sampler(*samples, config, data, /*continuation=*/false, warmstart_ptr, warmstart_sample_num);
+
+  // Probit/cloglog warm-start: regenerate the (unpersisted) latent so the seeded state is stationary
+  // before the first draw (matching the continuation path). No-op for Gaussian or a non-warm-start run;
+  // uses the config-seeded RNG set in InitializeState.
+  if (warmstart_ptr != nullptr) {
+    bart_sampler.RegenerateLatentOutcome(*samples);
+  }
 
   // Run the sampler
   bart_sampler.run_gfr(*samples, num_gfr, config.keep_gfr, num_chains);

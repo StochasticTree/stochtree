@@ -2773,6 +2773,8 @@ py::dict bart_sample_cpp(
     int keep_every,
     int num_mcmc,
     int num_chains,
+    BARTSamplesCpp* warmstart_samples,
+    int warmstart_sample_num,
     py::dict config_input) {
   // Convert config dict to BARTConfig struct
   StochTree::BARTConfig bart_config = convert_dict_to_bart_config(config_input);
@@ -2784,8 +2786,18 @@ py::dict bart_sample_cpp(
   // in place; this function only returns metadata that is NOT part of the samples object.
   StochTree::BARTSamples& bart_samples = *samples.GetPtr();
 
-  // Initialize a BART sampler
-  StochTree::BARTSampler bart_sampler(bart_samples, bart_config, bart_data);
+  // Optional previous-model warm-start source (bart(previous_model_json=...)). None -> nullptr; the
+  // borrowed pointer need only outlive this call (the wrapper keeps the previous model alive).
+  StochTree::BARTSamples* warmstart_ptr = (warmstart_samples != nullptr) ? warmstart_samples->GetPtr() : nullptr;
+
+  // Initialize a BART sampler (warm-started from the previous model when warmstart_ptr != nullptr)
+  StochTree::BARTSampler bart_sampler(bart_samples, bart_config, bart_data, /*continuation=*/false, warmstart_ptr, warmstart_sample_num);
+
+  // Probit/cloglog warm-start: regenerate the (unpersisted) latent so the seeded state is stationary
+  // before the first draw (matching the continuation path). No-op for Gaussian or a non-warm-start run.
+  if (warmstart_ptr != nullptr) {
+    bart_sampler.RegenerateLatentOutcome(bart_samples);
+  }
 
   // Run the sampler
   bart_sampler.run_gfr(bart_samples, num_gfr, bart_config.keep_gfr, num_chains);
@@ -3906,6 +3918,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
         py::arg("keep_every"),
         py::arg("num_mcmc"),
         py::arg("num_chains"),
+        py::arg("warmstart_samples") = nullptr,
+        py::arg("warmstart_sample_num") = 0,
         py::arg("config_input"));
 
   m.def("bart_continue_sample_cpp", &bart_continue_sample_cpp, "Continue (warm-start) BART sampling from an existing model in C++",

@@ -14,7 +14,10 @@
 
 namespace StochTree {
 
-BARTSampler::BARTSampler(BARTSamples& samples, BARTConfig& config, BARTData& data, bool continuation) : config_{config}, data_{data}, mean_leaf_model_(GaussianConstantLeafModel(0.0)), variance_leaf_model_(0.0, 0.0) {
+BARTSampler::BARTSampler(BARTSamples& samples, BARTConfig& config, BARTData& data, bool continuation,
+                         BARTSamples* warmstart_source, int warmstart_sample_num)
+    : config_{config}, data_{data}, warmstart_source_{warmstart_source}, warmstart_sample_num_{warmstart_sample_num},
+      mean_leaf_model_(GaussianConstantLeafModel(0.0)), variance_leaf_model_(0.0, 0.0) {
   InitializeState(samples, continuation);
 }
 
@@ -51,13 +54,25 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
     }
   }
 
-  // Continued sampling warm-starts the mean forest, variance forest, random effects, and (for probit /
-  // cloglog) the latent-augmentation auxiliary state from their last retained samples. A model may have
-  // a mean forest, a variance forest, or both; require at least one so continuation has something to
-  // warm-start from (a model with neither cannot have been fit).
-  if (continuation) {
+  // Determine the warm-start seed source and index, unifying two paths:
+  //   - continuation:            seed from self's last retained sample; append to the same container.
+  //   - previous-model warmstart: seed from an external model's samples at warmstart_sample_num-1
+  //                               (1-indexed -> 0-indexed); the destination container is fresh.
+  // In both cases the forest / scalar / rfx / cloglog warm-start reads the SAME fields, just from a
+  // different (source, index). When neither applies, seed_src == nullptr and forests init to root.
+  const bool warmstart_external = (!continuation && warmstart_source_ != nullptr);
+  const bool warm_start = continuation || warmstart_external;
+  BARTSamples* seed_src = continuation ? &samples : (warmstart_external ? warmstart_source_ : nullptr);
+  // Both continuation (self's last sample) and previous-model warm-start (external at warmstart_sample_num,
+  // 1-indexed) resolve to a single 0-indexed sample index in the seed source.
+  const int seed_idx = continuation ? (seed_src != nullptr ? seed_src->num_samples - 1 : -1)
+                                    : (warmstart_external ? warmstart_sample_num_ - 1 : -1);
+
+  // Both continuation and previous-model warm-start need at least one forest to seed from. A model
+  // with neither a mean nor a variance forest cannot have been fit, so this only guards direct callers.
+  if (warm_start) {
     if (config_.num_trees_mean <= 0 && config_.num_trees_variance <= 0) {
-      Log::Fatal("Continued sampling requires at least one forest (mean or variance)");
+      Log::Fatal("Warm-start sampling requires at least one forest (mean or variance)");
     }
   }
 
@@ -235,8 +250,8 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
 
   // Initialize mean forest state (if present)
   if (config_.num_trees_mean > 0) {
-    if (continuation) {
-      std::visit(MeanForestContinuationInitVisitor{*this, samples}, mean_leaf_model_);
+    if (warm_start) {
+      std::visit(MeanForestContinuationInitVisitor{*this, samples, *seed_src, seed_idx, /*fresh_container=*/warmstart_external}, mean_leaf_model_);
     } else {
       std::visit(MeanForestInitVisitor{*this, samples}, mean_leaf_model_);
     }
@@ -279,11 +294,10 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
     // reconstitution (is_mean_model=false) swaps the flat-init leaves out of the variance-weight
     // slot and the last forest's leaves in, so the slot lands at exp(sum of last-forest leaves) =
     // the last sample's per-observation variance prediction. Mirrors the mean forest warm-start.
-    if (continuation) {
-      int last_var_idx = samples.variance_forests->NumSamples() - 1;
-      TreeEnsemble& last_variance_forest = *samples.variance_forests->GetEnsemble(last_var_idx);
-      variance_forest_->ReconstituteFromForest(last_variance_forest);
-      variance_forest_tracker_->ReconstituteFromForest(last_variance_forest, *forest_dataset_, *residual_, /*is_mean_model=*/false);
+    if (warm_start) {
+      TreeEnsemble& seed_variance_forest = *seed_src->variance_forests->GetEnsemble(seed_idx);
+      variance_forest_->ReconstituteFromForest(seed_variance_forest);
+      variance_forest_tracker_->ReconstituteFromForest(seed_variance_forest, *forest_dataset_, *residual_, /*is_mean_model=*/false);
     }
   }
 
@@ -405,9 +419,8 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
     // shape/scale) were just set above from config. The tracker ResetFromSample then swaps the
     // last sample's rfx contribution into the residual (residual = y - f - rfx_last), mirroring the
     // GFR-snapshot restore path.
-    if (continuation) {
-      int last_rfx_idx = samples.rfx_container->NumSamples() - 1;
-      random_effects_model_->ResetFromSample(*samples.rfx_container, last_rfx_idx);
+    if (warm_start) {
+      random_effects_model_->ResetFromSample(*seed_src->rfx_container, seed_idx);
       random_effects_tracker_->ResetFromSample(*random_effects_model_, *random_effects_dataset_, *residual_);
     }
   }
@@ -432,24 +445,22 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
     // even the largest categorical index has a valid value of sum_{j < i} exp(gamma_j)
     forest_dataset_->AddAuxiliaryDimension(config_.num_classes_cloglog);
 
-    if (continuation) {
-      // Continuation warm-start of the cloglog auxiliary state. The mean forest has already been
-      // reconstituted from the last retained sample (MeanForestContinuationInitVisitor), so the
-      // tracker's sum-predictions are the last forest's contributions (eta). Cutpoints are restored
-      // from the last retained sample for ordinal outcomes; binary cloglog has a single fixed cutpoint
-      // at gamma_0 (cloglog_cutpoint_0). The latent (slot 0) is left at 0 here and regenerated from the
-      // resumed RNG stream by RegenerateLatentOutcome after SetRngState. The residual holds raw y for
-      // cloglog (not y - f), so restore it after the forest reconstitute corrupted it via the tracker
-      // residual swap.
+    if (warm_start) {
+      // Warm-start of the cloglog auxiliary state (continuation or previous-model). The mean forest
+      // has already been reconstituted from the seed sample (MeanForestContinuationInitVisitor), so the
+      // tracker's sum-predictions are the seed forest's contributions (eta). Cutpoints are restored
+      // from the seed sample for ordinal outcomes; binary cloglog has a single fixed cutpoint at gamma_0
+      // (cloglog_cutpoint_0). The latent (slot 0) is left at 0 here and regenerated from the resumed RNG
+      // stream by RegenerateLatentOutcome after SetRngState. The residual holds raw y for cloglog (not
+      // y - f), so restore it after the forest reconstitute corrupted it via the tracker residual swap.
       for (int i = 0; i < data_.n_train; i++) {
         forest_dataset_->SetAuxiliaryDataValue(0, i, 0.0);
         forest_dataset_->SetAuxiliaryDataValue(1, i, mean_forest_tracker_->GetSamplePrediction(i));
       }
       if (config_.outcome_type == OutcomeType::Ordinal) {
         const int ncut = config_.num_classes_cloglog - 1;
-        const int last = static_cast<int>(samples.cloglog_cutpoint_samples.size()) / ncut - 1;
         for (int i = 0; i < ncut; i++) {
-          forest_dataset_->SetAuxiliaryDataValue(2, i, samples.cloglog_cutpoint_samples[last * ncut + i]);
+          forest_dataset_->SetAuxiliaryDataValue(2, i, seed_src->cloglog_cutpoint_samples[seed_idx * ncut + i]);
         }
       } else {
         // Binary cloglog: a single fixed cutpoint at gamma_0 (UpdateGammaParams overrides gamma[0]).
@@ -477,18 +488,19 @@ void BARTSampler::InitializeState(BARTSamples& samples, bool continuation) {
   }
 
   // Other internal model state
-  if (continuation) {
-    // Warm-start the scalar variance state from the last retained sample. Continuation now appends
-    // in place onto the model's samples object, whose global variance history is POST-PROCESSED
-    // (x y_std^2, applied by postprocess_samples); the sampler works in standardized space, so
-    // divide it back out here. Leaf scale is stored standardized (postprocess does not touch it).
-    if (sample_sigma2_global_ && !samples.global_error_variance_samples.empty()) {
-      global_variance_ = samples.global_error_variance_samples.back() / (samples.y_std * samples.y_std);
+  if (warm_start) {
+    // Warm-start the scalar variance state from the seed sample. The seed source's global variance
+    // history is POST-PROCESSED (x y_std^2, applied by postprocess_samples); the sampler works in
+    // standardized space, so divide it back out using the SEED source's y_std (the previous model's
+    // scale for a warm-start, self's for a continuation). Leaf scale is stored standardized. This
+    // assumes the new run's data is on the same scale as the seed (no cross-scale leaf rescale).
+    if (sample_sigma2_global_ && !seed_src->global_error_variance_samples.empty()) {
+      global_variance_ = seed_src->global_error_variance_samples[seed_idx] / (seed_src->y_std * seed_src->y_std);
     } else {
       global_variance_ = config_.sigma2_global_init;
     }
-    if (sample_sigma2_leaf_ && !samples.leaf_scale_samples.empty()) {
-      leaf_scale_ = samples.leaf_scale_samples.back();
+    if (sample_sigma2_leaf_ && !seed_src->leaf_scale_samples.empty()) {
+      leaf_scale_ = seed_src->leaf_scale_samples[seed_idx];
     } else {
       leaf_scale_ = config_.sigma2_mean_init;
     }

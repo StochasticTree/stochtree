@@ -33,7 +33,16 @@ class BARTSampler {
   // If continuation is true, the sampler warm-starts from the last retained sample
   // already present in `samples` (rather than initializing forests to root), and the
   // existing forest container is preserved so that new samples are appended to it.
-  BARTSampler(BARTSamples& samples, BARTConfig& config, BARTData& data, bool continuation = false);
+  //
+  // If warmstart_source is non-null (and continuation is false), this is a FRESH run whose forests /
+  // scalars / rfx are seeded from an EXTERNAL model's samples (`*warmstart_source`) at
+  // `warmstart_sample_num` (1-indexed). This backs bart(previous_model_json=...): the destination
+  // `samples` container is fresh, but the active forest is reconstituted from the previous model's
+  // retained sample. Same-scale is assumed (no leaf rescale); the previous model's y_std is used to
+  // convert its stored global variance back to standardized space, matching the R main-branch flow.
+  // The borrowed pointer need only outlive this constructor call.
+  BARTSampler(BARTSamples& samples, BARTConfig& config, BARTData& data, bool continuation = false,
+              BARTSamples* warmstart_source = nullptr, int warmstart_sample_num = 0);
 
   // Main entry point for running the BART GFR sampler
   // If num_chains > 0, captures snapshots of the last num_chains GFR states for fork_chains()
@@ -161,21 +170,30 @@ class BARTSampler {
     }
   };
 
-  /*! Continued-sampling initialization visitor */
+  /*! Warm-start initialization visitor (continuation or previous-model warm-start). Seeds the active
+   *  forest from `source.mean_forests[idx]`. For continuation, source == dest samples, idx == last, and
+   *  the destination container is preserved (fresh_container == false); for a previous-model warm-start
+   *  the destination container is created fresh (fresh_container == true) and seeded from an external
+   *  source. */
   struct MeanForestContinuationInitVisitor {
     BARTSampler& sampler;
-    BARTSamples& samples;
+    BARTSamples& samples;   // destination container (appended to for continuation)
+    BARTSamples& source;    // seed source (== samples for continuation)
+    int idx;                // seed index in source.mean_forests
+    bool fresh_container;   // create a fresh destination mean_forests container (previous-model warm-start)
     void WarmStart() {
       // Reset active forest, tracker, and tree prior
       sampler.mean_forest_ = std::make_unique<TreeEnsemble>(sampler.config_.num_trees_mean, sampler.config_.leaf_dim_mean, sampler.config_.leaf_constant_mean, sampler.config_.exponentiated_leaf_mean);
       sampler.mean_forest_tracker_ = std::make_unique<ForestTracker>(sampler.forest_dataset_->GetCovariates(), sampler.config_.feature_types, sampler.config_.num_trees_mean, sampler.data_.n_train);
       sampler.tree_prior_mean_ = std::make_unique<TreePrior>(sampler.config_.alpha_mean, sampler.config_.beta_mean, sampler.config_.min_samples_leaf_mean, sampler.config_.max_depth_mean);
+      if (fresh_container) {
+        samples.mean_forests = std::make_unique<ForestContainer>(sampler.config_.num_trees_mean, sampler.config_.leaf_dim_mean, sampler.config_.leaf_constant_mean, sampler.config_.exponentiated_leaf_mean);
+      }
       sampler.has_mean_forest_ = true;
-      // Re-initialize the active forest and tracker from the last retained sample
-      int last_idx = samples.mean_forests->NumSamples() - 1;
-      TreeEnsemble& last_forest = *samples.mean_forests->GetEnsemble(last_idx);
-      sampler.mean_forest_->ReconstituteFromForest(last_forest);
-      sampler.mean_forest_tracker_->ReconstituteFromForest(last_forest, *sampler.forest_dataset_, *sampler.residual_, true);
+      // Re-initialize the active forest and tracker from the seed sample
+      TreeEnsemble& seed_forest = *source.mean_forests->GetEnsemble(idx);
+      sampler.mean_forest_->ReconstituteFromForest(seed_forest);
+      sampler.mean_forest_tracker_->ReconstituteFromForest(seed_forest, *sampler.forest_dataset_, *sampler.residual_, true);
       sampler.mean_forest_tracker_->UpdatePredictions(sampler.mean_forest_.get(), *sampler.forest_dataset_.get());
     }
     void operator()(GaussianConstantLeafModel& model) {
@@ -301,6 +319,11 @@ class BARTSampler {
   /*! Internal reference to config and data state */
   BARTConfig& config_;
   BARTData& data_;
+
+  /*! External warm-start source for bart(previous_model_json=...); null for a fresh or continuation
+   *  run. Borrowed pointer, valid only during construction. warmstart_sample_num_ is 1-indexed. */
+  BARTSamples* warmstart_source_ = nullptr;
+  int warmstart_sample_num_ = 0;
 
   /*! Leaf model for mean and variance forests */
   std::variant<GaussianConstantLeafModel, GaussianUnivariateRegressionLeafModel, GaussianMultivariateRegressionLeafModel, CloglogOrdinalLeafModel> mean_leaf_model_;

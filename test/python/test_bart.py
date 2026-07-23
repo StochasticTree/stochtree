@@ -1767,3 +1767,63 @@ class TestBARTFloat32:
         pred32 = bart32.predict(X=self.X_test, rfx_group_ids=group_ids_test, rfx_basis=rfx_basis_test)
         pred64 = bart32.predict(X=self.X_test.astype(np.float64), rfx_group_ids=group_ids_test, rfx_basis=rfx_basis_test.astype(np.float64))
         np.testing.assert_allclose(pred32["y_hat"], pred64["y_hat"], rtol=1e-4)
+
+    def test_bart_warmstart_from_previous_model(self):
+        # Warm-start a fresh single-chain run from a serialized previous model (bart(previous_model_json=...)).
+        rng = np.random.default_rng(1)
+        n, p = 200, 4
+        X = rng.uniform(0, 1, (n, p))
+        y = 2 * X[:, 0] - 1 + rng.normal(0, 0.5, n)
+        m1 = BARTModel()
+        m1.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=5, num_mcmc=10,
+                  general_params={"random_seed": 1})
+        js = m1.to_json()
+
+        def run():
+            m = BARTModel()
+            m.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=5, num_mcmc=10,
+                     previous_model_json=js, previous_model_warmstart_sample_num=9,
+                     general_params={"random_seed": 2})
+            return m
+
+        m2 = run()
+        assert m2.num_samples == 10
+        assert m2.y_hat_train.shape == (n, 10)
+        assert np.all(np.isfinite(m2.y_hat_train))
+        # Deterministic under a fixed seed.
+        np.testing.assert_allclose(run().y_hat_train, m2.y_hat_train, atol=1e-10, rtol=0)
+
+        # Feature-space mismatch is rejected clearly.
+        with pytest.raises(ValueError, match="covariate structure"):
+            BARTModel().sample(X_train=X[:, :3], y_train=y, num_mcmc=5, previous_model_json=js)
+
+        # Stage 1: multi-chain warm-start is not yet supported.
+        with pytest.raises(NotImplementedError, match="num_chains > 1"):
+            BARTModel().sample(X_train=X, y_train=y, num_mcmc=5, previous_model_json=js,
+                               general_params={"num_chains": 3})
+
+    def test_bart_warmstart_probit_regenerates_latent(self):
+        # Probit warm-start regenerates the (unpersisted) latent so the seed is stationary even with
+        # num_burnin=0. Verifies valid output + determinism under a fixed seed.
+        rng = np.random.default_rng(3)
+        n, p = 300, 4
+        X = rng.uniform(0, 1, (n, p))
+        z = 2 * X[:, 0] - 1 + rng.normal(0, 1, n)
+        y = (z > 0).astype(float)
+        pm = {"random_seed": 1, "sample_sigma2_global": False,
+              "outcome_model": OutcomeModel(outcome="binary", link="probit")}
+        m1 = BARTModel()
+        m1.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=5, num_mcmc=10, general_params=pm)
+        js = m1.to_json()
+
+        def run():
+            m = BARTModel()
+            m.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=10,
+                     previous_model_json=js, previous_model_warmstart_sample_num=9,
+                     general_params={**pm, "random_seed": 2})
+            return m
+
+        m2 = run()
+        assert m2.num_samples == 10
+        assert np.all(np.isfinite(m2.y_hat_train))
+        np.testing.assert_allclose(run().y_hat_train, m2.y_hat_train, atol=1e-10, rtol=0)

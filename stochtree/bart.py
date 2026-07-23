@@ -1158,9 +1158,10 @@ class BARTModel:
             previous_bart_model.from_json(previous_model_json)
             prev_num_samples = previous_bart_model.num_samples
             if not has_prev_model_index:
-                previous_model_warmstart_sample_num = prev_num_samples
+                # Default to the last retained sample (0-indexed).
+                previous_model_warmstart_sample_num = prev_num_samples - 1
                 warnings.warn(
-                    "`previous_model_warmstart_sample_num` was not provided alongside `previous_model_json`, so it will be set to the number of samples available in `previous_model_json`"
+                    "`previous_model_warmstart_sample_num` was not provided alongside `previous_model_json`, so it will be set to the last sample available in `previous_model_json`"
                 )
             else:
                 if previous_model_warmstart_sample_num < 0:
@@ -1171,14 +1172,22 @@ class BARTModel:
                     raise ValueError(
                         "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
                     )
-            if num_chains > previous_model_warmstart_sample_num + 1:
-                warnings.warn(
-                    "The number of chains being sampled exceeds the number of previous model samples available from the requested position in `previous_model_json`. All chains will be initialized from the same sample."
+            # Stage 1: multi-chain warm-start from a previous model is not yet wired through the C++ sampler.
+            if num_chains > 1:
+                raise NotImplementedError(
+                    "Warm-starting from `previous_model_json` with num_chains > 1 is not yet supported; use num_chains = 1."
                 )
-            previous_model_num_samples = previous_bart_model.num_samples
-            if previous_model_warmstart_sample_num + 1 > previous_model_num_samples:
+            # Feature-space compatibility guard: the previous model's forests split on preprocessed
+            # feature indices, so the new run must produce the same preprocessed layout (feature count +
+            # per-feature original-variable mapping), or split indices would point at the wrong features.
+            prev_var_indices = (
+                previous_bart_model._covariate_preprocessor.fetch_original_feature_indices()
+            )
+            if list(prev_var_indices) != list(original_var_indices):
                 raise ValueError(
-                    "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
+                    "`previous_model_json` was fit on a different covariate structure than the current "
+                    "data (preprocessed feature layout does not match). Warm-start requires the same "
+                    "covariates, types, and categorical levels."
                 )
         else:
             previous_model_num_samples = 0
@@ -1545,6 +1554,10 @@ class BARTModel:
             keep_every=keep_every,
             num_mcmc=num_mcmc,
             num_chains=num_chains,
+            # Warm-start from a previous model: pass its in-memory samples object; the (0-indexed)
+            # Python sample number is converted to the 1-indexed value the C++ sampler expects.
+            warmstart_samples=previous_bart_model._samples if has_prev_model else None,
+            warmstart_sample_num=(previous_model_warmstart_sample_num + 1) if has_prev_model else 0,
             config_input=bart_config,
         )
 
