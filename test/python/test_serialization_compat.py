@@ -592,6 +592,14 @@ class TestCrossPlatformGate:
         with pytest.raises(ValueError, match="non-numeric covariates"):
             BCFModel().from_json(_as_foreign("bcf_categorical_v1.json"))
 
+    def test_refusal_names_offending_columns(self):
+        # The gate message must name the offending column(s), not just say "non-numeric".
+        # The Python categorical fixtures encode the one categorical feature as column "4".
+        with pytest.raises(ValueError, match=r"columns:\s*4"):
+            BARTModel().from_json(_as_foreign("bart_categorical_v1.json"))
+        with pytest.raises(ValueError, match=r"columns:\s*4"):
+            BCFModel().from_json(_as_foreign("bcf_categorical_v1.json"))
+
     def test_string_rfx_cross_platform_refused(self):
         # Force the rfx-incompatible flag (Python never writes string rfx itself).
         obj = _load_fixture("bart_numeric_rfx_v1.json")
@@ -623,3 +631,67 @@ def test_future_schema_version_raises():
 
     with pytest.raises(ValueError, match="schema_version"):
         BARTModel().from_json(json.dumps(payload))
+
+
+@pytest.mark.parametrize("bad_version", ["unknown", -1])
+def test_unrecognized_schema_version_rejected(bad_version):
+    """A present-but-invalid schema_version (non-numeric or negative) must be rejected,
+    not silently degraded to legacy v0."""
+    rng = np.random.default_rng(0)
+    X = rng.uniform(size=(80, 3))
+    y = X[:, 0] + rng.normal(size=80)
+    m = BARTModel()
+    m.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=5)
+
+    payload = json.loads(m.to_json())
+    payload["schema_version"] = bad_version
+    with pytest.raises(ValueError, match="schema_version"):
+        BARTModel().from_json(json.dumps(payload))
+
+
+def test_absent_schema_version_is_legacy_v0():
+    """An absent stamp is legacy v0 and must still load (not rejected)."""
+    m = BARTModel()
+    m.from_json(_strip_fields(_load_fixture("bart_numeric_v1.json"), "schema_version"))
+    assert m.sampled
+
+
+class TestV0PlatformFingerprint:
+    """The v0 platform-fingerprint fallback (`infer_platform_v0`) classifies a
+    schema-less legacy envelope by structural keys. This is the branch the
+    cross-platform gate relies on for v0 models, and is otherwise only reachable
+    via a genuine legacy file (the v1 fixtures carry an explicit `platform`)."""
+
+    def _serializer(self, obj: dict):
+        from stochtree.serialization import JSONSerializer
+
+        ser = JSONSerializer()
+        ser.load_from_json_string(json.dumps(obj))
+        return ser
+
+    def test_python_v0_fixture_infers_python(self):
+        # The checked-in Python-written v0 fixtures carry `covariate_preprocessor`.
+        from stochtree.serialization import infer_platform_v0
+
+        for name in ("bart_mcmc.json", "bcf_mcmc.json"):
+            obj = _load_fixture(name)
+            assert "schema_version" not in obj  # genuinely v0
+            ser = self._serializer(obj)
+            assert infer_platform_v0(ser, "R") == "python"
+
+    def test_r_fingerprint_infers_R(self):
+        from stochtree.serialization import infer_platform_v0
+
+        # An R-written v0 envelope carries `preprocessor_metadata` (and/or a
+        # top-level `rfx_unique_group_ids`); neither `covariate_preprocessor`.
+        ser = self._serializer({"preprocessor_metadata": {"a": 1}})
+        assert infer_platform_v0(ser, "python") == "R"
+        ser = self._serializer({"rfx_unique_group_ids": [0, 1, 2]})
+        assert infer_platform_v0(ser, "python") == "R"
+
+    def test_no_fingerprint_falls_back_to_default(self):
+        from stochtree.serialization import infer_platform_v0
+
+        ser = self._serializer({"some_unrelated_key": 1})
+        assert infer_platform_v0(ser, "python") == "python"
+        assert infer_platform_v0(ser, "R") == "R"

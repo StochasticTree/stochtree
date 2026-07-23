@@ -516,3 +516,83 @@ test_that("same-platform categorical load is not refused", {
   m <- createBARTModelFromJsonString(read_fixture_raw("bart_categorical_v1.json"))
   expect_s3_class(m, "bartmodel")
 })
+
+test_that("cross-platform refusal names the offending columns", {
+  skip_on_cran()
+  skip_if_not_installed("jsonlite")
+  # The R categorical fixtures encode the one categorical feature as column "cat".
+  expect_error(
+    createBARTModelFromJsonString(as_foreign("bart_categorical_v1.json")),
+    "columns:\\s*cat"
+  )
+  expect_error(
+    createBCFModelFromJsonString(as_foreign("bcf_categorical_v1.json")),
+    "columns:\\s*cat"
+  )
+})
+
+# ===========================================================================
+# schema_version resolution: unrecognized / out-of-range stamps
+# ===========================================================================
+
+test_that("an unrecognized schema_version stamp is rejected", {
+  skip_on_cran()
+  set.seed(0)
+  n <- 80
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  y <- X[, 1] + rnorm(n)
+  m <- bart(
+    X_train = X, y_train = y,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 5,
+    general_params = list(random_seed = 1)
+  )
+  js <- saveBARTModelToJsonString(m)
+  # A present-but-non-integer ("unknown") or negative stamp must hard-error,
+  # not silently degrade to legacy v0.
+  js_str <- sub(
+    '("schema_version"\\s*:\\s*)[0-9]+',
+    '\\1"unknown"',
+    js,
+    perl = TRUE
+  )
+  js_neg <- sub('("schema_version"\\s*:\\s*)[0-9]+', "\\1-1", js, perl = TRUE)
+  expect_false(identical(js, js_str))
+  expect_false(identical(js, js_neg))
+  expect_error(createBARTModelFromJsonString(js_str), "schema_version")
+  expect_error(createBARTModelFromJsonString(js_neg), "schema_version")
+})
+
+test_that("an absent schema_version stamp loads as legacy v0", {
+  skip_on_cran()
+  skip_if_not_installed("jsonlite")
+  # Stripping the stamp must NOT error (absent == v0), only present-but-invalid does.
+  obj <- read_fixture_json("bart_numeric_v1.json")
+  m <- createBARTModelFromJsonString(strip_fields(obj, "schema_version"))
+  expect_s3_class(m, "bartmodel")
+})
+
+# ===========================================================================
+# v0 platform-fingerprint fallback (inferPlatformV0)
+# ===========================================================================
+
+test_that("v0 platform fingerprint classifies legacy envelopes", {
+  skip_on_cran()
+  skip_if_not_installed("jsonlite")
+  # Real R-written v0 fixtures carry `preprocessor_metadata`.
+  for (name in c("bart_mcmc.json", "bcf_mcmc.json")) {
+    obj <- read_fixture_json(name)
+    expect_false("schema_version" %in% names(obj)) # genuinely v0
+    cj <- createCppJsonString(read_fixture_raw(name))
+    expect_equal(inferPlatformV0(cj, "python"), "R")
+  }
+  # A Python-written envelope carries `covariate_preprocessor`.
+  cj_py <- createCppJsonString(write_json_string(list(
+    covariate_preprocessor = list(a = 1)
+  )))
+  expect_equal(inferPlatformV0(cj_py, "R"), "python")
+  # No decisive fingerprint -> fall back to the loading platform.
+  cj_none <- createCppJsonString(write_json_string(list(some_key = 1)))
+  expect_equal(inferPlatformV0(cj_none, "R"), "R")
+  expect_equal(inferPlatformV0(cj_none, "python"), "python")
+})

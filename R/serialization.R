@@ -35,12 +35,29 @@ STOCHTREE_SCHEMA_VERSION <- 1L
 # -----------------------------------------------------------------------------
 
 # Read the envelope schema_version and enforce the RFC 0005 reader rules. Returns
-# the loaded version (0 = legacy / absent). Errors if the model was written by a
-# newer stochtree than this installation supports. A value below the current version
-# is the hook for the migration ladder (no rungs exist yet at version 1; legacy v0
-# models are handled by field-presence default-filling during parsing).
+# the loaded version (0 = legacy / absent). A stamp that is present but not a
+# non-negative integer (a non-numeric value like "unknown", or a negative) is a hard
+# error. Errors if the model was written by a newer stochtree than this installation
+# supports. A
+# value below the current version is the hook for the migration ladder (no rungs exist
+# yet at version 1; legacy v0 models are handled by field-presence default-filling
+# during parsing).
 resolveSchemaVersion <- function(json_object, migrate = NULL) {
-  loaded <- json_object$get_integer_or_default("schema_version", 0L)
+  bad_version_msg <- paste0(
+    "This model has an unrecognized 'schema_version' stamp (expected a non-negative ",
+    "integer). The file may be corrupt or written by an incompatible tool."
+  )
+  if (!json_object$contains("schema_version")) {
+    loaded <- 0L # legacy / absent stamp -> v0
+  } else {
+    loaded <- tryCatch(
+      json_object$get_integer("schema_version"),
+      error = function(e) stop(bad_version_msg)
+    )
+    if (length(loaded) != 1L || is.na(loaded) || loaded < 0L) {
+      stop(bad_version_msg)
+    }
+  }
   if (loaded > STOCHTREE_SCHEMA_VERSION) {
     stop(sprintf(
       paste0(

@@ -50,13 +50,33 @@ def resolve_schema_version(serializer: "JSONSerializer", migrate=None) -> int:
     Returns the loaded version (``0`` for a legacy / absent stamp). Behavior vs the
     current ``SCHEMA_VERSION``:
 
+    - stamp absent -> ``0`` (legacy); handled by field-presence default-filling on parse.
+    - stamp present but not a non-negative integer (a non-numeric value like
+      ``"unknown"``, or a negative) -> hard error (corrupt or written by an
+      incompatible tool). A fractional numeric stamp is truncated toward zero by the
+      integer reader, matching nlohmann's coercion.
     - ``loaded > current`` -> hard error (model written by a newer stochtree).
     - ``loaded == current`` -> parse directly (caller proceeds).
     - ``0 < loaded < current`` -> caller runs the migration ladder (no rungs exist yet
       at ``SCHEMA_VERSION == 1``; this is the hook for future ``migrate_vN_to_vN+1``).
-    - ``loaded == 0`` -> legacy model; handled by field-presence default-filling on parse.
     """
-    loaded = serializer.get_integer_or_default("schema_version", 0)
+    if not serializer.contains("schema_version"):
+        loaded = 0  # legacy / absent stamp -> v0
+    else:
+        try:
+            loaded = serializer.get_integer("schema_version")
+        except Exception as e:
+            raise ValueError(
+                "This model has an unrecognized 'schema_version' stamp (expected a "
+                "non-negative integer). The file may be corrupt or written by an "
+                "incompatible tool."
+            ) from e
+        if not isinstance(loaded, int) or loaded < 0:
+            raise ValueError(
+                f"This model has an invalid 'schema_version' stamp ({loaded!r}); "
+                "expected a non-negative integer. The file may be corrupt or written "
+                "by an incompatible tool."
+            )
     if loaded > SCHEMA_VERSION:
         raise ValueError(
             f"This model was serialized with schema_version={loaded}, but this "
