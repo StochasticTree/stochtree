@@ -48,7 +48,9 @@ def _bart(seed, *, rfx, categorical):
     rng = np.random.default_rng(seed)
     X, x0 = _make_covariates(rng, N, categorical)
     y = x0 + rng.normal(scale=0.5, size=N)
-    kw = dict(num_gfr=0, num_burnin=0, num_mcmc=_NUM_MCMC, mean_forest_params=_SMALL)
+    # Seed the C++ sampler too (not just the data RNG) so regeneration is byte-stable.
+    kw = dict(num_gfr=0, num_burnin=0, num_mcmc=_NUM_MCMC, mean_forest_params=_SMALL,
+              general_params={"random_seed": seed})
     if rfx:
         g = rng.integers(0, 3, size=N)
         y = y + g
@@ -71,6 +73,8 @@ def _bcf(seed, *, rfx, categorical):
         num_mcmc=_NUM_MCMC,
         prognostic_forest_params=_SMALL,
         treatment_effect_forest_params=_SMALL,
+        # Seed the C++ sampler too (not just the data RNG) so regeneration is byte-stable.
+        general_params={"random_seed": seed},
     )
     if rfx:
         g = rng.integers(0, 3, size=N)

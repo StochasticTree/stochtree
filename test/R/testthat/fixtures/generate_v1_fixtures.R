@@ -44,7 +44,9 @@ bart_fixture <- function(seed, rfx, categorical) {
     num_gfr = 0,
     num_burnin = 0,
     num_mcmc = NUM_MCMC,
-    mean_forest_params = SMALL
+    mean_forest_params = SMALL,
+    # Seed the C++ sampler too (not just the data RNG) so regeneration is byte-stable.
+    general_params = list(random_seed = seed)
   )
   if (rfx) {
     g <- sample(0:2, N, replace = TRUE)
@@ -70,7 +72,9 @@ bcf_fixture <- function(seed, rfx, categorical) {
     num_burnin = 0,
     num_mcmc = NUM_MCMC,
     prognostic_forest_params = SMALL,
-    treatment_effect_forest_params = SMALL
+    treatment_effect_forest_params = SMALL,
+    # Seed the C++ sampler too (not just the data RNG) so regeneration is byte-stable.
+    general_params = list(random_seed = seed)
   )
   if (rfx) {
     g <- sample(0:2, N, replace = TRUE)
