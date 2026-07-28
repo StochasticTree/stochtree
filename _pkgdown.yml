@@ -1,0 +1,144 @@
+url: https://stochtree.ai/
+template:
+  bootstrap: 5
+llm-docs: false
+
+reference:
+- title: Supervised learning
+  desc: >
+    High-level functionality for training supervised Bayesian tree ensembles (BART, XBART)
+  contents:
+  - bart
+  - predict.bartmodel
+  - print.bartmodel
+  - summary.bartmodel
+  - plot.bartmodel
+  - extractParameter.bartmodel
+  - getRandomEffectSamples.bartmodel
+  - computeBARTPosteriorInterval
+  - computeContrastBARTModel
+  - sampleBARTPosteriorPredictive
+  - BARTSerialization
+
+- title: Causal inference
+  desc: >
+    High-level functionality for estimating causal effects using Bayesian tree ensembles (BCF, XBCF)
+  contents:
+  - bcf
+  - predict.bcfmodel
+  - print.bcfmodel
+  - summary.bcfmodel
+  - plot.bcfmodel
+  - extractParameter.bcfmodel
+  - getRandomEffectSamples.bcfmodel
+  - computeBCFPosteriorInterval
+  - computeContrastBCFModel
+  - sampleBCFPosteriorPredictive
+  - BCFSerialization
+
+- title: Low-level functionality
+
+- subtitle: Serialization
+  desc: >
+    Classes and functions for converting sampling artifacts to JSON and saving to disk
+  contents:
+  - CppJson
+  - createCppJson
+  - createCppJsonFile
+  - createCppJsonString
+  - loadForestContainerJson
+  - loadForestContainerCombinedJson
+  - loadForestContainerCombinedJsonString
+  - loadVectorJson
+  - loadScalarJson
+  - loadRandomEffectSamplesJson
+  - loadRandomEffectSamplesCombinedJson
+  - loadRandomEffectSamplesCombinedJsonString
+
+- subtitle: Data
+  desc: >
+    Classes and functions for preparing data for sampling algorithms
+  contents:
+  - ForestDataset
+  - createForestDataset
+  - Outcome
+  - createOutcome
+  - RandomEffectsDataset
+  - createRandomEffectsDataset
+  - DataPreprocessing
+
+- subtitle: Forest
+  desc: >
+    Classes and functions for constructing and persisting forests
+  contents:
+  - Forest
+  - createForest
+  - ForestModel
+  - createForestModel
+  - ForestSamples
+  - createForestSamples
+  - print.ForestSamples
+  - ForestModelConfig
+  - createForestModelConfig
+  - GlobalModelConfig
+  - createGlobalModelConfig
+  - CppRNG
+  - createCppRNG
+  - calibrateInverseGammaErrorVariance
+  - ForestKernelComputation
+  - ForestStateManagement
+
+- subtitle: Random Effects
+  desc: >
+    Classes and functions for constructing and persisting random effects terms
+  contents:
+  - RandomEffectSamples
+  - createRandomEffectSamples
+  - print.RandomEffectSamples
+  - RandomEffectsModel
+  - createRandomEffectsModel
+  - RandomEffectsTracker
+  - createRandomEffectsTracker
+  - getRandomEffectSamples
+  - sampleGlobalErrorVarianceOneIteration
+  - sampleLeafVarianceOneIteration
+  - RandomEffectStateManagement
+
+- subtitle: Utilities
+  desc: >
+    Miscellaneous "utility" classes and functions
+  contents:
+  - OutcomeModel
+  - sample_without_replacement
+  - extractParameter
+
+- title: Package info
+  desc: >
+    High-level package details
+  contents:
+  - stochtree-package
+
+articles:
+- title: High-Level Model Fitting
+  navbar: High-Level Model Fitting
+  contents:
+  - BayesianSupervisedLearning
+  - CausalInference
+  - Heteroskedasticity
+  - ReparameterizedCausalInference
+  - OrdinalOutcome
+
+- title: Advanced Model Interface
+  navbar: Advanced Model Interface
+  contents:
+  - MultiChain
+  - ModelSerialization
+  - PriorCalibration
+  - EnsembleKernel
+  - Summary
+  - TreeInspection
+
+- title: Prototype Interface
+  navbar: Prototype Interface
+  contents:
+  - CustomSamplingRoutine
