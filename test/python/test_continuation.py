@@ -482,6 +482,66 @@ class TestBCFContinuation:
         pred = m.predict(Xte, Zte, propensity=pite, terms="y_hat")
         np.testing.assert_allclose(m.y_hat_test, pred, atol=1e-8, rtol=0)
 
+    def test_continuation_accepts_1d_treatment(self):
+        # Regression: continue_sampling must accept a 1-d treatment vector (shape (n,)) for both
+        # Z_train and Z_test, expanding it to a single (n, 1) column exactly like sample() does.
+        # The old atleast_2d + transpose heuristic compared shape[1] against X.shape[0] instead of
+        # the treatment dim, so an ordinary 1-d treatment raised "Re-supplied treatment has n
+        # columns; model expects 1".
+        rng = np.random.default_rng(717)
+        n, p = 200, 5
+        X = rng.uniform(0, 1, (n, p))
+        pi = 0.3 + 0.4 * X[:, 1]
+        Z1 = rng.binomial(1, pi).astype(np.float64)  # 1-d, shape (n,)
+        y = 1.0 + 2.0 * X[:, 0] - 1.0 * X[:, 1] * Z1 + 0.5 * rng.standard_normal(n)
+        Xte = rng.uniform(0, 1, (40, p))
+        pite = 0.3 + 0.4 * Xte[:, 1]
+        Zte1 = rng.binomial(1, pite).astype(np.float64)  # 1-d, shape (m,)
+
+        def run(z_tr, z_te):
+            m = BCFModel()
+            m.sample(X_train=X, Z_train=Z1.reshape(-1, 1), y_train=y, propensity_train=pi,
+                     num_gfr=0, num_burnin=5, num_mcmc=10, general_params={"random_seed": 7})
+            m.continue_sampling(X_train=X, Z_train=z_tr, y_train=y, propensity_train=pi,
+                                X_test=Xte, Z_test=z_te, propensity_test=pite, num_mcmc=8)
+            return m
+
+        # 1-d Z for train and test must be accepted (this raised before the fix) ...
+        m1d = run(Z1, Zte1)
+        assert m1d.num_samples == 18
+        assert m1d.y_hat_train.shape == (n, 18)
+        assert m1d.y_hat_test.shape == (40, 18)
+        assert np.all(np.isfinite(m1d.y_hat_train))
+        # ... and produce identical results to passing the same treatment as an (n, 1) column.
+        m2d = run(Z1.reshape(-1, 1), Zte1.reshape(-1, 1))
+        np.testing.assert_array_equal(m1d.y_hat_train, m2d.y_hat_train)
+        np.testing.assert_array_equal(m1d.y_hat_test, m2d.y_hat_test)
+
+    def test_continuation_accepts_multivariate_propensity(self):
+        # A 2-d (n, k) propensity matrix must pass through continuation unchanged (k columns are
+        # appended to X). This is why the reshape uses `ndim == 1 -> expand_dims` rather than a
+        # blind 2-d reshape: a multivariate propensity must NOT be collapsed to a single column.
+        rng = np.random.default_rng(818)
+        n, p = 200, 5
+        X = rng.uniform(0, 1, (n, p))
+        Z = rng.binomial(1, 0.4 + 0.3 * X[:, 0]).astype(np.float64).reshape(-1, 1)
+        pi2 = np.column_stack([0.3 + 0.4 * X[:, 1], 0.2 + 0.5 * X[:, 2]]).astype(np.float64)  # (n, 2)
+        y = 1.0 + 2.0 * X[:, 0] - X[:, 1] * Z[:, 0] + 0.5 * rng.standard_normal(n)
+
+        def run():
+            m = BCFModel()
+            m.sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi2,
+                     num_gfr=0, num_burnin=5, num_mcmc=10, general_params={"random_seed": 8})
+            m.continue_sampling(X_train=X, Z_train=Z, y_train=y, propensity_train=pi2, num_mcmc=8)
+            return m
+
+        m = run()
+        assert m.num_samples == 18
+        assert m.y_hat_train.shape == (n, 18)
+        assert np.all(np.isfinite(m.y_hat_train))
+        # Deterministic (the multivariate propensity is carried through consistently).
+        np.testing.assert_array_equal(run().y_hat_train, m.y_hat_train)
+
     def test_continuation_variance_forest_supported(self):
         X, Z, y, pi = _make_bcf_data()
         m = BCFModel()

@@ -2469,9 +2469,12 @@ class BCFModel:
                         "propensity_train must be supplied to continue sampling this model"
                     )
             else:
-                propensity_train = np.atleast_2d(propensity_train)
-                if propensity_train.shape[0] == 1 and propensity_train.shape[1] != 1:
-                    propensity_train = propensity_train.T
+                # Match sample(): a 1-d propensity is a single column; a 2-d (n, k) propensity
+                # (multivariate) passes through unchanged.
+                if propensity_train.ndim == 1:
+                    propensity_train = np.expand_dims(propensity_train, 1)
+                if not np.issubdtype(propensity_train.dtype, np.float64):
+                    propensity_train = propensity_train.astype(np.float64)
             ncol_propensity = propensity_train.shape[1]
             X_train_processed = np.c_[X_train_processed, propensity_train]
 
@@ -2502,15 +2505,20 @@ class BCFModel:
                             "propensity_test must be supplied to continue sampling this model with a test set"
                         )
                 else:
-                    propensity_test = np.atleast_2d(propensity_test)
-                    if propensity_test.shape[0] == 1 and propensity_test.shape[1] != 1:
-                        propensity_test = propensity_test.T
+                    # Match sample(): a 1-d propensity is a single column; a 2-d (n, k) propensity
+                    # (multivariate) passes through unchanged.
+                    if propensity_test.ndim == 1:
+                        propensity_test = np.expand_dims(propensity_test, 1)
+                    if not np.issubdtype(propensity_test.dtype, np.float64):
+                        propensity_test = propensity_test.astype(np.float64)
                 X_test_processed = np.c_[X_test_processed, propensity_test]
             if Z_test is None:
                 raise ValueError("Z_test must be supplied when X_test is provided")
-            Z_test = np.atleast_2d(Z_test)
-            if Z_test.shape[0] == 1 and Z_test.shape[1] != X_test_processed.shape[0]:
-                Z_test = Z_test.T
+            # A 1-d treatment is a single column; expand to (n, 1) directly (matching sample()).
+            if Z_test.ndim == 1:
+                Z_test = np.expand_dims(Z_test, 1)
+            if not np.issubdtype(Z_test.dtype, np.float64):
+                Z_test = Z_test.astype(np.float64)
             if Z_test.shape[1] != self.treatment_dim:
                 raise ValueError(
                     f"Re-supplied test treatment has {Z_test.shape[1]} columns; model expects {self.treatment_dim}"
@@ -2584,9 +2592,11 @@ class BCFModel:
         y_train = np.asarray(y_train).astype(np.float64).reshape(-1)
         if X_train_processed.shape[0] != y_train.shape[0]:
             raise ValueError("X_train and y_train have differing numbers of observations")
-        Z_train = np.atleast_2d(Z_train)
-        if Z_train.shape[0] == 1 and Z_train.shape[1] != X_train_processed.shape[0]:
-            Z_train = Z_train.T
+        # A 1-d treatment is a single column; expand to (n, 1) directly (matching sample()).
+        if Z_train.ndim == 1:
+            Z_train = np.expand_dims(Z_train, 1)
+        if not np.issubdtype(Z_train.dtype, np.float64):
+            Z_train = Z_train.astype(np.float64)
         if Z_train.shape[1] != self.treatment_dim:
             raise ValueError(
                 f"Re-supplied treatment has {Z_train.shape[1]} columns; model expects {self.treatment_dim}"
