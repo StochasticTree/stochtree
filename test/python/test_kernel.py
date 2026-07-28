@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 from stochtree import (
+    BARTModel,
     Dataset,
     Forest,
     ForestContainer,
@@ -80,3 +81,27 @@ class TestKernel:
         # Assertion
         np.testing.assert_almost_equal(computed, expected)
         assert max_leaf_index == [3]
+
+    def test_bart_model(self):
+        # Regression: the kernel functions on a BART *model* must reach the forests via
+        # extract_forest(), not the removed direct-forest properties (which now raise).
+        rng = np.random.default_rng(42)
+        X = rng.uniform(0, 1, (100, 3))
+        y = X[:, 0] * 2 + rng.normal(0, 0.5, 100)
+        model = BARTModel()
+        model.sample(
+            X_train=X,
+            y_train=y,
+            num_gfr=0,
+            num_burnin=0,
+            num_mcmc=5,
+            general_params={"random_seed": 42},
+        )
+
+        leaf_indices = compute_forest_leaf_indices(model, X, forest_type="mean")
+        max_leaf_index = compute_forest_max_leaf_index(model, forest_type="mean")
+
+        assert leaf_indices.size > 0
+        assert np.all(leaf_indices >= 0)
+        assert np.all(max_leaf_index >= 0)
+        assert leaf_indices.max() <= np.max(max_leaf_index)

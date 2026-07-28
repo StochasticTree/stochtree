@@ -1,0 +1,32 @@
+---
+# Conservative clang-tidy config for stochtree.
+# Focuses on real bugs and performance issues; style is handled by clang-format.
+# To run manually: clang-tidy <file> -- (or via clangd in the editor)
+
+Checks: >
+  clang-analyzer-*,
+  bugprone-branch-clone,
+  bugprone-copy-constructor-init,
+  bugprone-dangling-handle,
+  bugprone-incorrect-roundings,
+  bugprone-infinite-loop,
+  bugprone-redundant-branch-condition,
+  bugprone-suspicious-include,
+  bugprone-use-after-move,
+  modernize-redundant-void-arg,
+  modernize-use-emplace,
+  modernize-use-nullptr,
+  modernize-use-override,
+  performance-for-range-copy,
+  performance-move-const-arg,
+  performance-unnecessary-copy-initialization,
+  -clang-analyzer-optin.performance.Padding
+
+# Leave empty to warn only, not fail the build.
+WarningsAsErrors: ""
+
+# Only surface warnings for project headers, not dependencies.
+HeaderFilterRegex: "include/stochtree/.*"
+
+# Respect .clang-format for any fixes clang-tidy applies.
+FormatStyle: file

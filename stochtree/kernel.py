@@ -88,24 +88,24 @@ def compute_forest_leaf_indices(
                 raise ValueError(
                     "Mean forest was not sampled for model_object, but requested by forest_type"
                 )
-            forest_container = model_object.forest_container_mean
+            forest_container = model_object.extract_forest("mean")
         else:
             if not model_object.include_variance_forest:
                 raise ValueError(
                     "Variance forest was not sampled for model_object, but requested by forest_type"
                 )
-            forest_container = model_object.forest_container_variance
+            forest_container = model_object.extract_forest("variance")
     elif model_type == "bcf":
         if forest_type == "prognostic":
-            forest_container = model_object.forest_container_mu
+            forest_container = model_object.extract_forest("prognostic")
         elif forest_type == "treatment":
-            forest_container = model_object.forest_container_tau
+            forest_container = model_object.extract_forest("treatment")
         else:
             if not model_object.include_variance_forest:
                 raise ValueError(
                     "Variance forest was not sampled for model_object, but requested by forest_type"
                 )
-            forest_container = model_object.forest_container_variance
+            forest_container = model_object.extract_forest("variance")
     else:
         forest_container = model_object
 
@@ -230,24 +230,24 @@ def compute_forest_max_leaf_index(
                 raise ValueError(
                     "Mean forest was not sampled for model_object, but requested by forest_type"
                 )
-            forest_container = model_object.forest_container_mean
+            forest_container = model_object.extract_forest("mean")
         else:
             if not model_object.include_variance_forest:
                 raise ValueError(
                     "Variance forest was not sampled for model_object, but requested by forest_type"
                 )
-            forest_container = model_object.forest_container_variance
+            forest_container = model_object.extract_forest("variance")
     elif model_type == "bcf":
         if forest_type == "prognostic":
-            forest_container = model_object.forest_container_mu
+            forest_container = model_object.extract_forest("prognostic")
         elif forest_type == "treatment":
-            forest_container = model_object.forest_container_tau
+            forest_container = model_object.extract_forest("treatment")
         else:
             if not model_object.include_variance_forest:
                 raise ValueError(
                     "Variance forest was not sampled for model_object, but requested by forest_type"
                 )
-            forest_container = model_object.forest_container_variance
+            forest_container = model_object.extract_forest("variance")
     else:
         forest_container = model_object
 

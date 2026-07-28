@@ -39,7 +39,7 @@ class TestBARTObservationWeights:
         m1.sample(**kwargs)
 
         m2 = BARTModel()
-        m2.sample(**kwargs, observation_weights=np.ones(n_train))
+        m2.sample(**kwargs, observation_weights_train=np.ones(n_train))
 
         np.testing.assert_array_equal(m1.y_hat_train, m2.y_hat_train)
         np.testing.assert_array_equal(m1.y_hat_test, m2.y_hat_test)
@@ -54,7 +54,7 @@ class TestBARTObservationWeights:
         m = BARTModel()
         m.sample(
             X_train=X_train, y_train=y_train, X_test=X_test,
-            observation_weights=weights,
+            observation_weights_train=weights,
             num_gfr=0, num_burnin=0, num_mcmc=num_mcmc,
         )
         assert m.y_hat_train.shape == (n_train, num_mcmc)
@@ -68,7 +68,7 @@ class TestBARTObservationWeights:
         m = BARTModel()
         m.sample(
             X_train=X_train, y_train=y_train,
-            observation_weights=np.zeros(n_train),
+            observation_weights_train=np.zeros(n_train),
             num_gfr=0, num_burnin=0, num_mcmc=num_mcmc,
         )
         assert m.y_hat_train.shape == (n_train, num_mcmc)
@@ -78,7 +78,7 @@ class TestBARTObservationWeights:
         with pytest.raises(ValueError, match="numpy array"):
             BARTModel().sample(
                 X_train=X_train, y_train=y_train,
-                observation_weights=list(np.ones(n_train)),
+                observation_weights_train=list(np.ones(n_train)),
                 num_gfr=0, num_burnin=0, num_mcmc=5,
             )
 
@@ -87,7 +87,7 @@ class TestBARTObservationWeights:
         with pytest.raises(ValueError, match="1-dimensional"):
             BARTModel().sample(
                 X_train=X_train, y_train=y_train,
-                observation_weights=np.ones((n_train, 2)),
+                observation_weights_train=np.ones((n_train, 2)),
                 num_gfr=0, num_burnin=0, num_mcmc=5,
             )
 
@@ -98,7 +98,7 @@ class TestBARTObservationWeights:
         with pytest.raises(ValueError, match="negative"):
             BARTModel().sample(
                 X_train=X_train, y_train=y_train,
-                observation_weights=weights,
+                observation_weights_train=weights,
                 num_gfr=0, num_burnin=0, num_mcmc=5,
             )
 
@@ -107,7 +107,7 @@ class TestBARTObservationWeights:
         with pytest.raises(ValueError, match="num_gfr"):
             BARTModel().sample(
                 X_train=X_train, y_train=y_train,
-                observation_weights=np.zeros(n_train),
+                observation_weights_train=np.zeros(n_train),
                 num_gfr=5, num_burnin=0, num_mcmc=10,
             )
 
@@ -119,17 +119,17 @@ class TestBARTObservationWeights:
         with pytest.raises(ValueError, match="cloglog"):
             BARTModel().sample(
                 X_train=X, y_train=y,
-                observation_weights=np.ones(n),
+                observation_weights_train=np.ones(n),
                 num_gfr=0, num_burnin=0, num_mcmc=5,
                 general_params={"outcome_model": OutcomeModel(outcome="ordinal", link="cloglog")},
             )
 
-    def test_variance_forest_warns(self):
+    def test_variance_forest_raises(self):
         X_train, y_train, _, n_train, _ = make_bart_data()
-        with pytest.warns(UserWarning, match="variance forest"):
+        with pytest.raises(ValueError, match="not compatible with a variance forest"):
             BARTModel().sample(
                 X_train=X_train, y_train=y_train,
-                observation_weights=np.ones(n_train),
+                observation_weights_train=np.ones(n_train),
                 num_gfr=0, num_burnin=0, num_mcmc=5,
                 variance_forest_params={"num_trees": 5},
             )
@@ -149,7 +149,7 @@ class TestBCFObservationWeights:
         m1.sample(**kwargs)
 
         m2 = BCFModel()
-        m2.sample(**kwargs, observation_weights=np.ones(n_train))
+        m2.sample(**kwargs, observation_weights_train=np.ones(n_train))
 
         np.testing.assert_array_equal(m1.y_hat_train, m2.y_hat_train)
         np.testing.assert_array_equal(m1.tau_hat_train, m2.tau_hat_train)
@@ -164,7 +164,7 @@ class TestBCFObservationWeights:
         m.sample(
             X_train=X_train, Z_train=Z_train, y_train=y_train,
             propensity_train=pi_train, X_test=X_test, Z_test=Z_test, propensity_test=pi_test,
-            observation_weights=weights,
+            observation_weights_train=weights,
             num_gfr=0, num_burnin=0, num_mcmc=num_mcmc,
         )
         assert m.y_hat_train.shape == (n_train, num_mcmc)
@@ -180,7 +180,7 @@ class TestBCFObservationWeights:
             BCFModel().sample(
                 X_train=X_train, Z_train=Z_train, y_train=y_train,
                 propensity_train=pi_train,
-                observation_weights=weights,
+                observation_weights_train=weights,
                 num_gfr=0, num_burnin=0, num_mcmc=5,
             )
 
@@ -190,7 +190,7 @@ class TestBCFObservationWeights:
             BCFModel().sample(
                 X_train=X_train, Z_train=Z_train, y_train=y_train,
                 propensity_train=pi_train,
-                observation_weights=np.zeros(n_train),
+                observation_weights_train=np.zeros(n_train),
                 num_gfr=5, num_burnin=0, num_mcmc=10,
             )
 
@@ -200,7 +200,28 @@ class TestBCFObservationWeights:
             BCFModel().sample(
                 X_train=X_train, Z_train=Z_train, y_train=y_train,
                 propensity_train=pi_train,
-                observation_weights=np.ones(n_train),
+                observation_weights_train=np.ones(n_train),
                 num_gfr=0, num_burnin=0, num_mcmc=5,
                 general_params={"outcome_model": OutcomeModel(outcome="binary", link="cloglog")},
             )
+
+
+def test_observation_weights_deprecated_alias_warns():
+    """The deprecated `observation_weights` alias still works but emits a DeprecationWarning."""
+    X_train, y_train, X_test, n_train, n_test = make_bart_data()
+    rng = np.random.default_rng(0)
+    weights = rng.uniform(0.5, 2.0, n_train)
+    kwargs = dict(
+        X_train=X_train, y_train=y_train, X_test=X_test,
+        num_gfr=0, num_burnin=0, num_mcmc=10,
+        general_params={"random_seed": 1},
+    )
+    m_new = BARTModel()
+    m_new.sample(**kwargs, observation_weights_train=weights)
+
+    m_old = BARTModel()
+    with pytest.warns(DeprecationWarning, match="observation_weights"):
+        m_old.sample(**kwargs, observation_weights=weights)
+
+    # Deprecated alias must produce the same result as the new parameter.
+    np.testing.assert_allclose(m_new.y_hat_test, m_old.y_hat_test)

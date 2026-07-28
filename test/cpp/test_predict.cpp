@@ -1,14 +1,10 @@
-/*!
- * Test of the ensemble prediction method
- */
+/*! Test of the ensemble prediction method */
 #include <gtest/gtest.h>
 #include <testutils.h>
 #include <stochtree/data.h>
 #include <stochtree/ensemble.h>
 #include <stochtree/tree.h>
 #include <Eigen/Dense>
-#include <iostream>
-#include <memory>
 
 /*! \brief Test forest prediction procedures for trees with constants in leaf nodes */
 TEST(Ensemble, PredictConstant) {
@@ -23,7 +19,7 @@ TEST(Ensemble, PredictConstant) {
   dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
   dataset.AddBasis(test_dataset.omega.data(), test_dataset.n, test_dataset.omega_cols, test_dataset.row_major);
   StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), n);
-  
+
   // Create a small ensemble
   int output_dim = 1;
   int num_trees = 2;
@@ -38,8 +34,8 @@ TEST(Ensemble, PredictConstant) {
   tree->ExpandNode(0, 1, tree_split, -2.5, 2.5);
 
   // Run predict on the supplied covariates and check the result
-  std::vector<double> result(n*output_dim);
-  std::vector<double> expected_pred = {7.5,2.5,-7.5,7.5,7.5,7.5,2.5,7.5,-7.5,-2.5};
+  std::vector<double> result(n * output_dim);
+  std::vector<double> expected_pred = {7.5, 2.5, -7.5, 7.5, 7.5, 7.5, 2.5, 7.5, -7.5, -2.5};
   ensemble.PredictInplace(dataset.GetCovariates(), result, 0);
   for (int i = 0; i < n; i++) {
     ASSERT_NEAR(expected_pred[i], result[i], 0.01);
@@ -59,7 +55,7 @@ TEST(Ensemble, PredictUnivariateRegression) {
   dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
   dataset.AddBasis(test_dataset.omega.data(), test_dataset.n, test_dataset.omega_cols, test_dataset.row_major);
   StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), n);
-  
+
   // Create a small ensemble
   int output_dim = 1;
   int num_trees = 2;
@@ -71,10 +67,11 @@ TEST(Ensemble, PredictUnivariateRegression) {
   StochTree::TreeSplit tree_split = StochTree::TreeSplit(0.5);
   tree->ExpandNode(0, 0, tree_split, -5., 5.);
   tree = ensemble.GetTree(1);
-  tree->ExpandNode(0, 1, tree_split, -2.5, 2.5);;
+  tree->ExpandNode(0, 1, tree_split, -2.5, 2.5);
+  ;
 
   // Run predict on the supplied covariates and check the result
-  std::vector<double> result(n*output_dim);
+  std::vector<double> result(n * output_dim);
   std::vector<double> expected_pred = {7.3351256, 0.8511415, -1.5396290, 5.7172741, 4.7433491, 4.5919388, 1.0123031, 2.4834167, -6.5187785, -1.4611208};
   ensemble.PredictInplace(dataset.GetCovariates(), dataset.GetBasis(), result, 0);
   for (int i = 0; i < n; i++) {
@@ -94,7 +91,7 @@ TEST(Ensemble, PredictMultivariateRegression) {
   dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
   dataset.AddBasis(test_dataset.omega.data(), test_dataset.n, test_dataset.omega_cols, test_dataset.row_major);
   StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), n);
-  
+
   // Create a small ensemble
   int output_dim = 2;
   int num_trees = 2;

@@ -12,11 +12,12 @@ namespace StochTree {
 
 class UnivariateNormalSampler {
  public:
-  UnivariateNormalSampler() {std_normal_dist_ = standard_normal();}
+  UnivariateNormalSampler() { std_normal_dist_ = standard_normal(); }
   ~UnivariateNormalSampler() {}
   double Sample(double mean, double variance, std::mt19937& gen) {
     return mean + std::sqrt(variance) * std_normal_dist_(gen);
   }
+
  private:
   /*! \brief Standard normal distribution */
   standard_normal std_normal_dist_;
@@ -24,7 +25,7 @@ class UnivariateNormalSampler {
 
 class MultivariateNormalSampler {
  public:
-  MultivariateNormalSampler() {std_normal_dist_ = standard_normal();}
+  MultivariateNormalSampler() { std_normal_dist_ = standard_normal(); }
   ~MultivariateNormalSampler() {}
   std::vector<double> Sample(Eigen::VectorXd& mean, Eigen::MatrixXd& covariance, std::mt19937& gen) {
     // Dimension extraction and checks
@@ -32,7 +33,7 @@ class MultivariateNormalSampler {
     int cov_rows = covariance.rows();
     int cov_cols = covariance.cols();
     CHECK_EQ(mean_cols, cov_cols);
-    
+
     // Variance cholesky decomposition
     Eigen::LLT<Eigen::MatrixXd> decomposition(covariance);
     Eigen::MatrixXd covariance_chol = decomposition.matrixL();
@@ -57,7 +58,7 @@ class MultivariateNormalSampler {
     int cov_rows = covariance.rows();
     int cov_cols = covariance.cols();
     CHECK_EQ(mean_cols, cov_cols);
-    
+
     // Variance cholesky decomposition
     Eigen::LLT<Eigen::MatrixXd> decomposition(covariance);
     Eigen::MatrixXd covariance_chol = decomposition.matrixL();
@@ -71,11 +72,12 @@ class MultivariateNormalSampler {
     // Compute and return the sampled value
     return mean + covariance_chol * std_norm_vec;
   }
+
  private:
   /*! \brief Standard normal distribution */
   standard_normal std_normal_dist_;
 };
 
-} // namespace StochTree
+}  // namespace StochTree
 
-#endif // STOCHTREE_NORMAL_SAMPLER_H_
+#endif  // STOCHTREE_NORMAL_SAMPLER_H_

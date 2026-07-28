@@ -24,6 +24,11 @@ PKG_LIBS = \
 OBJECTS = \
     forest.o \
     kernel.o \
+    bart_sampler.o \
+    bcf_sampler.o \
+    R_bart.o \
+    R_bcf.o \
+    R_samples.o \
     R_data.o \
     R_random_effects.o \
     R_utils.o \
@@ -37,5 +42,6 @@ OBJECTS = \
     leaf_model.o \
     ordinal_sampler.o \
     partition_tracker.o \
+    prediction.o \
     random_effects.o \
     tree.o

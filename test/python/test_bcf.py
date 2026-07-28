@@ -605,10 +605,10 @@ class TestBCF:
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bcf_model.mu_hat_train.shape == (n_train, num_mcmc)
-        assert bcf_model.tau_hat_train.shape == (n_train, num_mcmc, treatment_dim)
+        assert bcf_model.tau_hat_train.shape == (n_train, treatment_dim, num_mcmc)
         assert bcf_model.y_hat_test.shape == (n_test, num_mcmc)
         assert bcf_model.mu_hat_test.shape == (n_test, num_mcmc)
-        assert bcf_model.tau_hat_test.shape == (n_test, num_mcmc, treatment_dim)
+        assert bcf_model.tau_hat_test.shape == (n_test, treatment_dim, num_mcmc)
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
@@ -617,7 +617,7 @@ class TestBCF:
             bcf_preds["mu_hat"],
             bcf_preds["y_hat"],
         )
-        assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
+        assert tau_hat.shape == (n_test, treatment_dim, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
@@ -625,7 +625,7 @@ class TestBCF:
         tau_hat = bcf_model.predict(
             X=X_test, Z=Z_test, propensity=pi_test, terms="cate"
         )
-        assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
+        assert tau_hat.shape == (n_test, treatment_dim, num_mcmc)
 
         # Run BCF without test set and with propensity score
         with pytest.warns(UserWarning):
@@ -646,7 +646,7 @@ class TestBCF:
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bcf_model.mu_hat_train.shape == (n_train, num_mcmc)
-        assert bcf_model.tau_hat_train.shape == (n_train, num_mcmc, treatment_dim)
+        assert bcf_model.tau_hat_train.shape == (n_train, treatment_dim, num_mcmc)
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
@@ -655,7 +655,7 @@ class TestBCF:
             bcf_preds["mu_hat"],
             bcf_preds["y_hat"],
         )
-        assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
+        assert tau_hat.shape == (n_test, treatment_dim, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
@@ -663,7 +663,7 @@ class TestBCF:
         tau_hat = bcf_model.predict(
             X=X_test, Z=Z_test, propensity=pi_test, terms="cate"
         )
-        assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
+        assert tau_hat.shape == (n_test, treatment_dim, num_mcmc)
 
         # Run BCF with test set and without propensity score
         with pytest.warns(UserWarning):
@@ -1114,6 +1114,62 @@ class TestBCF:
         # Output shapes should be correct
         assert m2.y_hat_train.shape == (n_train, 10)
         assert m2.y_hat_test.shape == (n - n_train, 10)
+
+    def test_warmstart_from_previous_model(self):
+        # Warm-start a fresh single-chain BCF run from a serialized previous model.
+        rng = np.random.default_rng(1)
+        n, p = 200, 4
+        X = rng.uniform(0, 1, (n, p))
+        pi = (0.25 + 0.5 * X[:, 0]).reshape(-1, 1)
+        Z = rng.binomial(1, pi[:, 0]).astype(float).reshape(-1, 1)
+        y = X[:, 0] * 2 - X[:, 1] * Z[:, 0] + rng.normal(0, 1, n)
+        m1 = BCFModel()
+        m1.sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+                  num_gfr=0, num_burnin=5, num_mcmc=10, general_params={"random_seed": 1})
+        js = m1.to_json()
+
+        def run():
+            m = BCFModel()
+            m.sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+                     num_gfr=0, num_burnin=5, num_mcmc=10,
+                     previous_model_json=js, previous_model_warmstart_sample_num=9,
+                     general_params={"random_seed": 2})
+            return m
+
+        m2 = run()
+        assert m2.num_samples == 10
+        assert m2.y_hat_train.shape == (n, 10)
+        assert np.all(np.isfinite(m2.y_hat_train))
+        # Deterministic under a fixed seed.
+        np.testing.assert_allclose(run().y_hat_train, m2.y_hat_train, atol=1e-10, rtol=0)
+
+        # Feature-space mismatch is rejected clearly.
+        with pytest.raises(ValueError, match="covariate structure"):
+            BCFModel().sample(X_train=X[:, :3], Z_train=Z, y_train=y, propensity_train=pi,
+                              num_mcmc=5, previous_model_json=js)
+
+        # Multi-chain warm-start: each chain is seeded from a distinct previous-model sample, so the
+        # returned model holds num_chains * num_mcmc samples and is deterministic under a fixed seed.
+        def run_mc():
+            m = BCFModel()
+            m.sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+                     num_gfr=0, num_burnin=5, num_mcmc=10,
+                     previous_model_json=js, previous_model_warmstart_sample_num=9,
+                     general_params={"random_seed": 3, "num_chains": 3})
+            return m
+
+        m3 = run_mc()
+        assert m3.num_samples == 30
+        assert m3.y_hat_train.shape == (n, 30)
+        assert np.all(np.isfinite(m3.y_hat_train))
+        np.testing.assert_allclose(run_mc().y_hat_train, m3.y_hat_train, atol=1e-10, rtol=0)
+
+        # Requesting more chains than there are usable source samples warns (chains share a seed).
+        with pytest.warns(UserWarning, match="earliest available sample"):
+            BCFModel().sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+                              num_gfr=0, num_burnin=2, num_mcmc=3,
+                              previous_model_json=js, previous_model_warmstart_sample_num=1,
+                              general_params={"num_chains": 4})
 
 
 class TestBCFFloat32:
