@@ -3,7 +3,6 @@
 #include <stochtree/cutpoint_candidates.h>
 #include <stochtree/log.h>
 #include <stochtree/partition_tracker.h>
-#include <iostream>
 #include <memory>
 #include <vector>
 

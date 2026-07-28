@@ -372,8 +372,8 @@ test_that("Warmstart BCF", {
   # Save to JSON string
   bcf_model_json_string <- saveBCFModelToJsonString(bcf_model)
 
-  # Run a new BCF chain from the existing (X)BCF model
-  general_param_list <- list(num_chains = 3, keep_every = 5)
+  # Run a new (single-chain) BCF model warm-started from the existing (X)BCF model.
+  general_param_list <- list(num_chains = 1, keep_every = 1)
   expect_no_error(
     bcf_model <- bcf(
       X_train = X_train,
@@ -391,22 +391,39 @@ test_that("Warmstart BCF", {
       general_params = general_param_list
     )
   )
-  expect_warning(
-    bcf_model <- bcf(
+  expect_equal(bcf_model$model_params$num_samples, 10)
+  # Multi-chain warm-start: each chain is seeded from a distinct previous-model sample, so the
+  # returned model holds num_chains * num_mcmc samples.
+  expect_no_error(
+    bcf_model_mc <- bcf(
       X_train = X_train,
       y_train = y_train,
       Z_train = Z_train,
       propensity_train = pi_train,
-      X_test = X_test,
-      Z_test = Z_test,
-      propensity_test = pi_test,
       num_gfr = 0,
       num_burnin = 10,
       num_mcmc = 10,
       previous_model_json = bcf_model_json_string,
-      previous_model_warmstart_sample_num = 1,
-      general_params = general_param_list
+      previous_model_warmstart_sample_num = 10,
+      general_params = list(num_chains = 3, keep_every = 1)
     )
+  )
+  expect_equal(bcf_model_mc$model_params$num_samples, 30)
+  # Requesting more chains than usable source samples warns (chains share the earliest seed).
+  expect_warning(
+    bcf(
+      X_train = X_train,
+      y_train = y_train,
+      Z_train = Z_train,
+      propensity_train = pi_train,
+      num_gfr = 0,
+      num_burnin = 5,
+      num_mcmc = 3,
+      previous_model_json = bcf_model_json_string,
+      previous_model_warmstart_sample_num = 1,
+      general_params = list(num_chains = 4, keep_every = 1)
+    ),
+    "earliest available sample"
   )
 
   # Generate simulated data with random effects
@@ -480,8 +497,8 @@ test_that("Warmstart BCF", {
   # Save to JSON string
   bcf_model_json_string <- saveBCFModelToJsonString(bcf_model)
 
-  # Run a new BCF chain from the existing (X)BCF model
-  general_param_list <- list(num_chains = 3, keep_every = 5)
+  # Run a new (single-chain) BCF model with random effects warm-started from the existing model.
+  general_param_list <- list(num_chains = 1, keep_every = 1)
   expect_no_error(
     bcf_model <- bcf(
       X_train = X_train,
@@ -502,6 +519,39 @@ test_that("Warmstart BCF", {
       previous_model_warmstart_sample_num = 10,
       general_params = general_param_list
     )
+  )
+  expect_equal(bcf_model$model_params$num_samples, 10)
+})
+
+test_that("BCF warm-start is deterministic and guards feature-space mismatch", {
+  skip_on_cran()
+  set.seed(11)
+  n <- 200
+  p <- 4
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- 0.25 + 0.5 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  y <- X[, 1] * 2 - X[, 2] * Z + rnorm(n)
+  m1 <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+            num_gfr = 0, num_burnin = 5, num_mcmc = 10, general_params = list(random_seed = 1))
+  js <- saveBCFModelToJsonString(m1)
+  run <- function() {
+    bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+        num_gfr = 0, num_burnin = 5, num_mcmc = 10,
+        previous_model_json = js, previous_model_warmstart_sample_num = 10,
+        general_params = list(random_seed = 2))
+  }
+  m2 <- run()
+  expect_equal(m2$model_params$num_samples, 10)
+  p2 <- predict(m2, X = X, Z = Z, propensity = pi_x)$y_hat
+  expect_true(all(is.finite(p2)))
+  # Deterministic under a fixed seed.
+  expect_equal(predict(run(), X = X, Z = Z, propensity = pi_x)$y_hat, p2, tolerance = 1e-10)
+  # Feature-space mismatch is rejected clearly.
+  expect_error(
+    bcf(X_train = X[, 1:3], Z_train = Z, y_train = y, propensity_train = pi_x,
+        num_mcmc = 5, previous_model_json = js),
+    "covariate structure"
   )
 })
 
@@ -656,9 +706,12 @@ test_that("BCF Predictions", {
     Z = Z_train,
     propensity = pi_train
   )
-  train_preds_mean_cached <- bcf_model$y_hat_train
+  train_preds_mean_cached <- extractParameter(bcf_model, "y_hat_train")
   train_preds_mean_recomputed <- train_preds$y_hat
-  train_preds_variance_cached <- bcf_model$sigma2_x_hat_train
+  train_preds_variance_cached <- extractParameter(
+    bcf_model,
+    "sigma2_x_train"
+  )
   train_preds_variance_recomputed <- train_preds$variance_forest_predictions
 
   # Assertion
@@ -844,8 +897,10 @@ test_that("BCF internal propensity model works with data frame covariates", {
       num_mcmc = 5
     )
   )
-  expect_true(!is.null(bcf_model$tau_hat_train))
-  expect_true(!is.null(bcf_model$tau_hat_test))
+  tau_hat_train <- extractParameter(bcf_model, "tau_hat_train")
+  tau_hat_test <- extractParameter(bcf_model, "tau_hat_test")
+  expect_true(!is.null(tau_hat_train))
+  expect_true(!is.null(tau_hat_test))
 })
 
 test_that("BCF JSON serialization roundtrip covers all deserialization paths", {
@@ -946,8 +1001,13 @@ test_that("BCF factor-valued treatment handling", {
   # Factor treatment should run without error and emit an informative message
   expect_message(
     suppressWarnings(bcf(
-      X_train = X, y_train = y, Z_train = Z_factor_binary,
-      propensity_train = pi_X, num_gfr = 0, num_burnin = 5, num_mcmc = 5
+      X_train = X,
+      y_train = y,
+      Z_train = Z_factor_binary,
+      propensity_train = pi_X,
+      num_gfr = 0,
+      num_burnin = 5,
+      num_mcmc = 5
     )),
     regexp = "Z_train is a factor"
   )
@@ -961,8 +1021,13 @@ test_that("BCF factor-valued treatment handling", {
 
   expect_message(
     suppressWarnings(bcf(
-      X_train = X, y_train = y, Z_train = Z_factor_logical,
-      propensity_train = pi_X, num_gfr = 0, num_burnin = 5, num_mcmc = 5
+      X_train = X,
+      y_train = y,
+      Z_train = Z_factor_logical,
+      propensity_train = pi_X,
+      num_gfr = 0,
+      num_burnin = 5,
+      num_mcmc = 5
     )),
     regexp = "Z_train is a factor"
   )
@@ -971,8 +1036,13 @@ test_that("BCF factor-valued treatment handling", {
   Z_factor_categorical <- factor(sample(c("A", "B", "C"), n, replace = TRUE))
   expect_error(
     bcf(
-      X_train = X, y_train = y, Z_train = Z_factor_categorical,
-      propensity_train = pi_X, num_gfr = 0, num_burnin = 5, num_mcmc = 5
+      X_train = X,
+      y_train = y,
+      Z_train = Z_factor_categorical,
+      propensity_train = pi_X,
+      num_gfr = 0,
+      num_burnin = 5,
+      num_mcmc = 5
     ),
     regexp = "exactly 2 levels"
   )
@@ -980,8 +1050,13 @@ test_that("BCF factor-valued treatment handling", {
   # predict.bcfmodel should also handle factor Z, raising a warning
   suppressMessages(
     bcf_model <- bcf(
-      X_train = X, y_train = y, Z_train = Z_numeric,
-      propensity_train = pi_X, num_gfr = 0, num_burnin = 5, num_mcmc = 5
+      X_train = X,
+      y_train = y,
+      Z_train = Z_numeric,
+      propensity_train = pi_X,
+      num_gfr = 0,
+      num_burnin = 5,
+      num_mcmc = 5
     )
   )
   expect_warning(
@@ -1014,40 +1089,62 @@ test_that("Warmstart BCF reuses internal propensity model", {
   test_inds <- (n_train + 1):n
 
   X_train <- X[train_inds, ]
-  X_test  <- X[test_inds, ]
+  X_test <- X[test_inds, ]
   Z_train <- Z[train_inds]
-  Z_test  <- Z[test_inds]
+  Z_test <- Z[test_inds]
   y_train <- y[train_inds]
 
   # Fit first model without propensity — triggers internal propensity BART
   m1 <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train,
-    X_test = X_test, Z_test = Z_test,
-    num_gfr = 5, num_burnin = 0, num_mcmc = 10
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    num_gfr = 5,
+    num_burnin = 0,
+    num_mcmc = 10
   )
   expect_true(m1$model_params$internal_propensity_model)
 
   # Propensity predictions from the first model's propensity BART
-  pi_train_m1 <- predict(m1$bart_propensity_model, X = X_train, terms = "y_hat", type = "mean")
+  pi_train_m1 <- predict(
+    m1$bart_propensity_model,
+    X = X_train,
+    terms = "y_hat",
+    type = "mean"
+  )
 
   # Warm-start second model from first — propensity model should be reused
   m1_json <- saveBCFModelToJsonString(m1)
   m2 <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train,
-    X_test = X_test, Z_test = Z_test,
-    num_gfr = 0, num_burnin = 0, num_mcmc = 10,
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    num_gfr = 0,
+    num_burnin = 0,
+    num_mcmc = 10,
     previous_model_json = m1_json,
     previous_model_warmstart_sample_num = 10L
   )
   expect_true(m2$model_params$internal_propensity_model)
 
   # Propensity model reused: predictions on train set should be identical
-  pi_train_m2 <- predict(m2$bart_propensity_model, X = X_train, terms = "y_hat", type = "mean")
+  pi_train_m2 <- predict(
+    m2$bart_propensity_model,
+    X = X_train,
+    terms = "y_hat",
+    type = "mean"
+  )
   expect_equal(pi_train_m1, pi_train_m2)
 
   # Output shapes should be correct
-  expect_equal(dim(m2$y_hat_train), c(n_train, 10))
-  expect_equal(dim(m2$y_hat_test),  c(n_test, 10))
+  y_hat_train <- extractParameter(m2, "y_hat_train")
+  y_hat_test <- extractParameter(m2, "y_hat_test")
+  expect_equal(dim(y_hat_train), c(n_train, 10))
+  expect_equal(dim(y_hat_test), c(n_test, 10))
 })
 
 test_that("predict.bcfmodel works with data frame X when internal propensity model is used", {
@@ -1068,9 +1165,9 @@ test_that("predict.bcfmodel works with data frame X when internal propensity mod
   test_inds <- 1:40
   train_inds <- 41:n
   X_train <- as.data.frame(X[train_inds, ])
-  X_test  <- as.data.frame(X[test_inds, ])
+  X_test <- as.data.frame(X[test_inds, ])
   Z_train <- Z[train_inds]
-  Z_test  <- Z[test_inds]
+  Z_test <- Z[test_inds]
   y_train <- y[train_inds]
 
   # No propensity_train provided — internal propensity model is fitted
@@ -1105,48 +1202,124 @@ test_that("predict(terms='tau') == tau_hat_test, tau==cate without treatment RFX
 
   n_train <- 160
   train_inds <- seq_len(n_train)
-  test_inds  <- seq(n_train + 1, n)
-  X_train <- X[train_inds, ]; X_test <- X[test_inds, ]
-  Z_train <- Z[train_inds];   Z_test <- Z[test_inds]
+  test_inds <- seq(n_train + 1, n)
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  Z_train <- Z[train_inds]
+  Z_test <- Z[test_inds]
   y_train <- y[train_inds]
-  pi_train <- pi_x[train_inds]; pi_test <- pi_x[test_inds]
+  pi_train <- pi_x[train_inds]
+  pi_test <- pi_x[test_inds]
 
   # Fit BCF with sample_intercept = TRUE (default)
   bcf_model <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train,
-    propensity_train = pi_train, X_test = X_test, Z_test = Z_test,
-    propensity_test = pi_test, num_gfr = 5, num_burnin = 0, num_mcmc = 10
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    num_gfr = 5,
+    num_burnin = 0,
+    num_mcmc = 10
   )
 
   # predict(terms = "tau") must match tau_hat_test exactly
-  tau_from_predict <- predict(bcf_model, X = X_test, Z = Z_test,
-                              propensity = pi_test, terms = "tau")
-  expect_equal(tau_from_predict, bcf_model$tau_hat_test)
+  tau_from_predict <- predict(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    terms = "tau"
+  )
+  tau_hat_test <- extractParameter(bcf_model, "tau_hat_test")
+  expect_equal(tau_from_predict, tau_hat_test)
 
   # predict(terms = "tau") == predict(terms = "cate") when no treatment RFX
-  cate_from_predict <- predict(bcf_model, X = X_test, Z = Z_test,
-                               propensity = pi_test, terms = "cate")
+  cate_from_predict <- predict(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    terms = "cate"
+  )
   expect_equal(tau_from_predict, cate_from_predict)
 
   # y_hat_test = mu_hat_test + Z_test * tau_hat_test (stored attributes decompose)
-  expected_y <- bcf_model$mu_hat_test + sweep(bcf_model$tau_hat_test, 1, as.numeric(Z_test), "*")
-  expect_equal(bcf_model$y_hat_test, expected_y)
+  tau_hat_test <- extractParameter(bcf_model, "tau_hat_test")
+  y_hat_test <- extractParameter(bcf_model, "y_hat_test")
+  mu_hat_test <- extractParameter(bcf_model, "mu_hat_test")
+  expected_y <- mu_hat_test +
+    sweep(tau_hat_test, 1, as.numeric(Z_test), "*")
+  expect_equal(y_hat_test, expected_y)
 
   # y_hat_train = mu_hat_train + Z_train * tau_hat_train
-  expected_y_train <- bcf_model$mu_hat_train + sweep(bcf_model$tau_hat_train, 1, as.numeric(Z_train), "*")
-  expect_equal(bcf_model$y_hat_train, expected_y_train)
+  tau_hat_train <- extractParameter(bcf_model, "tau_hat_train")
+  y_hat_train <- extractParameter(bcf_model, "y_hat_train")
+  mu_hat_train <- extractParameter(bcf_model, "mu_hat_train")
+  expected_y_train <- mu_hat_train +
+    sweep(tau_hat_train, 1, as.numeric(Z_train), "*")
+  expect_equal(y_hat_train, expected_y_train)
 
   # With sample_intercept = FALSE, tau includes only the forest; decomposition still holds
   bcf_no_int <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train,
-    propensity_train = pi_train, X_test = X_test, Z_test = Z_test,
-    propensity_test = pi_test, num_gfr = 5, num_burnin = 0, num_mcmc = 10,
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    num_gfr = 5,
+    num_burnin = 0,
+    num_mcmc = 10,
     treatment_effect_forest_params = list(sample_intercept = FALSE)
   )
-  tau_no_int <- predict(bcf_no_int, X = X_test, Z = Z_test,
-                        propensity = pi_test, terms = "tau")
-  expect_equal(tau_no_int, bcf_no_int$tau_hat_test)
-  expected_y_no_int <- bcf_no_int$mu_hat_test +
-    sweep(bcf_no_int$tau_hat_test, 1, as.numeric(Z_test), "*")
-  expect_equal(bcf_no_int$y_hat_test, expected_y_no_int)
+  tau_no_int <- predict(
+    bcf_no_int,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    terms = "tau"
+  )
+  tau_hat_test <- extractParameter(bcf_no_int, "tau_hat_test")
+  mu_hat_test <- extractParameter(bcf_no_int, "mu_hat_test")
+  y_hat_test <- extractParameter(bcf_no_int, "y_hat_test")
+  expect_equal(tau_no_int, tau_hat_test)
+  expected_y_no_int <- mu_hat_test +
+    sweep(tau_hat_test, 1, as.numeric(Z_test), "*")
+  expect_equal(y_hat_test, expected_y_no_int)
+})
+
+test_that("tau_0 samples are reported in the original outcome scale", {
+  skip_on_cran()
+
+  # tau_0 is stored in the original outcome scale, mirroring sigma2_global and the other parametric
+  # terms. The sampler is scale-equivariant under a fixed seed, so scaling y by c scales an
+  # original-scale tau_0 by ~c; a standardized-scale tau_0 (the pre-fix behavior) would be invariant.
+  set.seed(7)
+  n <- 200
+  p <- 5
+  X <- matrix(runif(n * p), nrow = n)
+  pi_x <- 0.4 + 0.2 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  # Strong constant treatment intercept so tau_0's posterior mean is clearly non-zero.
+  y <- (1 + 2 * X[, 1]) + (5 + X[, 2]) * Z + rnorm(n)
+
+  fit_tau0_mean <- function(scale) {
+    m <- bcf(
+      X_train = X, Z_train = Z, y_train = scale * y, propensity_train = pi_x,
+      num_gfr = 0, num_burnin = 10, num_mcmc = 40,
+      general_params = list(random_seed = 1234)
+    )
+    mean(as.numeric(m$samples$tau_0_samples()))
+  }
+
+  t1 <- fit_tau0_mean(1.0)
+  t10 <- fit_tau0_mean(10.0)
+  expect_gt(abs(t1), 0.5) # clear non-zero treatment intercept
+  # Original scale => ratio ~10; standardized storage (the bug) => ratio ~1.
+  expect_gt(t10 / t1, 7.0)
+  expect_lt(t10 / t1, 13.0)
 })

@@ -8,8 +8,6 @@
 #include <stochtree/log.h>
 #include <stochtree/random_effects.h>
 #include <stochtree/tree.h>
-#include <iostream>
-#include <memory>
 
 TEST(RandomEffects, Setup) {
   // Load test data
@@ -22,7 +20,7 @@ TEST(RandomEffects, Setup) {
   StochTree::RandomEffectsDataset dataset = StochTree::RandomEffectsDataset();
   dataset.AddBasis(test_dataset.rfx_basis.data(), test_dataset.n, test_dataset.rfx_basis_cols, test_dataset.row_major);
   dataset.AddGroupLabels(test_dataset.rfx_groups);
-  
+
   // Construct tracker, model state, and container
   StochTree::RandomEffectsTracker tracker = StochTree::RandomEffectsTracker(test_dataset.rfx_groups);
   StochTree::MultivariateRegressionRandomEffectsModel model = StochTree::MultivariateRegressionRandomEffectsModel(test_dataset.rfx_basis_cols, test_dataset.rfx_num_groups);
@@ -30,7 +28,7 @@ TEST(RandomEffects, Setup) {
 
   // Check the internal label map of the RandomEffectsTracker
   std::map<int32_t, int32_t> label_map = tracker.GetLabelMap();
-  std::map<int32_t, int32_t> expected_label_map {{1, 0}, {2, 1}};
+  std::map<int32_t, int32_t> expected_label_map{{1, 0}, {2, 1}};
   ASSERT_EQ(label_map, expected_label_map);
 }
 
@@ -45,7 +43,7 @@ TEST(RandomEffects, Construction) {
   StochTree::RandomEffectsDataset dataset = StochTree::RandomEffectsDataset();
   dataset.AddBasis(test_dataset.rfx_basis.data(), test_dataset.n, test_dataset.rfx_basis_cols, test_dataset.row_major);
   dataset.AddGroupLabels(test_dataset.rfx_groups);
-  
+
   // Construct tracker, model state, and container
   StochTree::RandomEffectsTracker tracker = StochTree::RandomEffectsTracker(test_dataset.rfx_groups);
   StochTree::MultivariateRegressionRandomEffectsModel model = StochTree::MultivariateRegressionRandomEffectsModel(test_dataset.rfx_basis_cols, test_dataset.rfx_num_groups);
@@ -65,7 +63,7 @@ TEST(RandomEffects, Construction) {
   model.SetGroupParameter(xi0, 0);
   model.SetGroupParameter(xi1, 1);
   model.SetGroupParameterCovariance(sigma);
-  
+
   // Push to the container
   container.AddSample(model);
 
@@ -83,17 +81,17 @@ TEST(RandomEffects, Construction) {
 
   // Check data in the container
   std::vector<double> alpha_retrieved = container.GetAlpha();
-  std::vector<double> alpha_expected {1.5, 2.0};
+  std::vector<double> alpha_expected{1.5, 2.0};
   for (int i = 0; i < alpha_expected.size(); i++) {
     ASSERT_EQ(alpha_retrieved[i], alpha_expected[i]);
   }
   std::vector<double> xi_retrieved = container.GetXi();
-  std::vector<double> xi_expected {2, 4, 1, 3};
+  std::vector<double> xi_expected{2, 4, 1, 3};
   for (int i = 0; i < xi_expected.size(); i++) {
     ASSERT_EQ(xi_retrieved[i], xi_expected[i]);
   }
   std::vector<double> beta_retrieved = container.GetBeta();
-  std::vector<double> beta_expected {3, 6, 2, 6};
+  std::vector<double> beta_expected{3, 6, 2, 6};
   for (int i = 0; i < beta_expected.size(); i++) {
     ASSERT_EQ(beta_retrieved[i], beta_expected[i]);
   }
@@ -111,7 +109,7 @@ TEST(RandomEffects, Computation) {
   StochTree::RandomEffectsDataset dataset = StochTree::RandomEffectsDataset();
   dataset.AddBasis(test_dataset.rfx_basis.data(), test_dataset.n, test_dataset.rfx_basis_cols, test_dataset.row_major);
   dataset.AddGroupLabels(test_dataset.rfx_groups);
-  
+
   // Construct tracker, model state, and container
   StochTree::RandomEffectsTracker tracker = StochTree::RandomEffectsTracker(test_dataset.rfx_groups);
   StochTree::MultivariateRegressionRandomEffectsModel model = StochTree::MultivariateRegressionRandomEffectsModel(test_dataset.rfx_basis_cols, test_dataset.rfx_num_groups);
@@ -134,7 +132,7 @@ TEST(RandomEffects, Computation) {
   model.SetGroupParameter(xi2, 2);
   model.SetGroupParameterCovariance(sigma);
   double sigma2 = 1.;
-  
+
   // Compute the posterior mean for the group parameters
   Eigen::VectorXd xi0_mean = model.GroupParameterMean(dataset, residual, tracker, sigma2, 0);
   Eigen::VectorXd xi1_mean = model.GroupParameterMean(dataset, residual, tracker, sigma2, 1);
@@ -167,7 +165,7 @@ TEST(RandomEffects, Predict) {
   StochTree::RandomEffectsDataset dataset = StochTree::RandomEffectsDataset();
   dataset.AddBasis(test_dataset.rfx_basis.data(), test_dataset.n, test_dataset.rfx_basis_cols, test_dataset.row_major);
   dataset.AddGroupLabels(test_dataset.rfx_groups);
-  
+
   // Construct tracker, model state, and container
   StochTree::RandomEffectsTracker tracker = StochTree::RandomEffectsTracker(test_dataset.rfx_groups);
   StochTree::MultivariateRegressionRandomEffectsModel model = StochTree::MultivariateRegressionRandomEffectsModel(test_dataset.rfx_basis_cols, test_dataset.rfx_num_groups);
@@ -187,7 +185,7 @@ TEST(RandomEffects, Predict) {
   model.SetGroupParameter(xi0, 0);
   model.SetGroupParameter(xi1, 1);
   model.SetGroupParameterCovariance(sigma);
-  
+
   // Push to the container
   container.AddSample(model);
 
@@ -205,13 +203,31 @@ TEST(RandomEffects, Predict) {
 
   // Predict from the container
   int num_samples = 2;
-  std::vector<double> output(n*num_samples);
+  std::vector<double> output(n * num_samples);
   container.Predict(dataset, label_mapper, output);
 
   // Check predictions
-  std::vector<double> output_expected {
-    3, 6, 3, 6, 3, 6, 3, 6, 3, 6, 
-    2, 6, 2, 6, 2, 6, 2, 6, 2, 6, 
+  std::vector<double> output_expected{
+      3,
+      6,
+      3,
+      6,
+      3,
+      6,
+      3,
+      6,
+      3,
+      6,
+      2,
+      6,
+      2,
+      6,
+      2,
+      6,
+      2,
+      6,
+      2,
+      6,
   };
   for (int i = 0; i < output.size(); i++) {
     ASSERT_EQ(output[i], output_expected[i]);
@@ -229,7 +245,7 @@ TEST(RandomEffects, Serialization) {
   StochTree::RandomEffectsDataset dataset = StochTree::RandomEffectsDataset();
   dataset.AddBasis(test_dataset.rfx_basis.data(), test_dataset.n, test_dataset.rfx_basis_cols, test_dataset.row_major);
   dataset.AddGroupLabels(test_dataset.rfx_groups);
-  
+
   // Construct tracker, model state, and container
   StochTree::RandomEffectsTracker tracker = StochTree::RandomEffectsTracker(test_dataset.rfx_groups);
   StochTree::MultivariateRegressionRandomEffectsModel model = StochTree::MultivariateRegressionRandomEffectsModel(test_dataset.rfx_basis_cols, test_dataset.rfx_num_groups);
@@ -249,7 +265,7 @@ TEST(RandomEffects, Serialization) {
   model.SetGroupParameter(xi0, 0);
   model.SetGroupParameter(xi1, 1);
   model.SetGroupParameterCovariance(sigma);
-  
+
   // Push to the container
   container.AddSample(model);
 

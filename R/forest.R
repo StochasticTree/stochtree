@@ -203,7 +203,7 @@ ForestSamples <- R6::R6Class(
     #' @description
     #' Create a new `ForestContainer` object from a json object
     #' @param json_object Object of class `CppJson`
-    #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy
+    #' @param json_forest_label Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy
     #' @return A new `ForestContainer` object.
     load_from_json = function(json_object, json_forest_label) {
       self$forest_container_ptr <- forest_container_from_json_cpp(
@@ -215,7 +215,7 @@ ForestSamples <- R6::R6Class(
     #' @description
     #' Append to a `ForestContainer` object from a json object
     #' @param json_object Object of class `CppJson`
-    #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy
+    #' @param json_forest_label Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy
     #' @return None
     append_from_json = function(json_object, json_forest_label) {
       forest_container_append_from_json_cpp(
@@ -228,7 +228,7 @@ ForestSamples <- R6::R6Class(
     #' @description
     #' Create a new `ForestContainer` object from a json object
     #' @param json_string JSON string which parses into object of class `CppJson`
-    #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy
+    #' @param json_forest_label Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy
     #' @return A new `ForestContainer` object.
     load_from_json_string = function(json_string, json_forest_label) {
       self$forest_container_ptr <- forest_container_from_json_string_cpp(
@@ -240,7 +240,7 @@ ForestSamples <- R6::R6Class(
     #' @description
     #' Append to a `ForestContainer` object from a json object
     #' @param json_string JSON string which parses into object of class `CppJson`
-    #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy
+    #' @param json_forest_label Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy
     #' @return None
     append_from_json_string = function(json_string, json_forest_label) {
       forest_container_append_from_json_string_cpp(

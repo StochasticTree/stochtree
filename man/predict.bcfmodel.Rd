@@ -40,7 +40,7 @@ The treatment effect terms follow a three-level hierarchy:
 \itemize{
 \item \code{"tau"} returns \code{tau_0 + tau(X)}: the parametric treatment intercept (if sampled) plus the treatment forest. This matches \code{model$tau_hat_train} / \code{model$tau_hat_test}.
 \item \code{"cate"} additionally folds in the random slope on treatment when random effects are fit with \code{rfx_model_spec = "intercept_plus_treatment"}; otherwise it is identical to \code{"tau"}.
-\item The raw forest-only component (without \code{tau_0}) is not directly returned by this method; use \code{model$forests_tau} to access it.
+\item The raw forest-only component (without \code{tau_0}) is not directly returned by this method; extract the treatment forest with \code{model$samples$materialize_tau_forest()} to access it.
 }
 
 Similarly for the prognostic term: \code{"mu"} returns the prognostic forest only, while \code{"prognostic_function"} additionally folds in the random intercept when \code{rfx_model_spec} is \code{"intercept_only"} or \code{"intercept_plus_treatment"}; otherwise the two are identical.

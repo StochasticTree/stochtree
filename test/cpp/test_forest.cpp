@@ -8,8 +8,6 @@
 #include <stochtree/ensemble.h>
 #include <stochtree/log.h>
 #include <stochtree/tree.h>
-#include <iostream>
-#include <memory>
 
 TEST(Forest, UnivariateForestConstruction) {
   int num_trees = 2;
@@ -45,13 +43,13 @@ TEST(Forest, UnivariateForestMerge) {
   dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
   dataset.AddBasis(test_dataset.omega.data(), test_dataset.n, test_dataset.omega_cols, test_dataset.row_major);
   StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), n);
-  
+
   // Create a small ensemble
   int output_dim = 1;
   int num_trees = 2;
   bool is_leaf_constant = true;
   StochTree::TreeEnsemble ensemble1(num_trees, output_dim, is_leaf_constant);
-  
+
   // Create another small ensemble
   StochTree::TreeEnsemble ensemble2(num_trees, output_dim, is_leaf_constant);
 
@@ -63,8 +61,8 @@ TEST(Forest, UnivariateForestMerge) {
   tree->ExpandNode(0, 1, tree_split, -2.5, 2.5);
 
   // Run predict on the supplied covariates and check the result for the first forest
-  std::vector<double> result(n*output_dim);
-  std::vector<double> expected_pred = {7.5,2.5,-7.5,7.5,7.5,7.5,2.5,7.5,-7.5,-2.5};
+  std::vector<double> result(n * output_dim);
+  std::vector<double> expected_pred = {7.5, 2.5, -7.5, 7.5, 7.5, 7.5, 2.5, 7.5, -7.5, -2.5};
   ensemble1.PredictInplace(dataset.GetCovariates(), result, 0);
   for (int i = 0; i < n; i++) {
     ASSERT_NEAR(expected_pred[i], result[i], 0.01);
@@ -79,8 +77,8 @@ TEST(Forest, UnivariateForestMerge) {
   tree->ExpandNode(0, 2, tree_split, -0.5, 0.5);
 
   // Run predict on the supplied covariates and check the result for the second forest
-  result = std::vector<double>(n*output_dim);
-  expected_pred = std::vector<double>{1.5,-1.5,-0.5,-0.5,1.5,1.5,-1.5,1.5,-0.5,-1.5};
+  result = std::vector<double>(n * output_dim);
+  expected_pred = std::vector<double>{1.5, -1.5, -0.5, -0.5, 1.5, 1.5, -1.5, 1.5, -0.5, -1.5};
   ensemble2.PredictInplace(dataset.GetCovariates(), result, 0);
   for (int i = 0; i < n; i++) {
     ASSERT_NEAR(expected_pred[i], result[i], 0.01);
@@ -88,8 +86,8 @@ TEST(Forest, UnivariateForestMerge) {
 
   // Merge the second forest into the first
   ensemble1.MergeForest(ensemble2);
-  result = std::vector<double>(n*output_dim);
-  expected_pred = std::vector<double>{9,1,-8,7,9,9,1,9,-8,-4};
+  result = std::vector<double>(n * output_dim);
+  expected_pred = std::vector<double>{9, 1, -8, 7, 9, 9, 1, 9, -8, -4};
   ensemble1.PredictInplace(dataset.GetCovariates(), result, 0);
   for (int i = 0; i < n; i++) {
     ASSERT_NEAR(expected_pred[i], result[i], 0.01);
@@ -108,13 +106,13 @@ TEST(Forest, UnivariateForestAdd) {
   dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
   dataset.AddBasis(test_dataset.omega.data(), test_dataset.n, test_dataset.omega_cols, test_dataset.row_major);
   StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), n);
-  
+
   // Create a small ensemble
   int output_dim = 1;
   int num_trees = 2;
   bool is_leaf_constant = true;
   StochTree::TreeEnsemble ensemble1(num_trees, output_dim, is_leaf_constant);
-  
+
   // Create another small ensemble
   StochTree::TreeEnsemble ensemble2(num_trees, output_dim, is_leaf_constant);
 
@@ -126,8 +124,8 @@ TEST(Forest, UnivariateForestAdd) {
   tree->ExpandNode(0, 1, tree_split, -2.5, 2.5);
 
   // Run predict on the supplied covariates and check the result for the first forest
-  std::vector<double> result(n*output_dim);
-  std::vector<double> expected_pred = {7.5,2.5,-7.5,7.5,7.5,7.5,2.5,7.5,-7.5,-2.5};
+  std::vector<double> result(n * output_dim);
+  std::vector<double> expected_pred = {7.5, 2.5, -7.5, 7.5, 7.5, 7.5, 2.5, 7.5, -7.5, -2.5};
   ensemble1.PredictInplace(dataset.GetCovariates(), result, 0);
   for (int i = 0; i < n; i++) {
     ASSERT_NEAR(expected_pred[i], result[i], 0.01);
@@ -137,8 +135,8 @@ TEST(Forest, UnivariateForestAdd) {
   ensemble1.AddValueToLeaves(1.0);
 
   // Run predict on the supplied covariates and check the result for the first forest
-  result = std::vector<double>(n*output_dim);
-  expected_pred = std::vector<double>{9.5,4.5,-5.5,9.5,9.5,9.5,4.5,9.5,-5.5,-0.5};
+  result = std::vector<double>(n * output_dim);
+  expected_pred = std::vector<double>{9.5, 4.5, -5.5, 9.5, 9.5, 9.5, 4.5, 9.5, -5.5, -0.5};
   ensemble1.PredictInplace(dataset.GetCovariates(), result, 0);
   for (int i = 0; i < n; i++) {
     ASSERT_NEAR(expected_pred[i], result[i], 0.01);
@@ -153,8 +151,8 @@ TEST(Forest, UnivariateForestAdd) {
   tree->ExpandNode(0, 2, tree_split, -0.5, 0.5);
 
   // Run predict on the supplied covariates and check the result for the second forest
-  result = std::vector<double>(n*output_dim);
-  expected_pred = std::vector<double>{1.5,-1.5,-0.5,-0.5,1.5,1.5,-1.5,1.5,-0.5,-1.5};
+  result = std::vector<double>(n * output_dim);
+  expected_pred = std::vector<double>{1.5, -1.5, -0.5, -0.5, 1.5, 1.5, -1.5, 1.5, -0.5, -1.5};
   ensemble2.PredictInplace(dataset.GetCovariates(), result, 0);
   for (int i = 0; i < n; i++) {
     ASSERT_NEAR(expected_pred[i], result[i], 0.01);
@@ -164,8 +162,8 @@ TEST(Forest, UnivariateForestAdd) {
   ensemble2.AddValueToLeaves(-1.0);
 
   // Run predict on the supplied covariates and check the result for the first forest
-  result = std::vector<double>(n*output_dim);
-  expected_pred = std::vector<double>{-0.5,-3.5,-2.5,-2.5,-0.5,-0.5,-3.5,-0.5,-2.5,-3.5};
+  result = std::vector<double>(n * output_dim);
+  expected_pred = std::vector<double>{-0.5, -3.5, -2.5, -2.5, -0.5, -0.5, -3.5, -0.5, -2.5, -3.5};
   ensemble2.PredictInplace(dataset.GetCovariates(), result, 0);
   for (int i = 0; i < n; i++) {
     ASSERT_NEAR(expected_pred[i], result[i], 0.01);
@@ -173,8 +171,8 @@ TEST(Forest, UnivariateForestAdd) {
 
   // Merge the second forest into the first
   ensemble1.MergeForest(ensemble2);
-  result = std::vector<double>(n*output_dim);
-  expected_pred = std::vector<double>{9,1,-8,7,9,9,1,9,-8,-4};
+  result = std::vector<double>(n * output_dim);
+  expected_pred = std::vector<double>{9, 1, -8, 7, 9, 9, 1, 9, -8, -4};
   ensemble1.PredictInplace(dataset.GetCovariates(), result, 0);
   for (int i = 0; i < n; i++) {
     ASSERT_NEAR(expected_pred[i], result[i], 0.01);
@@ -182,11 +180,10 @@ TEST(Forest, UnivariateForestAdd) {
 
   // Merge the second forest into the first
   ensemble1.MultiplyLeavesByValue(2.0);
-  result = std::vector<double>(n*output_dim);
-  expected_pred = std::vector<double>{18,2,-16,14,18,18,2,18,-16,-8};
+  result = std::vector<double>(n * output_dim);
+  expected_pred = std::vector<double>{18, 2, -16, 14, 18, 18, 2, 18, -16, -8};
   ensemble1.PredictInplace(dataset.GetCovariates(), result, 0);
   for (int i = 0; i < n; i++) {
     ASSERT_NEAR(expected_pred[i], result[i], 0.01);
   }
 }
-

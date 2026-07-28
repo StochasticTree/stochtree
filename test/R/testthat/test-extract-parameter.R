@@ -363,3 +363,67 @@ test_that("extractParameter.bcfmodel", {
     "not a valid BCF model term"
   )
 })
+
+test_that("extractForest.bcfmodel", {
+  skip_on_cran()
+
+  set.seed(42)
+  n <- 100
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  pi_X <- 0.2 + 0.6 * X[, 1]
+  Z <- rbinom(n, 1, pi_X)
+  y <- 5 * X[, 1] + 2 * X[, 2] * Z + rnorm(n)
+
+  bcf_model <- bcf(
+    X_train = X, y_train = y, Z_train = Z, propensity_train = pi_X,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10
+  )
+
+  # Prognostic / treatment forests are extractable under all aliases; variance forest is absent.
+  expect_s3_class(extractForest(bcf_model, "prognostic"), "ForestSamples")
+  expect_s3_class(extractForest(bcf_model, "mu"), "ForestSamples")
+  expect_s3_class(extractForest(bcf_model, "treatment"), "ForestSamples")
+  expect_s3_class(extractForest(bcf_model, "tau"), "ForestSamples")
+  expect_error(extractForest(bcf_model, "variance"), "does not have a variance forest")
+  expect_error(extractForest(bcf_model, "not_a_forest"), "not a valid BCF forest term")
+})
+
+test_that("extractRandomEffectSamples matches legacy getRandomEffectSamples (BART + BCF)", {
+  skip_on_cran()
+
+  set.seed(42)
+  n <- 200
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  g <- sample(1:3, n, replace = TRUE)
+  rb <- matrix(rep(1, n), ncol = 1)
+
+  # BART
+  y_bart <- 2 * X[, 1] + (-2 * (g == 1) + 2 * (g == 2)) + rnorm(n)
+  bart_model <- bart(
+    X_train = X, y_train = y_bart, rfx_group_ids_train = g, rfx_basis_train = rb,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10
+  )
+  e_bart <- extractRandomEffectSamples(bart_model)
+  expect_setequal(names(e_bart), c("beta_samples", "xi_samples", "alpha_samples", "sigma_samples"))
+  expect_identical(e_bart, getRandomEffectSamples(bart_model))
+
+  # BCF
+  pi_X <- 0.2 + 0.6 * X[, 1]
+  Z <- rbinom(n, 1, pi_X)
+  y_bcf <- 5 * X[, 1] + 2 * X[, 2] * Z + (-2 * (g == 1) + 2 * (g == 2)) + rnorm(n)
+  bcf_model <- bcf(
+    X_train = X, y_train = y_bcf, Z_train = Z, propensity_train = pi_X,
+    rfx_group_ids_train = g, rfx_basis_train = rb,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10
+  )
+  e_bcf <- extractRandomEffectSamples(bcf_model)
+  expect_setequal(names(e_bcf), c("beta_samples", "xi_samples", "alpha_samples", "sigma_samples"))
+  expect_identical(e_bcf, getRandomEffectSamples(bcf_model))
+
+  # No-rfx model warns and returns an empty list
+  bart_norfx <- bart(X_train = X, y_train = y_bart, num_gfr = 0, num_burnin = 0, num_mcmc = 5)
+  expect_warning(res <- extractRandomEffectSamples(bart_norfx), "no RFX terms")
+  expect_length(res, 0)
+})

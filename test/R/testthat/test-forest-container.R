@@ -162,8 +162,8 @@ test_that("Collapse forests", {
     general_params = general_param_list
   )
 
-  # Extract the mean forest container
-  mean_forest_container <- bart_model$mean_forests
+  # Extract the mean forest container (a standalone deep copy we can mutate)
+  mean_forest_container <- bart_model$samples$materialize_mean_forest()
 
   # Predict from the original container
   pred_orig <- mean_forest_container$predict(forest_dataset_test)
@@ -208,8 +208,8 @@ test_that("Collapse forests", {
     general_params = general_param_list
   )
 
-  # Extract the mean forest container
-  mean_forest_container <- bart_model$mean_forests
+  # Extract the mean forest container (a standalone deep copy we can mutate)
+  mean_forest_container <- bart_model$samples$materialize_mean_forest()
 
   # Predict from the original container
   pred_orig <- mean_forest_container$predict(forest_dataset_test)
@@ -254,8 +254,8 @@ test_that("Collapse forests", {
     general_params = general_param_list
   )
 
-  # Extract the mean forest container
-  mean_forest_container <- bart_model$mean_forests
+  # Extract the mean forest container (a standalone deep copy we can mutate)
+  mean_forest_container <- bart_model$samples$materialize_mean_forest()
 
   # Predict from the original container
   pred_orig <- mean_forest_container$predict(forest_dataset_test)
@@ -286,8 +286,8 @@ test_that("Collapse forests", {
     general_params = general_param_list
   )
 
-  # Extract the mean forest container
-  mean_forest_container <- bart_model$mean_forests
+  # Extract the mean forest container (a standalone deep copy we can mutate)
+  mean_forest_container <- bart_model$samples$materialize_mean_forest()
 
   # Predict from the original container
   pred_orig <- mean_forest_container$predict(forest_dataset_test)
