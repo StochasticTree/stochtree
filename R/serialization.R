@@ -1,3 +1,210 @@
+# -----------------------------------------------------------------------------
+# Serialized model envelope schema version (RFC 0005).
+#
+# Integer identifying the structure of the serialized BART/BCF JSON envelope.
+# Bumped ONLY on a breaking change (rename / remove / re-type a field, change a
+# field's meaning, or change a structural convention). Additive, safely-defaulted
+# fields do NOT bump it -- they are handled by "augmentation" on read (see the
+# defaults registry below and the `get_*_or_default` methods on `CppJson`).
+#
+# Kept in sync with the Python `SCHEMA_VERSION` (stochtree/serialization.py). The
+# two are independent constants by design (each language owns its serde); their
+# agreement is enforced by the cross-platform golden fixtures, not by sharing a value.
+STOCHTREE_SCHEMA_VERSION <- 1L
+
+# -----------------------------------------------------------------------------
+# Augmentation defaults registry (schema_version = 1)
+#
+# Every OPTIONAL envelope field that may be ABSENT from a model written by an
+# earlier release at the SAME schema_version must be read with a default that
+# reproduces that model's pre-field behavior. This list is the single source of
+# truth for "which fields need defaulting"; read those fields via the `CppJson`
+# `get_scalar_or_default` / `get_boolean_or_default` / `get_string_or_default`
+# helpers (never a bare required getter).
+#
+#   field                       default        (behavior when absent)
+#   "outcome"                   "continuous"
+#   "link"                      "identity"
+#   "multivariate_treatment"    FALSE
+#   "internal_propensity_model" FALSE
+#   "has_rfx_basis"             FALSE
+#   ... (add a row whenever you add an additive field)
+#
+# If a new field has NO behavior-preserving default, it is NOT additive: bump
+# STOCHTREE_SCHEMA_VERSION and add a migrate_v{N}_to_v{N+1} step instead.
+# -----------------------------------------------------------------------------
+
+# Read the envelope schema_version and enforce the RFC 0005 reader rules. Returns
+# the loaded version (0 = legacy / absent). A stamp that is present but not a
+# non-negative integer (a non-numeric value like "unknown", or a negative) is a hard
+# error. Errors if the model was written by a newer stochtree than this installation
+# supports. A
+# value below the current version is the hook for the migration ladder (no rungs exist
+# yet at version 1; legacy v0 models are handled by field-presence default-filling
+# during parsing).
+resolveSchemaVersion <- function(json_object, migrate = NULL) {
+  bad_version_msg <- paste0(
+    "This model has an unrecognized 'schema_version' stamp (expected a non-negative ",
+    "integer). The file may be corrupt or written by an incompatible tool."
+  )
+  if (!json_object$contains("schema_version")) {
+    loaded <- 0L # legacy / absent stamp -> v0
+  } else {
+    loaded <- tryCatch(
+      json_object$get_integer("schema_version"),
+      error = function(e) stop(bad_version_msg)
+    )
+    if (length(loaded) != 1L || is.na(loaded) || loaded < 0L) {
+      stop(bad_version_msg)
+    }
+  }
+  if (loaded > STOCHTREE_SCHEMA_VERSION) {
+    stop(sprintf(
+      paste0(
+        "This model was serialized with schema_version=%d, but this installation of ",
+        "stochtree supports up to schema_version=%d. Please upgrade stochtree to load it."
+      ),
+      loaded,
+      STOCHTREE_SCHEMA_VERSION
+    ))
+  }
+  if (loaded < STOCHTREE_SCHEMA_VERSION && !is.null(migrate)) {
+    # Dispatch owns the migration: upgrade the JSON in place to the current
+    # schema before the (v1-only) parser runs.
+    migrate(json_object, loaded)
+  }
+  loaded
+}
+
+# Infer the writer platform of a legacy (v0) envelope from structural
+# fingerprints. R wrote `preprocessor_metadata` and a top-level
+# `rfx_unique_group_ids`; Python wrote `covariate_preprocessor`. Called before
+# the v0 -> v1 renames, so the legacy keys are still present. Falls back to
+# `default` (the loading platform) when no fingerprint is decisive.
+inferPlatformV0 <- function(json_object, default) {
+  if (json_object$contains("covariate_preprocessor")) {
+    return("python")
+  }
+  if (
+    json_object$contains("preprocessor_metadata") ||
+      json_object$contains("rfx_unique_group_ids")
+  ) {
+    return("R")
+  }
+  default
+}
+
+# Return TRUE iff this is a cross-platform load (writer `platform` != loader).
+# For a cross-platform load, verify the model is portable (all-numeric covariates)
+# and rfx-compatible (integer group ids); otherwise stop() with a clear, actionable
+# error. Same-platform loads return FALSE and ignore the flags. The portability
+# flag is peeked from the covariate_preprocessor JSON via the C++ parser -- the
+# foreign native preprocessor is never reconstructed. An absent portability flag
+# is treated as non-portable (e.g. legacy v0 models), so such a cross-platform load
+# is refused rather than mis-handled.
+enforceCrossPlatformGate <- function(json_object, loader_platform) {
+  writer_platform <- json_object$get_string_or_default(
+    "platform",
+    loader_platform
+  )
+  if (identical(writer_platform, loader_platform)) {
+    return(FALSE)
+  }
+  portable <- FALSE
+  non_portable_columns <- ""
+  if (json_object$contains("covariate_preprocessor")) {
+    prep <- createCppJsonString(json_object$get_string(
+      "covariate_preprocessor"
+    ))
+    portable <- prep$get_boolean_or_default("cross_platform_portable", FALSE)
+    non_portable_columns <- prep$get_string_or_default(
+      "non_portable_columns",
+      ""
+    )
+  }
+  compatible <- json_object$get_boolean_or_default(
+    "cross_platform_compatible",
+    TRUE,
+    subfolder_name = "random_effects"
+  )
+  if (!portable) {
+    stop(sprintf(
+      paste0(
+        "Cannot load a model written on platform '%s' from '%s': it was fit with ",
+        "non-numeric covariates (columns: %s), which are not cross-platform portable. ",
+        "Load it on '%s', or refit / re-save with all-numeric covariates."
+      ),
+      writer_platform,
+      loader_platform,
+      if (nzchar(non_portable_columns)) non_portable_columns else "unknown",
+      writer_platform
+    ))
+  }
+  if (!compatible) {
+    stop(sprintf(
+      paste0(
+        "Cannot load a model written on platform '%s' from '%s': it has string-labeled ",
+        "random effects, which are not cross-platform compatible (only integer-valued ",
+        "group ids are). Load it on '%s'."
+      ),
+      writer_platform,
+      loader_platform,
+      writer_platform
+    ))
+  }
+  TRUE
+}
+
+# Minimal identity preprocessor metadata for a cross-platform all-numeric load.
+# The foreign native preprocessor can't be reconstructed, but the model is
+# all-numeric (gate enforced), so prediction on a numeric matrix passes through;
+# the feature count is read from the foreign preprocessor for the dimension check.
+buildIdentityPreprocessorMetadata <- function(json_object) {
+  n_features <- 0L
+  if (json_object$contains("covariate_preprocessor")) {
+    prep <- createCppJsonString(json_object$get_string(
+      "covariate_preprocessor"
+    ))
+    n_features <- prep$get_integer_or_default(
+      "num_original_features",
+      prep$get_integer_or_default("num_numeric_vars", 0L)
+    )
+  }
+  # A complete all-numeric metadata: predict only needs `num_numeric_vars`, but
+  # the extra fields let a cross-loaded model be re-saved (savePreprocessorToJson
+  # requires feature_types / original_var_indices / numeric_vars). Original column
+  # names are unknown cross-platform, so use positional placeholders.
+  list(
+    num_numeric_vars = n_features,
+    num_ordered_cat_vars = 0,
+    num_unordered_cat_vars = 0,
+    feature_types = rep(0, n_features),
+    original_var_indices = seq_len(n_features),
+    numeric_vars = as.character(seq_len(n_features))
+  )
+}
+
+# Resolve rfx group-id levels: read `rfx_unique_group_ids` when present (R-written
+# models), or reconstruct sorted integer levels from the rfx label mapper when
+# absent (e.g. a cross-platform Python model, which never writes that field).
+resolveRfxUniqueGroupIds <- function(json_object, rfx_samples) {
+  if (
+    json_object$contains(
+      "rfx_unique_group_ids",
+      subfolder_name = "random_effects"
+    )
+  ) {
+    json_object$get_string_vector(
+      "rfx_unique_group_ids",
+      subfolder_name = "random_effects"
+    )
+  } else {
+    as.character(
+      rfx_label_mapper_unique_group_ids_cpp(rfx_samples$label_mapper_ptr)
+    )
+  }
+}
+
 #' Forest Container Serialization Routines
 #' @name ForestSamplesSerialization
 #' @description
@@ -6,7 +213,7 @@
 #' loading a single [ForestSamples] container from a broader BART / BCF model (which may include multiple forests and other parametric terms).
 #'
 #' `loadForestContainerJson` converts a [CppJson] object representing a BART or BCF model into a [ForestSamples] container
-#' by extracting the JSON indexed by a forest label (i.e. `"forest_0"`) and deserializing it into a [ForestSamples] object.
+#' by extracting the JSON indexed by a forest label (i.e. `"mean_forest"`) and deserializing it into a [ForestSamples] object.
 #'
 #' Both `loadForestContainerJson` and `loadForestContainerCombinedJson` operate similarly, but on a list of [CppJson] or JSON string
 #' representations of BART / BCF models with the same structure.
@@ -24,9 +231,9 @@
 #' bart_json_string <- saveBARTModelToJsonString(bart_model)
 #' bart_json_list <- list(bart_json)
 #' bart_json_string_list <- list(bart_json_string)
-#' mean_forest <- loadForestContainerJson(bart_json, "forest_0")
-#' mean_forest <- loadForestContainerCombinedJson(bart_json_list, "forest_0")
-#' mean_forest <- loadForestContainerCombinedJsonString(bart_json_string_list, "forest_0")
+#' mean_forest <- loadForestContainerJson(bart_json, "mean_forest")
+#' mean_forest <- loadForestContainerCombinedJson(bart_json_list, "mean_forest")
+#' mean_forest <- loadForestContainerCombinedJsonString(bart_json_string_list, "mean_forest")
 #'
 NULL
 #> NULL
@@ -118,14 +325,18 @@ CppJson <- R6::R6Class(
     #' @description
     #' Convert a forest container to json and add to the current `CppJson` object
     #' @param forest_samples `ForestSamples` R class
+    #' @param forest_label Key under the `forests` subfolder to store this
+    #'   container. Defaults to an auto-numbered `forest_<n>` label when empty.
     #' @return None
-    add_forest = function(forest_samples) {
+    add_forest = function(forest_samples, forest_label = "") {
       forest_label <- json_add_forest_cpp(
         self$json_ptr,
-        forest_samples$forest_container_ptr
+        forest_samples$forest_container_ptr,
+        forest_label
       )
       self$num_forests <- self$num_forests + 1
       self$forest_labels <- c(self$forest_labels, forest_label)
+      invisible(forest_label)
     },
 
     #' @description
@@ -449,6 +660,135 @@ CppJson <- R6::R6Class(
     },
 
     #' @description
+    #' Whether the json object contains a field "field_name" (with optional subfolder "subfolder_name")
+    #' @param field_name The name of the field to check for
+    #' @param subfolder_name (Optional) Name of the subfolder / hierarchy
+    #' @return Logical, `TRUE` if the field is present
+    contains = function(field_name, subfolder_name = NULL) {
+      if (is.null(subfolder_name)) {
+        json_contains_field_cpp(self$json_ptr, field_name)
+      } else {
+        json_contains_field_subfolder_cpp(
+          self$json_ptr,
+          subfolder_name,
+          field_name
+        )
+      }
+    },
+
+    #' @description
+    #' Retrieve a scalar value, returning `default` if the field is absent. Used to
+    #' "augment" older JSON within a schema version (see RFC 0005).
+    #' @param field_name The name of the field
+    #' @param default Value returned if the field is absent
+    #' @param subfolder_name (Optional) Name of the subfolder / hierarchy
+    #' @return The stored value, or `default` if absent
+    get_scalar_or_default = function(
+      field_name,
+      default,
+      subfolder_name = NULL
+    ) {
+      if (self$contains(field_name, subfolder_name)) {
+        self$get_scalar(field_name, subfolder_name)
+      } else {
+        default
+      }
+    },
+
+    #' @description
+    #' Retrieve an integer value, returning `default` if the field is absent.
+    #' @param field_name The name of the field
+    #' @param default Value returned if the field is absent
+    #' @param subfolder_name (Optional) Name of the subfolder / hierarchy
+    #' @return The stored value, or `default` if absent
+    get_integer_or_default = function(
+      field_name,
+      default,
+      subfolder_name = NULL
+    ) {
+      if (self$contains(field_name, subfolder_name)) {
+        self$get_integer(field_name, subfolder_name)
+      } else {
+        default
+      }
+    },
+
+    #' @description
+    #' Retrieve a boolean value, returning `default` if the field is absent.
+    #' @param field_name The name of the field
+    #' @param default Value returned if the field is absent
+    #' @param subfolder_name (Optional) Name of the subfolder / hierarchy
+    #' @return The stored value, or `default` if absent
+    get_boolean_or_default = function(
+      field_name,
+      default,
+      subfolder_name = NULL
+    ) {
+      if (self$contains(field_name, subfolder_name)) {
+        self$get_boolean(field_name, subfolder_name)
+      } else {
+        default
+      }
+    },
+
+    #' @description
+    #' Retrieve a string value, returning `default` if the field is absent.
+    #' @param field_name The name of the field
+    #' @param default Value returned if the field is absent
+    #' @param subfolder_name (Optional) Name of the subfolder / hierarchy
+    #' @return The stored value, or `default` if absent
+    get_string_or_default = function(
+      field_name,
+      default,
+      subfolder_name = NULL
+    ) {
+      if (self$contains(field_name, subfolder_name)) {
+        self$get_string(field_name, subfolder_name)
+      } else {
+        default
+      }
+    },
+
+    #' @description
+    #' Rename a field "old_name" to "new_name" (with optional subfolder). No-op if
+    #' "old_name" is absent. Used by JSON schema migrations (RFC 0005).
+    #' @param old_name Current field name
+    #' @param new_name New field name
+    #' @param subfolder_name (Optional) Name of the subfolder / hierarchy
+    #' @return None
+    rename_field = function(old_name, new_name, subfolder_name = NULL) {
+      if (is.null(subfolder_name)) {
+        json_rename_field_cpp(self$json_ptr, old_name, new_name)
+      } else {
+        json_rename_field_subfolder_cpp(
+          self$json_ptr,
+          subfolder_name,
+          old_name,
+          new_name
+        )
+      }
+      invisible(self)
+    },
+
+    #' @description
+    #' Erase a field "field_name" (with optional subfolder). No-op if absent.
+    #' @param field_name The name of the field to erase
+    #' @param subfolder_name (Optional) Name of the subfolder / hierarchy
+    #' @return None
+    erase_field = function(field_name, subfolder_name = NULL) {
+      if (is.null(subfolder_name)) {
+        json_erase_field_cpp(self$json_ptr, field_name)
+      } else {
+        json_erase_field_subfolder_cpp(
+          self$json_ptr,
+          subfolder_name,
+          field_name
+        )
+      }
+      invisible(self)
+    },
+
+    #' @description
     #' Retrieve a vector from the json object under the name "field_name" (with optional subfolder "subfolder_name")
     #' @param field_name The name of the field to be accessed from json
     #' @param subfolder_name (Optional) Name of the subfolder / hierarchy under which the field is stored
@@ -598,7 +938,7 @@ CppJson <- R6::R6Class(
 #' @title Load Forest Samples from JSON
 #' @rdname ForestSamplesSerialization
 #' @param json_object Object of class `CppJson`
-#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
+#' @param json_forest_label Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
 #' @export
 loadForestContainerJson <- function(json_object, json_forest_label) {
   invisible(output <- ForestSamples$new(0, 1, T))
@@ -609,7 +949,7 @@ loadForestContainerJson <- function(json_object, json_forest_label) {
 #' @title Combine JSON Model Objects into ForestSamples
 #' @rdname ForestSamplesSerialization
 #' @param json_object_list List of objects of class `CppJson`
-#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
+#' @param json_forest_label Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
 #' @export
 loadForestContainerCombinedJson <- function(
   json_object_list,
@@ -630,7 +970,7 @@ loadForestContainerCombinedJson <- function(
 #' @title Combine JSON Strings into ForestSamples
 #' @rdname ForestSamplesSerialization
 #' @param json_string_list List of strings that parse into objects of type `CppJson`
-#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
+#' @param json_forest_label Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
 #' @export
 loadForestContainerCombinedJsonString <- function(
   json_string_list,

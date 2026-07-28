@@ -12,7 +12,7 @@
 
 namespace StochTree {
 
-/*! \brief Sample without replacement according to a set of probability weights. 
+/*! \brief Sample without replacement according to a set of probability weights.
  * This template function is a C++ variant of numpy's implementation:
  * https://github.com/numpy/numpy/blob/031f44252d613f4524ad181e3eb2ae2791e22187/numpy/random/_generator.pyx#L925
  */
@@ -23,19 +23,19 @@ void sample_without_replacement(container_type* output, prob_type* p, container_
   std::vector<int> indices(sample_size);
   std::vector<prob_type> unif_samples(sample_size);
   std::vector<prob_type> cdf(population_size);
-  
+
   int fulfilled_sample_count = 0;
   int remaining_sample_count = sample_size - fulfilled_sample_count;
   while (fulfilled_sample_count < sample_size) {
     if (fulfilled_sample_count > 0) {
       for (int i = 0; i < fulfilled_sample_count; i++) p_copy[indices[i]] = 0.0;
     }
-    std::generate(unif_samples.begin(), unif_samples.begin() + remaining_sample_count, [&gen](){
+    std::generate(unif_samples.begin(), unif_samples.begin() + remaining_sample_count, [&gen]() {
       return standard_uniform_draw_53bit(gen);
     });
     std::partial_sum(p_copy.cbegin(), p_copy.cend(), cdf.begin());
     for (int i = 0; i < cdf.size(); i++) {
-      cdf[i] = cdf[i] / cdf[cdf.size()-1];
+      cdf[i] = cdf[i] / cdf[cdf.size() - 1];
     }
     std::vector<int> matches(remaining_sample_count);
     for (int i = 0; i < remaining_sample_count; i++) {
@@ -60,6 +60,6 @@ void sample_without_replacement(container_type* output, prob_type* p, container_
   }
 }
 
-}
+}  // namespace StochTree
 
-#endif // STOCHTREE_DISCRETE_SAMPLER_H_
+#endif  // STOCHTREE_DISCRETE_SAMPLER_H_

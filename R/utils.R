@@ -395,15 +395,15 @@ preprocessTrainDataFrame <- function(input_df) {
     original_var_indices = original_var_indices
   )
   if (num_ordered_cat_vars > 0) {
-    metadata[["ordered_cat_vars"]] = ordered_cat_vars
-    metadata[["ordered_unique_levels"]] = ordered_unique_levels
+    metadata[["ordered_cat_vars"]] <- ordered_cat_vars
+    metadata[["ordered_unique_levels"]] <- ordered_unique_levels
   }
   if (num_unordered_cat_vars > 0) {
-    metadata[["unordered_cat_vars"]] = unordered_cat_vars
-    metadata[["unordered_unique_levels"]] = unordered_unique_levels
+    metadata[["unordered_cat_vars"]] <- unordered_cat_vars
+    metadata[["unordered_unique_levels"]] <- unordered_unique_levels
   }
   if (num_numeric_vars > 0) {
-    metadata[["numeric_vars"]] = numeric_vars
+    metadata[["numeric_vars"]] <- numeric_vars
   }
   output <- list(
     data = X,
@@ -552,6 +552,24 @@ savePreprocessorToJson <- function(object) {
         "unordered_unique_levels"
       )
     }
+  }
+
+  # Cross-platform portability (RFC 0005): portable iff every covariate is
+  # numeric (no categorical encoding). The cross-platform loader peeks at this
+  # flag via a plain JSON parse without reconstructing the native preprocessor.
+  portable <- (object$num_ordered_cat_vars == 0) &&
+    (object$num_unordered_cat_vars == 0)
+  jsonobj$add_boolean("cross_platform_portable", portable)
+  if (!portable) {
+    non_portable_columns <- c(
+      if (object$num_ordered_cat_vars > 0) object$ordered_cat_vars else NULL,
+      if (object$num_unordered_cat_vars > 0) object$unordered_cat_vars else NULL
+    )
+    # String for the cross-platform refusal message (the gate only branches on the boolean above).
+    jsonobj$add_string(
+      "non_portable_columns",
+      paste(non_portable_columns, collapse = ", ")
+    )
   }
 
   return(jsonobj)
@@ -777,15 +795,15 @@ createForestCovariates <- function(
     num_numeric_vars = num_numeric_vars
   )
   if (num_ordered_cat_vars > 0) {
-    metadata[["ordered_cat_vars"]] = ordered_cat_vars
-    metadata[["ordered_unique_levels"]] = ordered_unique_levels
+    metadata[["ordered_cat_vars"]] <- ordered_cat_vars
+    metadata[["ordered_unique_levels"]] <- ordered_unique_levels
   }
   if (num_unordered_cat_vars > 0) {
-    metadata[["unordered_cat_vars"]] = unordered_cat_vars
-    metadata[["unordered_unique_levels"]] = unordered_unique_levels
+    metadata[["unordered_cat_vars"]] <- unordered_cat_vars
+    metadata[["unordered_unique_levels"]] <- unordered_unique_levels
   }
   if (num_numeric_vars > 0) {
-    metadata[["numeric_vars"]] = numeric_vars
+    metadata[["numeric_vars"]] <- numeric_vars
   }
   output <- list(
     data = X,
@@ -1236,10 +1254,240 @@ inferStochtreeJsonVersion <- function(json_object) {
     return("<0.3.2")
   }
 
-  # rfx_model_spec and preprocessor_metadata were added in ~0.3.0
-  if (!has_field("rfx_model_spec") || !has_field("preprocessor_metadata")) {
+  # rfx_model_spec and the covariate preprocessor were added in ~0.3.0. The
+  # preprocessor key is `preprocessor_metadata` in legacy R JSON and
+  # `covariate_preprocessor` in v1 / Python JSON, so accept either.
+  if (
+    !has_field("rfx_model_spec") ||
+      (!has_field("preprocessor_metadata") &&
+        !has_field("covariate_preprocessor"))
+  ) {
     return("<0.3.0")
   }
 
   return("unknown")
+}
+
+#' Overlay changeable continuation parameters onto a cached sampler config.
+#'
+#' Shared by `continueSampling.bartmodel()` and `continueSampling.bcfmodel()`. For each user-supplied
+#' parameter whose name is present in `mapping`, the corresponding internal config key is overwritten;
+#' parameters not in `mapping` are ignored with a warning (they cannot be changed mid-chain).
+#'
+#' @param config The cached sampler config list to overlay onto.
+#' @param user_params Named list of user-supplied changeable parameters.
+#' @param mapping Named list mapping user-facing parameter names to internal config keys.
+#' @param list_name Human-readable name of the parameter list (used in the warning message).
+#' @return The updated config list.
+#' @keywords internal
+#' @noRd
+overlayContinuationParams <- function(config, user_params, mapping, list_name) {
+  if (length(user_params) == 0) {
+    return(config)
+  }
+  unknown <- setdiff(names(user_params), names(mapping))
+  if (length(unknown) > 0) {
+    warning(
+      "The following ",
+      list_name,
+      " cannot be changed on continuation and will be ignored: ",
+      paste(unknown, collapse = ", ")
+    )
+  }
+  for (key in intersect(names(user_params), names(mapping))) {
+    val <- user_params[[key]]
+    if (!is.null(val)) config[[mapping[[key]]]] <- val
+  }
+  config
+}
+
+#' Resolve a forest's variable subset from keep_vars / drop_vars.
+#'
+#' Refactors logic that is common to both bart() and `continueSampler()`: `keep_vars` (if supplied) selects the included
+#' variables; otherwise `drop_vars` (if supplied) selects the excluded variables; otherwise all
+#' variables are included. Both may be supplied as character variable names (matched against
+#' `names(X_train)`) or as integer column indices. Returns a vector of 1-indexed original variable
+#' indices. `X_train` must be the raw (pre-preprocessing) covariate object.
+#'
+#' @param keep_vars Variables to include (names or indices), or NULL.
+#' @param drop_vars Variables to exclude (names or indices), or NULL. Ignored if `keep_vars` is set.
+#' @param X_train Raw covariate matrix / dataframe (used for column count and, for character
+#'   selectors, column names).
+#' @param forest_label Short label ("mean" / "variance") used in error messages.
+#' @return Integer vector of included original variable indices.
+#' @keywords internal
+#' @noRd
+resolveVariableSubset <- function(keep_vars, drop_vars, X_train, forest_label) {
+  ncov <- ncol(X_train)
+  if (!is.null(keep_vars)) {
+    if (is.character(keep_vars)) {
+      if (!all(keep_vars %in% names(X_train))) {
+        stop(sprintf(
+          "keep_vars_%s includes some variable names that are not in X_train",
+          forest_label
+        ))
+      }
+      return(unname(which(names(X_train) %in% keep_vars)))
+    }
+    if (any(keep_vars > ncov)) {
+      stop(sprintf(
+        "keep_vars_%s includes some variable indices that exceed the number of columns in X_train",
+        forest_label
+      ))
+    }
+    if (any(keep_vars < 0)) {
+      stop(sprintf(
+        "keep_vars_%s includes some negative variable indices",
+        forest_label
+      ))
+    }
+    return(keep_vars)
+  } else if (!is.null(drop_vars)) {
+    if (is.character(drop_vars)) {
+      if (!all(drop_vars %in% names(X_train))) {
+        stop(sprintf(
+          "drop_vars_%s includes some variable names that are not in X_train",
+          forest_label
+        ))
+      }
+      return(unname(which(!(names(X_train) %in% drop_vars))))
+    }
+    if (any(drop_vars > ncov)) {
+      stop(sprintf(
+        "drop_vars_%s includes some variable indices that exceed the number of columns in X_train",
+        forest_label
+      ))
+    }
+    if (any(drop_vars < 0)) {
+      stop(sprintf(
+        "drop_vars_%s includes some negative variable indices",
+        forest_label
+      ))
+    }
+    return((1:ncov)[!(1:ncov %in% drop_vars)])
+  }
+  return(1:ncov)
+}
+
+#' Expand per-variable split weights to the preprocessed feature space.
+#'
+#' Refactors logic that is common to both `bart()` and `continueSampler()`: each original variable's weight is spread evenly across
+#' its preprocessed (e.g. one-hot expanded) feature columns, and features whose original variable is
+#' not in `variable_subset` are zeroed out.
+#'
+#' @param variable_weights Numeric per-original-variable weights (length = number of original covariates).
+#' @param original_var_indices Integer vector mapping each preprocessed feature to its original
+#'   variable index (from the covariate preprocessor metadata).
+#' @param variable_subset Integer vector of included original variable indices.
+#' @return Numeric vector of expanded per-feature weights.
+#' @keywords internal
+#' @noRd
+expandVariableWeights <- function(
+  variable_weights,
+  original_var_indices,
+  variable_subset
+) {
+  variable_weights_adj <- 1 /
+    sapply(original_var_indices, function(x) sum(original_var_indices == x))
+  expanded <- variable_weights[original_var_indices] * variable_weights_adj
+  expanded[!(original_var_indices %in% variable_subset)] <- 0
+  expanded
+}
+
+#' Compute the full set of BCF per-forest split-variable weights.
+#'
+#' Refactors logic shared by `bcf()` and `continueSampling.bcfmodel()` so the fit and continuation
+#' paths cannot drift. For each forest it (1) expands the per-original-variable weights across the
+#' preprocessed feature columns and zeroes out variables excluded from that forest's subset, (2)
+#' appends weights for the propensity column(s) according to `propensity_covariate`, and (3)
+#' renormalizes each forest's weights to sum to 1.
+#'
+#' @param variable_weights Numeric per-original-variable weights (length = number of original covariates).
+#' @param original_var_indices Integer vector mapping each preprocessed feature to its original variable index.
+#' @param variable_subset_mu Integer vectors of included original variable indices for the prognostic forest.
+#' @param variable_subset_tau Integer vectors of included original variable indices for the treatment effect forest.
+#' @param variable_subset_variance Integer vectors of included original variable indices for the variance forest.
+#' @param propensity_covariate One of `"none"`, `"prognostic"`, `"treatment_effect"`, `"both"`.
+#' @param ncol_propensity Number of propensity columns appended to the covariates (0 if `propensity_covariate == "none"`).
+#' @param num_cov_orig Number of original covariates (used for the propensity-column default weight `1/num_cov_orig`).
+#' @param include_variance_forest Whether a variance forest is present.
+#' @return List with elements `mu`, `tau`, and `variance` (the last is `NULL` if `!include_variance_forest`).
+#' @keywords internal
+#' @noRd
+computeBCFForestWeights <- function(
+  variable_weights,
+  original_var_indices,
+  variable_subset_mu,
+  variable_subset_tau,
+  variable_subset_variance,
+  propensity_covariate,
+  ncol_propensity,
+  num_cov_orig,
+  include_variance_forest
+) {
+  variable_weights_mu <- expandVariableWeights(
+    variable_weights,
+    original_var_indices,
+    variable_subset_mu
+  )
+  variable_weights_tau <- expandVariableWeights(
+    variable_weights,
+    original_var_indices,
+    variable_subset_tau
+  )
+  variable_weights_variance <- if (include_variance_forest) {
+    expandVariableWeights(
+      variable_weights,
+      original_var_indices,
+      variable_subset_variance
+    )
+  } else {
+    NULL
+  }
+
+  # Append weights for the propensity column(s). The prognostic and treatment-effect forests each
+  # receive 1/num_cov_orig when the propensity is included as a covariate for that forest; the
+  # variance forest never splits on the propensity.
+  if (propensity_covariate != "none") {
+    mu_prop_weight <- if (propensity_covariate %in% c("prognostic", "both")) {
+      1 / num_cov_orig
+    } else {
+      0
+    }
+    tau_prop_weight <- if (
+      propensity_covariate %in% c("treatment_effect", "both")
+    ) {
+      1 / num_cov_orig
+    } else {
+      0
+    }
+    variable_weights_mu <- c(
+      variable_weights_mu,
+      rep(mu_prop_weight, ncol_propensity)
+    )
+    variable_weights_tau <- c(
+      variable_weights_tau,
+      rep(tau_prop_weight, ncol_propensity)
+    )
+    if (include_variance_forest) {
+      variable_weights_variance <- c(
+        variable_weights_variance,
+        rep(0, ncol_propensity)
+      )
+    }
+  }
+
+  # Renormalize each forest's weights to sum to 1
+  variable_weights_mu <- variable_weights_mu / sum(variable_weights_mu)
+  variable_weights_tau <- variable_weights_tau / sum(variable_weights_tau)
+  if (include_variance_forest) {
+    variable_weights_variance <- variable_weights_variance /
+      sum(variable_weights_variance)
+  }
+
+  list(
+    mu = variable_weights_mu,
+    tau = variable_weights_tau,
+    variance = variable_weights_variance
+  )
 }

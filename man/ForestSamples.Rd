@@ -199,7 +199,7 @@ Create a new \code{ForestContainer} object from a json object
 \describe{
 \item{\code{json_object}}{Object of class \code{CppJson}}
 
-\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy}
+\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy}
 }
 \if{html}{\out{</div>}}
 }
@@ -221,7 +221,7 @@ Append to a \code{ForestContainer} object from a json object
 \describe{
 \item{\code{json_object}}{Object of class \code{CppJson}}
 
-\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy}
+\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy}
 }
 \if{html}{\out{</div>}}
 }
@@ -243,7 +243,7 @@ Create a new \code{ForestContainer} object from a json object
 \describe{
 \item{\code{json_string}}{JSON string which parses into object of class \code{CppJson}}
 
-\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy}
+\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy}
 }
 \if{html}{\out{</div>}}
 }
@@ -265,7 +265,7 @@ Append to a \code{ForestContainer} object from a json object
 \describe{
 \item{\code{json_string}}{JSON string which parses into object of class \code{CppJson}}
 
-\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy}
+\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy}
 }
 \if{html}{\out{</div>}}
 }

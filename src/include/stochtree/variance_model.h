@@ -19,7 +19,7 @@ namespace StochTree {
 /*! \brief Marginal likelihood and posterior computation for gaussian homoskedastic constant leaf outcome model */
 class GlobalHomoskedasticVarianceModel {
  public:
-  GlobalHomoskedasticVarianceModel() {ig_sampler_ = InverseGammaSampler();}
+  GlobalHomoskedasticVarianceModel() { ig_sampler_ = InverseGammaSampler(); }
   ~GlobalHomoskedasticVarianceModel() {}
   double PosteriorShape(Eigen::VectorXd& residuals, double a, double b) {
     data_size_t n = residuals.rows();
@@ -55,6 +55,7 @@ class GlobalHomoskedasticVarianceModel {
     double ig_scale = PosteriorScale(residuals, weights, a, b);
     return ig_sampler_.Sample(ig_shape, ig_scale, gen);
   }
+
  private:
   InverseGammaSampler ig_sampler_;
 };
@@ -62,25 +63,26 @@ class GlobalHomoskedasticVarianceModel {
 /*! \brief Marginal likelihood and posterior computation for gaussian homoskedastic constant leaf outcome model */
 class LeafNodeHomoskedasticVarianceModel {
  public:
-  LeafNodeHomoskedasticVarianceModel() {ig_sampler_ = InverseGammaSampler();}
+  LeafNodeHomoskedasticVarianceModel() { ig_sampler_ = InverseGammaSampler(); }
   ~LeafNodeHomoskedasticVarianceModel() {}
   double PosteriorShape(TreeEnsemble* ensemble, double a, double b) {
     data_size_t num_leaves = ensemble->NumLeaves();
-    return (a/2.0) + (num_leaves/2.0);
+    return (a / 2.0) + (num_leaves / 2.0);
   }
   double PosteriorScale(TreeEnsemble* ensemble, double a, double b) {
     double mu_sq = ensemble->SumLeafSquared();
-    return (b/2.0) + (mu_sq/2.0);
+    return (b / 2.0) + (mu_sq / 2.0);
   }
   double SampleVarianceParameter(TreeEnsemble* ensemble, double a, double b, std::mt19937& gen) {
     double ig_shape = PosteriorShape(ensemble, a, b);
     double ig_scale = PosteriorScale(ensemble, a, b);
     return ig_sampler_.Sample(ig_shape, ig_scale, gen);
   }
+
  private:
   InverseGammaSampler ig_sampler_;
 };
 
-} // namespace StochTree
+}  // namespace StochTree
 
-#endif // STOCHTREE_VARIANCE_MODEL_H_
+#endif  // STOCHTREE_VARIANCE_MODEL_H_

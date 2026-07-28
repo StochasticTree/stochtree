@@ -16,7 +16,7 @@ loadForestContainerCombinedJsonString(json_string_list, json_forest_label)
 \arguments{
 \item{json_object}{Object of class \code{CppJson}}
 
-\item{json_forest_label}{Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in a list if a list is provided)}
+\item{json_forest_label}{Label referring to a particular forest (i.e. "mean_forest") in the overall json hierarchy (must exist in every json object in a list if a list is provided)}
 
 \item{json_object_list}{List of objects of class \code{CppJson}}
 
@@ -31,7 +31,7 @@ entire \code{bartmodel} and \code{bcfmodel} objects, this function group provide
 loading a single \link{ForestSamples} container from a broader BART / BCF model (which may include multiple forests and other parametric terms).
 
 \code{loadForestContainerJson} converts a \link{CppJson} object representing a BART or BCF model into a \link{ForestSamples} container
-by extracting the JSON indexed by a forest label (i.e. \code{"forest_0"}) and deserializing it into a \link{ForestSamples} object.
+by extracting the JSON indexed by a forest label (i.e. \code{"mean_forest"}) and deserializing it into a \link{ForestSamples} object.
 
 Both \code{loadForestContainerJson} and \code{loadForestContainerCombinedJson} operate similarly, but on a list of \link{CppJson} or JSON string
 representations of BART / BCF models with the same structure.
@@ -48,8 +48,8 @@ bart_json <- saveBARTModelToJson(bart_model)
 bart_json_string <- saveBARTModelToJsonString(bart_model)
 bart_json_list <- list(bart_json)
 bart_json_string_list <- list(bart_json_string)
-mean_forest <- loadForestContainerJson(bart_json, "forest_0")
-mean_forest <- loadForestContainerCombinedJson(bart_json_list, "forest_0")
-mean_forest <- loadForestContainerCombinedJsonString(bart_json_string_list, "forest_0")
+mean_forest <- loadForestContainerJson(bart_json, "mean_forest")
+mean_forest <- loadForestContainerCombinedJson(bart_json_list, "mean_forest")
+mean_forest <- loadForestContainerCombinedJsonString(bart_json_string_list, "mean_forest")
 
 }
