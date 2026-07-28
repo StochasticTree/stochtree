@@ -1,0 +1,35 @@
+name: Refresh RC install branches
+
+# Keeps the tester-installable RC branches in sync with a release-candidate branch.
+#
+# When an `rc-*` branch is pushed (including when an overhaul PR merges into it, or a
+# soak bugfix lands), this rebuilds:
+#   - r-<branch>   (CRAN-rooted R package, installable via remotes::install_github)
+#   - py-<branch>  (submodule-flattened, pip-installable)
+# by calling custom-release-candidate.yml as a reusable workflow. This removes the
+# "did I remember to re-run the RC build?" drift risk between the R and Python lanes
+# during a soak (see "Major overhaul releases" in RELEASING.md).
+#
+# Note: for this to fire, rc-refresh.yml must exist ON the rc-* branch being pushed.
+# It does automatically, because rc-* branches are cut from main where this lives.
+
+on:
+  push:
+    branches:
+      - 'rc-*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    # Guard the workflow_dispatch path: only build RC branches from an rc-* ref, never
+    # from main (which would otherwise try to produce r-main / py-main).
+    if: startsWith(github.ref_name, 'rc-')
+    uses: ./.github/workflows/custom-release-candidate.yml
+    with:
+      source_branch: ${{ github.ref_name }}
+      r_target_branch: r-${{ github.ref_name }}
+      python_target_branch: py-${{ github.ref_name }}
+    secrets: inherit

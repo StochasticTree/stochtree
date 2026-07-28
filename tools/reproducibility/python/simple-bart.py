@@ -2,6 +2,8 @@
 # Run BART on a simple dataset and compare results across platforms
 
 # Load libraries
+import sys
+
 import numpy as np
 import pandas as pd
 from stochtree import BARTModel
@@ -64,3 +66,7 @@ if np.any(global_error_scale_mismatch_loc):
         )
 else:
     print("No mismatches found in the global error scale trace")
+
+# Fail the CI job if any results drifted from the stored references
+if np.any(y_hat_mismatch_loc) or np.any(global_error_scale_mismatch_loc):
+    sys.exit(1)

@@ -76,3 +76,9 @@ if (global_error_scale_mismatch) {
 } else {
   cat("No mismatches found in the global error scale trace")
 }
+
+# Fail the CI job if any results drifted from the stored references
+if (y_hat_mismatch || global_error_scale_mismatch) {
+  cat("\n")
+  quit(status = 1)
+}
