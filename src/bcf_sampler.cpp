@@ -369,8 +369,11 @@ void BCFSampler::InitializeState(BCFSamples& samples, bool continuation) {
     // This slot tracks the cumulative per-observation variance prediction
     // (sigma^2_i = exp(sum of tree leaf values)) and is incompatible with case weights, which
     // would need to be reapplied after every per-tree update. The R/Python APIs enforce this
-    // as a hard error; guard here for callers that use BARTSampler directly.
-    if (forest_dataset_->HasVarWeights()) {
+    // as a hard error; guard here for callers that use BARTSampler directly. Key off the
+    // user-supplied weights (obs_weights_train), NOT HasVarWeights(): the variance forest
+    // populates the same slot, so HasVarWeights() is true from chain 2 onward under
+    // multi-chain / continuation and previously tripped this guard spuriously.
+    if (data_.obs_weights_train != nullptr) {
       Log::Fatal("observation_weights and a variance forest cannot be used together.");
     }
     std::vector<double> initial_variance_preds(data_.n_train, init_val_variance_);
@@ -1270,8 +1273,11 @@ void BCFSampler::RestoreStateFromGFRSnapshot(BCFSamples& samples, int snapshot_i
     // This slot tracks the cumulative per-observation variance prediction
     // (sigma^2_i = exp(sum of tree leaf values)) and is incompatible with case weights, which
     // would need to be reapplied after every per-tree update. The R/Python APIs enforce this
-    // as a hard error; guard here for callers that use BARTSampler directly.
-    if (forest_dataset_->HasVarWeights()) {
+    // as a hard error; guard here for callers that use BARTSampler directly. Key off the
+    // user-supplied weights (obs_weights_train), NOT HasVarWeights(): the variance forest
+    // populates the same slot, so HasVarWeights() is true from chain 2 onward under
+    // multi-chain / continuation and previously tripped this guard spuriously.
+    if (data_.obs_weights_train != nullptr) {
       Log::Fatal("observation_weights and a variance forest cannot be used together.");
     }
     std::vector<double> initial_variance_preds(data_.n_train, init_val_variance_);
