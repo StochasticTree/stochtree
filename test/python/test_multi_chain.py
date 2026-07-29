@@ -190,6 +190,72 @@ class TestBARTMultiChain:
         assert np.all(np.isfinite(m.global_var_samples))
         assert np.all(m.global_var_samples > 0)
 
+    def test_variance_forest_container_spans_all_chains_gfr(self, bart_data):
+        """Variance forest container must retain every chain's draws on the GFR path.
+
+        Regression test: RestoreStateFromGFRSnapshot used to recreate
+        ``samples.variance_forests`` at the start of every chain after the first, so the
+        container ended up holding only the LAST chain's draws while num_samples counted
+        all of them.  predict() then read num_samples columns out of a shorter container
+        (heap over-read -> garbage values, including negative "variances").  Only fires on
+        the GFR warm-start path, hence num_gfr > 0 here.
+        """
+        n_chains, n_mcmc = self.NUM_CHAINS, self.NUM_MCMC
+        m = BARTModel()
+        m.sample(
+            X_train=bart_data["X_train"],
+            y_train=bart_data["y_train"],
+            X_test=bart_data["X_test"],
+            num_gfr=6,
+            num_burnin=5,
+            num_mcmc=n_mcmc,
+            general_params={"num_chains": n_chains, "num_threads": 1},
+            variance_forest_params={"num_trees": 10},
+        )
+        assert m.num_samples == n_chains * n_mcmc
+        assert m.extract_forest("mean").num_samples() == n_chains * n_mcmc
+        assert m.extract_forest("variance").num_samples() == n_chains * n_mcmc
+
+        post = m.predict(X=bart_data["X_test"], terms="variance_forest")
+        assert post.shape == (bart_data["n_test"], n_chains * n_mcmc)
+        assert np.all(np.isfinite(post))
+        assert np.all(post > 0)
+
+    def test_variance_forest_recovers_step_function_gfr(self):
+        """Multi-chain + GFR must recover a two-level variance function.
+
+        Shape-only checks pass even when the container is short and predict() reads out of
+        bounds, so this asserts the values themselves are in the right neighborhood.
+        """
+        rng = np.random.default_rng(101)
+        n, p = 500, 5
+        X = rng.uniform(0, 1, (n, p))
+        sigma_x = np.where(X[:, 0] < 0.5, 0.5, 3.0)
+        y = 2 * X[:, 1] + rng.standard_normal(n) * sigma_x
+        m = BARTModel()
+        m.sample(
+            X_train=X,
+            y_train=y,
+            num_gfr=10,
+            num_burnin=0,
+            num_mcmc=20,
+            general_params={
+                "sample_sigma2_global": False,
+                "num_chains": 4,
+                "num_threads": 1,
+                "random_seed": 101,
+            },
+            mean_forest_params={"sample_sigma2_leaf": False, "num_trees": 20},
+            variance_forest_params={"num_trees": 20},
+        )
+        sigma2_hat = m.predict(X=X, terms="variance_forest").mean(axis=1)
+        lo = sigma2_hat[X[:, 0] < 0.5].mean()
+        hi = sigma2_hat[X[:, 0] >= 0.5].mean()
+        assert np.all(sigma2_hat > 0)
+        assert 0.05 < lo < 1.5  # truth: 0.25
+        assert 4 < hi < 16  # truth: 9
+        assert hi / lo > 4
+
 
 # ---------------------------------------------------------------------------
 # BCFModel multi-chain tests
@@ -325,6 +391,41 @@ class TestBCFMultiChain:
             general_params={"num_chains": n_chains, "num_threads": 1},
             variance_forest_params={"num_trees": 10},
         )
+        result = m.predict(
+            X=bcf_data["X_test"],
+            Z=bcf_data["Z_test"],
+            propensity=bcf_data["pi_test"],
+            terms="variance_forest",
+        )
+        assert result.shape == (bcf_data["n_test"], n_chains * n_mcmc)
+        assert np.all(np.isfinite(result))
+        assert np.all(result > 0)
+
+    def test_variance_forest_container_spans_all_chains_gfr(self, bcf_data):
+        """BCF had the same per-chain container-wipe bug as BART.
+
+        The no-GFR test above cannot catch it; the snapshot restore path requires
+        num_gfr > 0.
+        """
+        n_chains, n_mcmc = self.NUM_CHAINS, self.NUM_MCMC
+        m = BCFModel()
+        m.sample(
+            X_train=bcf_data["X_train"],
+            Z_train=bcf_data["Z_train"],
+            y_train=bcf_data["y_train"],
+            propensity_train=bcf_data["pi_train"],
+            X_test=bcf_data["X_test"],
+            Z_test=bcf_data["Z_test"],
+            propensity_test=bcf_data["pi_test"],
+            num_gfr=6,
+            num_burnin=5,
+            num_mcmc=n_mcmc,
+            general_params={"num_chains": n_chains, "num_threads": 1},
+            variance_forest_params={"num_trees": 10},
+        )
+        assert m.num_samples == n_chains * n_mcmc
+        assert m.extract_forest("variance").num_samples() == n_chains * n_mcmc
+
         result = m.predict(
             X=bcf_data["X_test"],
             Z=bcf_data["Z_test"],
