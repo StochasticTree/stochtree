@@ -445,6 +445,32 @@ class TestBART:
             bart_model_2.sigma2_x_train,
         )
 
+    def test_bart_variance_forest_multichain_no_weights(self):
+        # Regression: a variance forest with num_chains > 1 and NO observation weights must not
+        # trip the "observation_weights and a variance forest" guard. The variance forest populates
+        # the same dataset slot as user weights, so a guard keyed off slot-state (not the
+        # user-weights flag) spuriously fired from chain 2 onward under multi-chain / continuation.
+        rng = np.random.default_rng(1)
+        n, p = 200, 3
+        X = rng.uniform(0, 1, (n, p))
+        y = X[:, 0] + rng.normal(0, np.exp(0.5 * X[:, 1]), n)
+        m = BARTModel()
+        m.sample(
+            X_train=X, y_train=y, num_gfr=10, num_burnin=0, num_mcmc=20,
+            general_params={"num_chains": 4, "num_threads": 1, "random_seed": 1},
+            variance_forest_params={"num_trees": 20},
+        )
+        assert m.num_samples == 80
+        assert m.sigma2_x_train.shape == (n, 80)
+        assert np.all(np.isfinite(m.sigma2_x_train))
+        # Genuine observation weights + a variance forest must still be rejected.
+        with pytest.raises(Exception, match="not compatible with a variance forest"):
+            BARTModel().sample(
+                X_train=X, y_train=y,
+                observation_weights_train=rng.uniform(0.5, 1.5, n),
+                num_gfr=0, num_mcmc=5, variance_forest_params={"num_trees": 20},
+            )
+
     def test_bart_univariate_leaf_regression_heteroskedastic(self):
         # RNG
         random_seed = 101

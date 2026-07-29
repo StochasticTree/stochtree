@@ -475,6 +475,38 @@ test_that("BART Predictions", {
   expect_equal(train_preds_variance_cached, train_preds_variance_recomputed)
 })
 
+test_that("Variance forest with multiple chains and no observation weights", {
+  skip_on_cran()
+  set.seed(1)
+  n <- 200
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  y <- as.numeric(X[, 1] + rnorm(n, 0, exp(0.5 * X[, 2])))
+  # num_chains > 1 with a variance forest and NO weights must not trip the
+  # "observation_weights and a variance forest" guard: the variance forest shares the
+  # dataset weight slot, so a slot-state-keyed guard fired spuriously from chain 2 onward.
+  expect_no_error(
+    bart_model <- bart(
+      X_train = X, y_train = y, num_gfr = 10, num_burnin = 0, num_mcmc = 20,
+      general_params = list(
+        num_chains = 4, num_threads = 1, random_seed = 1,
+        sample_sigma2_global = FALSE
+      ),
+      variance_forest_params = list(num_trees = 20)
+    )
+  )
+  expect_equal(bart_model$model_params$num_samples, 80)
+  expect_true(all(is.finite(extractParameter(bart_model, "sigma2_x_train"))))
+  # Genuine observation weights + a variance forest must still be rejected.
+  expect_error(
+    bart(
+      X_train = X, y_train = y, observation_weights_train = runif(n, 0.5, 1.5),
+      num_gfr = 0, num_mcmc = 5, variance_forest_params = list(num_trees = 20)
+    ),
+    "variance forest"
+  )
+})
+
 test_that("Random Effects BART", {
   skip_on_cran()
 

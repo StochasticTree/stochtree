@@ -719,6 +719,38 @@ test_that("BCF Predictions", {
   expect_equal(train_preds_variance_cached, train_preds_variance_recomputed)
 })
 
+test_that("BCF variance forest with multiple chains and no observation weights", {
+  skip_on_cran()
+  set.seed(1)
+  n <- 200
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- 0.3 + 0.4 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  y <- as.numeric(X[, 1] + Z * X[, 2] + rnorm(n, 0, exp(0.3 * X[, 2])))
+  # num_chains > 1 with a variance forest and NO weights must not trip the
+  # "observation_weights and a variance forest" guard (shared dataset weight slot).
+  expect_no_error(
+    bcf_model <- bcf(
+      X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+      num_gfr = 10, num_burnin = 0, num_mcmc = 20,
+      general_params = list(num_chains = 4, num_threads = 1, random_seed = 1),
+      variance_forest_params = list(num_trees = 20)
+    )
+  )
+  expect_equal(bcf_model$model_params$num_samples, 80)
+  expect_true(all(is.finite(extractParameter(bcf_model, "sigma2_x_train"))))
+  # Genuine observation weights + a variance forest must still be rejected.
+  expect_error(
+    bcf(
+      X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+      observation_weights_train = runif(n, 0.5, 1.5),
+      num_gfr = 0, num_mcmc = 5, variance_forest_params = list(num_trees = 20)
+    ),
+    "variance forest"
+  )
+})
+
 test_that("Random Effects BCF", {
   skip_on_cran()
 
