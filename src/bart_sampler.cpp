@@ -870,11 +870,14 @@ void BARTSampler::RestoreStateFromGFRSnapshot(BARTSamples& samples, int snapshot
     std::visit(MeanForestResetVisitor{*this, samples, *snap.mean_forest}, mean_leaf_model_);
   }
 
-  // Initialize variance forest state (if present)
+  // Reset the active variance forest state to the snapshot (if present).
+  // NOTE: `samples.variance_forests` is deliberately NOT recreated here. It is the accumulating
+  // container of retained draws across ALL chains -- replacing it would discard every sample from
+  // the preceding chains while `samples.num_samples` (and `samples.mean_forests`) kept counting,
+  // leaving the container shorter than the sample count that predict() reads from.
   if (config_.num_trees_variance > 0) {
     variance_leaf_model_ = LogLinearVarianceLeafModel(config_.shape_variance_forest, config_.scale_variance_forest);
     variance_forest_ = std::make_unique<TreeEnsemble>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
-    samples.variance_forests = std::make_unique<ForestContainer>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
     variance_forest_tracker_ = std::make_unique<ForestTracker>(forest_dataset_->GetCovariates(), config_.feature_types, config_.num_trees_variance, data_.n_train);
     tree_prior_variance_ = std::make_unique<TreePrior>(config_.alpha_variance, config_.beta_variance, config_.min_samples_leaf_variance, config_.max_depth_variance);
     // Leaf values for the log-linear variance model are on the log scale; the ensemble sums
@@ -896,6 +899,15 @@ void BARTSampler::RestoreStateFromGFRSnapshot(BARTSamples& samples, int snapshot
     std::vector<double> initial_variance_preds(data_.n_train, init_val_variance_);
     forest_dataset_->AddVarianceWeights(initial_variance_preds.data(), data_.n_train);
     has_variance_forest_ = true;
+    // Warm-start the active variance forest from the GFR snapshot, exactly as chain 1 continues
+    // from the live post-GFR state. The reconstitution (is_mean_model=false) swaps the flat-init
+    // leaves out of the variance-weight slot and the snapshot forest's leaves in, so the slot
+    // lands at exp(sum of snapshot leaves) == snap.variance_weights. Mirrors the continuation
+    // warm-start in InitializeState.
+    if (snap.variance_forest != nullptr) {
+      variance_forest_->ReconstituteFromForest(*snap.variance_forest);
+      variance_forest_tracker_->ReconstituteFromForest(*snap.variance_forest, *forest_dataset_, *residual_, /*is_mean_model=*/false);
+    }
   }
 
   // Random effects model
