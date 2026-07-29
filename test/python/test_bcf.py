@@ -896,6 +896,34 @@ class TestBCF:
         # Check treatment effect prediction method
         tau_hat = bcf_model.predict(X=X_test, Z=Z_test, terms="cate")
 
+    def test_bcf_variance_forest_multichain_no_weights(self):
+        # Regression: a variance forest with num_chains > 1 and NO observation weights must not
+        # trip the "observation_weights and a variance forest" guard (the variance forest shares
+        # the dataset weight slot, so a slot-state-keyed guard fired spuriously from chain 2 on).
+        rng = np.random.default_rng(1)
+        n, p = 200, 3
+        X = rng.uniform(0, 1, (n, p))
+        pi = 0.3 + 0.4 * X[:, 0]
+        Z = rng.binomial(1, pi, n).astype(float)
+        y = X[:, 0] + Z * X[:, 1] + rng.normal(0, np.exp(0.3 * X[:, 1]), n)
+        m = BCFModel()
+        m.sample(
+            X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+            num_gfr=10, num_burnin=0, num_mcmc=20,
+            general_params={"num_chains": 4, "num_threads": 1, "random_seed": 1},
+            variance_forest_params={"num_trees": 20},
+        )
+        assert m.num_samples == 80
+        assert m.sigma2_x_train.shape == (n, 80)
+        assert np.all(np.isfinite(m.sigma2_x_train))
+        # Genuine observation weights + a variance forest must still be rejected.
+        with pytest.raises(Exception, match="not compatible with a variance forest"):
+            BCFModel().sample(
+                X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+                observation_weights_train=rng.uniform(0.5, 1.5, n),
+                num_gfr=0, num_mcmc=5, variance_forest_params={"num_trees": 20},
+            )
+
     def test_bcf_rfx_parameters(self):
         # RNG
         random_seed = 101
