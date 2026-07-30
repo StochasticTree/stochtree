@@ -10,6 +10,7 @@ from stochtree_cpp import (
 
 from .data import Residual
 from .sampler import RNG
+from .utils import _as_cpp_writeable
 
 
 class RandomEffectsDataset:
@@ -38,6 +39,7 @@ class RandomEffectsDataset:
             raise ValueError(
                 "group_labels must be a one-dimensional numpy array of group indices"
             )
+        group_labels_ = _as_cpp_writeable(group_labels_, order="C")
         n = group_labels_.shape[0]
         self.rfx_dataset_cpp.AddGroupLabels(group_labels_, n)
 
@@ -55,6 +57,7 @@ class RandomEffectsDataset:
             raise ValueError(
                 "group_labels must be a one-dimensional numpy array of group indices"
             )
+        group_labels_ = _as_cpp_writeable(group_labels_, order="C")
         n = group_labels_.shape[0]
         self.rfx_dataset_cpp.UpdateGroupLabels(group_labels_, n)
 
@@ -73,7 +76,7 @@ class RandomEffectsDataset:
                 "basis must be a one-or-two-dimensional numpy array of random effect bases"
             )
         n, p = basis_.shape
-        basis_rowmajor = np.ascontiguousarray(basis_)
+        basis_rowmajor = _as_cpp_writeable(basis_, order="C")
         self.rfx_dataset_cpp.AddBasis(basis_rowmajor, n, p, True)
 
     def update_basis(self, basis: np.array):
@@ -92,7 +95,7 @@ class RandomEffectsDataset:
                 "basis must be a one-or-two-dimensional numpy array of random effect bases"
             )
         n, p = basis_.shape
-        basis_rowmajor = np.ascontiguousarray(basis_)
+        basis_rowmajor = _as_cpp_writeable(basis_, order="C")
         self.rfx_dataset_cpp.UpdateBasis(basis_rowmajor, n, p, True)
 
     def add_variance_weights(self, variance_weights: np.array):
@@ -109,6 +112,7 @@ class RandomEffectsDataset:
             raise ValueError(
                 "variance_weights must be a one-dimensional numpy array of group indices"
             )
+        variance_weights_ = _as_cpp_writeable(variance_weights_)
         n = variance_weights_.shape[0]
         self.rfx_dataset_cpp.AddVarianceWeights(variance_weights_, n)
 
@@ -142,7 +146,8 @@ class RandomEffectsDataset:
             raise ValueError(
                 f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()})."
             )
-        self.rfx_dataset_cpp.UpdateVarianceWeights(variance_weights, n, exponentiate)
+        variance_weights_ = _as_cpp_writeable(variance_weights_)
+        self.rfx_dataset_cpp.UpdateVarianceWeights(variance_weights_, n, exponentiate)
 
     def get_group_labels(self) -> np.array:
         """

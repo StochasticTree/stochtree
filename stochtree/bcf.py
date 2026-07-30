@@ -22,6 +22,7 @@ from .serialization import (
 )
 from .utils import (
     OutcomeModel,
+    _as_cpp_writeable,
     NotSampledError,
     _compute_bcf_forest_weights,
     _expand_dims_1d,
@@ -2162,7 +2163,7 @@ class BCFModel:
         X_train_cpp = np.asfortranarray(X_train_processed.astype(np.float64))
         # y_train_remapped = y_train - np.min(y_train) if link_is_cloglog else y_train
         y_train_remapped = y_train
-        y_train_cpp = np.asfortranarray(y_train_remapped)
+        y_train_cpp = _as_cpp_writeable(y_train_remapped)
         X_test_cpp = np.asfortranarray(X_test_processed.astype(np.float64)) if self.has_test else None
         Z_train_cpp = np.asfortranarray(Z_train.astype(np.float64))
         Z_test_cpp = np.asfortranarray(Z_test.astype(np.float64)) if self.has_test else None
@@ -2194,9 +2195,7 @@ class BCFModel:
             n_test=X_test_cpp.shape[0] if self.has_test else 0,
             p=X_train_cpp.shape[1],
             treatment_dim=self.treatment_dim,
-            obs_weights_train=observation_weights_train
-            if observation_weights_train is not None
-            else None,
+            obs_weights_train=_as_cpp_writeable(observation_weights_train),
             obs_weights_test=None,
             rfx_group_ids_train=rfx_group_ids_train_cpp,
             rfx_group_ids_test=rfx_group_ids_test_cpp,
@@ -2620,7 +2619,7 @@ class BCFModel:
 
         X_train_cpp = np.asfortranarray(X_train_processed)
         Z_train_cpp = np.asfortranarray(Z_train.astype(np.float64))
-        y_train_cpp = np.asfortranarray(y_train)
+        y_train_cpp = _as_cpp_writeable(y_train)
 
         # Re-supplied random effects data. The C++ warm-start preserves the model's existing rfx
         # container / label mapper and restores the last sample; the re-supplied group ids must match
@@ -2659,9 +2658,7 @@ class BCFModel:
             n_test=n_test,
             p=X_train_cpp.shape[1],
             treatment_dim=self.treatment_dim,
-            obs_weights_train=observation_weights_train
-            if observation_weights_train is not None
-            else None,
+            obs_weights_train=_as_cpp_writeable(observation_weights_train),
             rfx_group_ids_train=rfx_group_ids_cpp,
             rfx_basis_train=rfx_basis_cpp,
             rfx_group_ids_test=rfx_group_ids_test_cpp,

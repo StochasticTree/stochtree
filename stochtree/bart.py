@@ -19,6 +19,7 @@ from .serialization import (
 )
 from .utils import (
     OutcomeModel,
+    _as_cpp_writeable,
     NotSampledError,
     _class_probs_to_survival_probs,
     _compute_sample_dim,
@@ -1505,7 +1506,7 @@ class BARTModel:
         # the original, which remains alive in this Python scope.
         X_train_cpp = np.asfortranarray(X_train_processed)
         y_train_remapped = y_train - np.min(y_train) if link_is_cloglog else y_train
-        y_train_cpp = np.asfortranarray(y_train_remapped, dtype=np.float64)
+        y_train_cpp = _as_cpp_writeable(y_train_remapped, dtype=np.float64)
         X_test_cpp = np.asfortranarray(X_test_processed) if self.has_test else None
         basis_train_cpp = (
             np.asfortranarray(leaf_basis_train.astype(np.float64)) if self.has_basis else None
@@ -1544,9 +1545,7 @@ class BARTModel:
             basis_train=basis_train_cpp,
             basis_test=basis_test_cpp,
             basis_dim=self.num_basis if self.has_basis else 0,
-            obs_weights_train=observation_weights_train
-            if observation_weights_train is not None
-            else None,
+            obs_weights_train=_as_cpp_writeable(observation_weights_train),
             obs_weights_test=None,
             rfx_group_ids_train=rfx_group_ids_train_cpp,
             rfx_group_ids_test=rfx_group_ids_test_cpp,
@@ -1884,7 +1883,7 @@ class BARTModel:
                 )
 
         X_train_cpp = np.asfortranarray(X_train_processed)
-        y_train_cpp = np.asfortranarray(y_train, dtype=np.float64)
+        y_train_cpp = _as_cpp_writeable(y_train, dtype=np.float64)
         basis_train_cpp = (
             np.asfortranarray(leaf_basis_train.astype(np.float64)) if self.has_basis else None
         )
@@ -1987,7 +1986,7 @@ class BARTModel:
             basis_train=basis_train_cpp,
             basis_test=basis_test_cpp,
             basis_dim=self.num_basis if self.has_basis else 0,
-            obs_weights_train=observation_weights_train,
+            obs_weights_train=_as_cpp_writeable(observation_weights_train),
             obs_weights_test=None,
             rfx_group_ids_train=rfx_group_ids_cpp,
             rfx_group_ids_test=rfx_group_ids_test_cpp,
