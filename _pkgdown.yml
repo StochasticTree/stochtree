@@ -10,10 +10,13 @@ reference:
   contents:
   - bart
   - predict.bartmodel
+  - continueSampling.bartmodel
   - print.bartmodel
   - summary.bartmodel
   - plot.bartmodel
   - extractParameter.bartmodel
+  - extractForest.bartmodel
+  - extractRandomEffectSamples.bartmodel
   - getRandomEffectSamples.bartmodel
   - computeBARTPosteriorInterval
   - computeContrastBARTModel
@@ -26,10 +29,13 @@ reference:
   contents:
   - bcf
   - predict.bcfmodel
+  - continueSampling.bcfmodel
   - print.bcfmodel
   - summary.bcfmodel
   - plot.bcfmodel
   - extractParameter.bcfmodel
+  - extractForest.bcfmodel
+  - extractRandomEffectSamples.bcfmodel
   - getRandomEffectSamples.bcfmodel
   - computeBCFPosteriorInterval
   - computeContrastBCFModel
@@ -111,6 +117,9 @@ reference:
   - OutcomeModel
   - sample_without_replacement
   - extractParameter
+  - extractForest
+  - extractRandomEffectSamples
+  - continueSampling
 
 - title: Package info
   desc: >

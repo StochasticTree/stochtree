@@ -1,4 +1,24 @@
-# stochtree 0.4.6.9000
+# stochtree 0.5.0-rc0
+
+This is a **RELEASE CANDIDATE** that constitutes a major overhaul of `stochtree`'s internals. Most prominently, the "core" MCMC and GFR samplers have been ported entirely into C++ (rather than R / Python objects that iteratively call C++ code). The primary user-facing change is that sampler artifacts now reside entirely in a C++ based `BARTSamples` / `BCFSamples` object, which is exposed as a pointer to C++ in R and Python. 
+
+Access to parameter traces, forests, and random effects terms takes place through wrapper methods (i.e. `extractParameter` / `extractForest` / `extractRandomEffectSamples` in R, `extract_parameter` / `extract_forest` / `extract_random_effect_samples` in Python). 
+
+While most of the changes are internal, there are several user-facing changes in both the R and Python APIs, both new and deprecated functionality.
+
+## New Features
+
+* Continuing to run a GFR / MCMC sampler for BART or BCF is now supported with a dedicated method that does not require JSON deserialization. In R, this functionality is exposed as a generic `continueSampling` method that runs on either `bartmodel` or `bcfmodel` objects. In Python, the `BARTModel` and `BCFModel` objects both contain a `continue_sampling` method.
+* Forest sample objects can be extracted from the underlying `BARTSamples` or `BCFSamples` C++ object via `extractForest` generics in R or `extract_forest` methods in Python, both of which run on a BART or BCF model.
+* Random effects objects can be extracted from the underlying `BARTSamples` or `BCFSamples` C++ object via `extractRandomEffectSamples` generics in R or `extract_random_effect_samples` methods in Python, both of which run on a BART or BCF model.
+
+## Deprecation
+
+* Direct access sampler outputs (either external pointers to C++ objects like forest containers or arrays with parameter traces) is no longer supported. 
+  * Any code which accesses parameter traces like `bart_model$sigma2_global_samples` in R or `bart_model.global_var_samples` in Python must be converted to `extractParameter(bart_model, "sigma2_global")` or `bart_model.extract_parameter("sigma2_global")`. [*Note that member-based parameter access (i.e. `bart_model.global_var_samples`) is still technically supported in Python, but will be removed in future releases and we encourage users to migrate to method-based parameter acceess.*]
+  * Any code which accesses forest pointers directly as in `bart_model$mean_forests` in R or `bart_model.forest_container_mean.` in Python must be converted to `extractForest(bart_model, "mean")` or `bart_model.extract_forest("mean")`
+  * Any code which accesses random effects pointers directly as in `bart_model$rfx_samples` in R or `bart_model.rfx_container` in Python must be converted to `extractRandomEffectSamples(bart_model)` or `bart_model.extract_random_effect_samples()`
+* The generic `getRandomEffectSamples` in R still runs, but is a wrapper around `extractRandomEffectSamples`, which was created for API consistency and should be used going forward.
 
 # stochtree 0.4.5
 
