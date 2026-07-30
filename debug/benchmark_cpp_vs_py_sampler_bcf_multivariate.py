@@ -107,9 +107,9 @@ def run_once(run_cpp: bool, seed: int) -> dict:
     elapsed_predict = time.perf_counter() - t1
 
     mu_hat   = preds["mu_hat"].mean(axis=1)
-    # tau_hat is (n, treatment_dim, num_samples) for multivariate treatment
-    tau_hat1 = preds["tau_hat"][:, 0, :].mean(axis=1)
-    tau_hat2 = preds["tau_hat"][:, 1, :].mean(axis=1)
+    # tau_hat is (n, num_samples, treatment_dim) for multivariate treatment
+    tau_hat1 = preds["tau_hat"][:, :, 0].mean(axis=1)
+    tau_hat2 = preds["tau_hat"][:, :, 1].mean(axis=1)
     y_hat    = preds["y_hat"].mean(axis=1)
 
     return {

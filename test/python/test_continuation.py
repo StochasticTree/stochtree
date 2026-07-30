@@ -432,7 +432,7 @@ class TestBCFContinuation:
             return m
         m = run()
         assert m.num_samples == 18
-        assert m.tau_hat_train.shape == (300, 2, 18)
+        assert m.tau_hat_train.shape == (300, 18, 2)
         np.testing.assert_allclose(run().y_hat_train, m.y_hat_train, atol=1e-10, rtol=0)
 
     def test_continuation_drops_stale_test_data_with_warning(self):

@@ -271,10 +271,16 @@ class BCFModel:
         return flat.reshape(n_obs, self._samples.num_samples(), order="F")
 
     def _reshape_pred_3d(self, flat, n_obs, dim2):
-        # Reshape a flat (n_obs * dim2 * num_samples, F-order) trace to (n_obs, dim2, num_samples).
+        # Reshape a flat (n_obs * dim2 * num_samples, F-order) trace to (n_obs, num_samples, dim2).
+        # The C++ trace is laid out (n_obs, dim2, num_samples), which is the layout the R package
+        # exposes. Python has always placed the sample axis last, so we transpose to keep the
+        # sample axis in the same position as every other posterior array in this class (and to
+        # keep `sample_dim=1` correct for `_summarize_interval` / `summary`). The transpose is a
+        # view, not a copy.
         if flat is None or flat.size == 0:
             return None
-        return flat.reshape(n_obs, dim2, self._samples.num_samples(), order="F")
+        arr = flat.reshape(n_obs, dim2, self._samples.num_samples(), order="F")
+        return arr.transpose(0, 2, 1)
 
     @property
     def y_hat_train(self):
@@ -302,6 +308,11 @@ class BCFModel:
 
     @property
     def tau_hat_train(self):
+        """In-sample CATE draws, shaped ``(num_train, num_samples, treatment_dim)`` for
+        multivariate treatments and ``(num_train, num_samples)`` for univariate ones.
+
+        Note that the R package returns the transposed layout,
+        ``(num_train, treatment_dim, num_samples)``, for the multivariate case."""
         if self._samples is None:
             return None
         flat = self._samples.tau_forest_predictions_train()
@@ -312,6 +323,11 @@ class BCFModel:
 
     @property
     def tau_hat_test(self):
+        """Test-set CATE draws, shaped ``(num_test, num_samples, treatment_dim)`` for
+        multivariate treatments and ``(num_test, num_samples)`` for univariate ones.
+
+        Note that the R package returns the transposed layout,
+        ``(num_test, treatment_dim, num_samples)``, for the multivariate case."""
         if self._samples is None:
             return None
         flat = self._samples.tau_forest_predictions_test()
@@ -2718,6 +2734,17 @@ class BCFModel:
         Returns
         -------
         Dict of numpy arrays for each prediction term, or a simple numpy array if a single term is requested.
+
+        With ``type="posterior"``, most terms are shaped ``(num_observations, num_samples)``. The
+        ``"tau"`` and ``"cate"`` terms are shaped ``(num_observations, num_samples, treatment_dim)``
+        for multivariate treatments and ``(num_observations, num_samples)`` for univariate ones. With
+        ``type="mean"`` the sample axis is dropped, giving ``(num_observations,)`` or, for
+        multivariate ``"tau"`` / ``"cate"``, ``(num_observations, treatment_dim)``.
+
+        The treatment dimension is the trailing axis, so contracting a multivariate CATE against a
+        treatment matrix ``Z`` is
+        ``np.multiply(np.atleast_3d(Z).swapaxes(1, 2), cate).sum(axis=2)``. Note that the R package
+        returns the transposed layout, ``(num_observations, treatment_dim, num_samples)``.
         """
         # Handle mean function scale
         if not isinstance(scale, str):
@@ -2957,7 +2984,10 @@ class BCFModel:
             if dim2 == 1:
                 # Univariate treatment: squeeze to (n, num_samples) to match the Python path
                 return np.reshape(v, (dim1, dim3), order='F')
-            return np.reshape(v, (dim1, dim2, dim3), order='F')
+            # Multivariate treatment: the C++ trace is (n, treatment_dim, num_samples); transpose
+            # to (n, num_samples, treatment_dim) so the sample axis stays last, as everywhere else
+            # in the Python API. The transpose is a view, not a copy.
+            return np.reshape(v, (dim1, dim2, dim3), order='F').transpose(0, 2, 1)
             
         result = {
             "y_hat": reshape_cpp_pred_2d(output["y_hat"], n, num_samples_output),
