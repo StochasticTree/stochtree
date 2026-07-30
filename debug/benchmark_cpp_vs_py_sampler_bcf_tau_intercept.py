@@ -201,9 +201,9 @@ def run_once_multivariate(run_cpp: bool, seed: int) -> dict:
     preds = m.predict(X=X_test_mv, Z=Z_test_mv, propensity=pi_test_mv, run_cpp=run_cpp)
     elapsed_predict = time.perf_counter() - t1
 
-    # tau_hat is (n, treatment_dim, num_samples) for multivariate treatment
-    tau_hat1 = preds["tau_hat"][:, 0, :].mean(axis=1)
-    tau_hat2 = preds["tau_hat"][:, 1, :].mean(axis=1)
+    # tau_hat is (n, num_samples, treatment_dim) for multivariate treatment
+    tau_hat1 = preds["tau_hat"][:, :, 0].mean(axis=1)
+    tau_hat2 = preds["tau_hat"][:, :, 1].mean(axis=1)
     y_hat    = preds["y_hat"].mean(axis=1)
 
     return {
