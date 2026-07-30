@@ -31,6 +31,7 @@ from .utils import (
     _get_stochtree_version,
     _infer_stochtree_version,
     _posterior_predictive_heuristic_multiplier,
+    _warn_deprecated_accessor,
     _resolve_variable_subset,
     _summarize_interval,
 )
@@ -241,25 +242,47 @@ class BCFModel:
         )
 
     @property
-    def global_var_samples(self):
+    def rfx_container(self):
+        raise AttributeError(
+            "`BCFModel.rfx_container` has been removed. The sampled random effects are owned by "
+            "`model.samples`; extract a standalone copy with `model.extract_random_effect_samples()`."
+        )
+
+    @property
+    def _global_var_samples(self):
         if self._samples is None:
             return None
         arr = self._samples.global_var_samples()
         return arr if arr.size else None
 
     @property
-    def leaf_scale_mu_samples(self):
+    def global_var_samples(self):
+        _warn_deprecated_accessor("BCFModel", "global_var_samples", 'extract_parameter("sigma2_global")')
+        return self._global_var_samples
+
+    @property
+    def _leaf_scale_mu_samples(self):
         if self._samples is None:
             return None
         arr = self._samples.leaf_scale_mu_samples()
         return arr if arr.size else None
 
     @property
-    def leaf_scale_tau_samples(self):
+    def leaf_scale_mu_samples(self):
+        _warn_deprecated_accessor("BCFModel", "leaf_scale_mu_samples", 'extract_parameter("sigma2_leaf_mu")')
+        return self._leaf_scale_mu_samples
+
+    @property
+    def _leaf_scale_tau_samples(self):
         if self._samples is None:
             return None
         arr = self._samples.leaf_scale_tau_samples()
         return arr if arr.size else None
+
+    @property
+    def leaf_scale_tau_samples(self):
+        _warn_deprecated_accessor("BCFModel", "leaf_scale_tau_samples", 'extract_parameter("sigma2_leaf_tau")')
+        return self._leaf_scale_tau_samples
 
     @property
     def num_samples(self):
@@ -284,31 +307,51 @@ class BCFModel:
         return arr.transpose(0, 2, 1)
 
     @property
-    def y_hat_train(self):
+    def _y_hat_train(self):
         if self._samples is None:
             return None
         return self._reshape_pred(self._samples.y_hat_train(), self._samples.num_train())
 
     @property
-    def y_hat_test(self):
+    def y_hat_train(self):
+        _warn_deprecated_accessor("BCFModel", "y_hat_train", 'extract_parameter("y_hat_train")')
+        return self._y_hat_train
+
+    @property
+    def _y_hat_test(self):
         if self._samples is None:
             return None
         return self._reshape_pred(self._samples.y_hat_test(), self._samples.num_test())
 
     @property
-    def mu_hat_train(self):
+    def y_hat_test(self):
+        _warn_deprecated_accessor("BCFModel", "y_hat_test", 'extract_parameter("y_hat_test")')
+        return self._y_hat_test
+
+    @property
+    def _mu_hat_train(self):
         if self._samples is None:
             return None
         return self._reshape_pred(self._samples.mu_forest_predictions_train(), self._samples.num_train())
 
     @property
-    def mu_hat_test(self):
+    def mu_hat_train(self):
+        _warn_deprecated_accessor("BCFModel", "mu_hat_train", 'extract_parameter("mu_hat_train")')
+        return self._mu_hat_train
+
+    @property
+    def _mu_hat_test(self):
         if self._samples is None:
             return None
         return self._reshape_pred(self._samples.mu_forest_predictions_test(), self._samples.num_test())
 
     @property
-    def tau_hat_train(self):
+    def mu_hat_test(self):
+        _warn_deprecated_accessor("BCFModel", "mu_hat_test", 'extract_parameter("mu_hat_test")')
+        return self._mu_hat_test
+
+    @property
+    def _tau_hat_train(self):
         """In-sample CATE draws, shaped ``(num_train, num_samples, treatment_dim)`` for
         multivariate treatments and ``(num_train, num_samples)`` for univariate ones.
 
@@ -323,7 +366,12 @@ class BCFModel:
         return self._reshape_pred(flat, self._samples.num_train())
 
     @property
-    def tau_hat_test(self):
+    def tau_hat_train(self):
+        _warn_deprecated_accessor("BCFModel", "tau_hat_train", 'extract_parameter("tau_hat_train")')
+        return self._tau_hat_train
+
+    @property
+    def _tau_hat_test(self):
         """Test-set CATE draws, shaped ``(num_test, num_samples, treatment_dim)`` for
         multivariate treatments and ``(num_test, num_samples)`` for univariate ones.
 
@@ -338,19 +386,34 @@ class BCFModel:
         return self._reshape_pred(flat, self._samples.num_test())
 
     @property
-    def sigma2_x_train(self):
+    def tau_hat_test(self):
+        _warn_deprecated_accessor("BCFModel", "tau_hat_test", 'extract_parameter("tau_hat_test")')
+        return self._tau_hat_test
+
+    @property
+    def _sigma2_x_train(self):
         if self._samples is None:
             return None
         return self._reshape_pred(self._samples.variance_forest_predictions_train(), self._samples.num_train())
 
     @property
-    def sigma2_x_test(self):
+    def sigma2_x_train(self):
+        _warn_deprecated_accessor("BCFModel", "sigma2_x_train", 'extract_parameter("sigma2_x_train")')
+        return self._sigma2_x_train
+
+    @property
+    def _sigma2_x_test(self):
         if self._samples is None:
             return None
         return self._reshape_pred(self._samples.variance_forest_predictions_test(), self._samples.num_test())
 
     @property
-    def tau_0_samples(self):
+    def sigma2_x_test(self):
+        _warn_deprecated_accessor("BCFModel", "sigma2_x_test", 'extract_parameter("sigma2_x_test")')
+        return self._sigma2_x_test
+
+    @property
+    def _tau_0_samples(self):
         if self._samples is None:
             return None
         arr = self._samples.tau_0_samples()
@@ -359,18 +422,33 @@ class BCFModel:
         return arr.reshape(self._samples.treatment_dim(), self._samples.num_samples(), order="F")
 
     @property
-    def b0_samples(self):
+    def tau_0_samples(self):
+        _warn_deprecated_accessor("BCFModel", "tau_0_samples", 'extract_parameter("tau_0")')
+        return self._tau_0_samples
+
+    @property
+    def _b0_samples(self):
         if self._samples is None:
             return None
         arr = self._samples.b0_samples()
         return arr if arr.size else None
 
     @property
-    def b1_samples(self):
+    def b0_samples(self):
+        _warn_deprecated_accessor("BCFModel", "b0_samples", 'extract_parameter("adaptive_coding")[0, :]')
+        return self._b0_samples
+
+    @property
+    def _b1_samples(self):
         if self._samples is None:
             return None
         arr = self._samples.b1_samples()
         return arr if arr.size else None
+
+    @property
+    def b1_samples(self):
+        _warn_deprecated_accessor("BCFModel", "b1_samples", 'extract_parameter("adaptive_coding")[1, :]')
+        return self._b1_samples
 
     def sample(
         self,
@@ -3460,7 +3538,7 @@ class BCFModel:
             ppd_variance = bcf_preds["variance_forest_predictions"]
         else:
             if samples_global_variance:
-                ppd_variance = np.tile(self.global_var_samples, (num_observations, 1))
+                ppd_variance = np.tile(self._global_var_samples, (num_observations, 1))
             else:
                 ppd_variance = self.sigma2_init
 
@@ -4034,7 +4112,7 @@ class BCFModel:
         """
         if term in ["sigma2", "global_error_scale", "sigma2_global"]:
             if self.sample_sigma2_global:
-                return self.global_var_samples
+                return self._global_var_samples
             else:
                 raise ValueError(
                     "This model does not have global variance parameter samples"
@@ -4042,7 +4120,7 @@ class BCFModel:
 
         if term in ["sigma2_leaf_mu", "leaf_scale_mu", "mu_leaf_scale"]:
             if self.sample_sigma2_leaf_mu:
-                return self.leaf_scale_mu_samples
+                return self._leaf_scale_mu_samples
             else:
                 raise ValueError(
                     "This model does not have prognostic forest leaf variance parameter samples"
@@ -4050,7 +4128,7 @@ class BCFModel:
 
         if term in ["sigma2_leaf_tau", "leaf_scale_tau", "tau_leaf_scale"]:
             if self.sample_sigma2_leaf_tau:
-                return self.leaf_scale_tau_samples
+                return self._leaf_scale_tau_samples
             else:
                 raise ValueError(
                     "This model does not have treatment effect forest leaf variance parameter samples"
@@ -4058,14 +4136,14 @@ class BCFModel:
 
         if term in ["adaptive_coding"]:
             if self.adaptive_coding:
-                return np.vstack([self.b0_samples, self.b1_samples])
+                return np.vstack([self._b0_samples, self._b1_samples])
             else:
                 raise ValueError(
                     "This model does not have adaptive coding parameter samples"
                 )
 
         if term in ["y_hat_train"]:
-            yht = getattr(self, "y_hat_train", None)
+            yht = getattr(self, "_y_hat_train", None)
             if yht is not None:
                 return yht
             else:
@@ -4074,7 +4152,7 @@ class BCFModel:
                 )
 
         if term in ["y_hat_test"]:
-            yht = getattr(self, "y_hat_test", None)
+            yht = getattr(self, "_y_hat_test", None)
             if yht is not None:
                 return yht
             else:
@@ -4083,7 +4161,7 @@ class BCFModel:
                 )
 
         if term in ["tau_hat_train", "cate_train"]:
-            tht = getattr(self, "tau_hat_train", None)
+            tht = getattr(self, "_tau_hat_train", None)
             if tht is not None:
                 return tht
             else:
@@ -4092,7 +4170,7 @@ class BCFModel:
                 )
 
         if term in ["tau_hat_test", "cate_test"]:
-            tht = getattr(self, "tau_hat_test", None)
+            tht = getattr(self, "_tau_hat_test", None)
             if tht is not None:
                 return tht
             else:
@@ -4101,7 +4179,7 @@ class BCFModel:
                 )
 
         if term in ["mu_hat_train", "prognostic_function_train"]:
-            mht = getattr(self, "mu_hat_train", None)
+            mht = getattr(self, "_mu_hat_train", None)
             if mht is not None:
                 return mht
             else:
@@ -4110,7 +4188,7 @@ class BCFModel:
                 )
 
         if term in ["mu_hat_test", "prognostic_function_test"]:
-            mht = getattr(self, "mu_hat_test", None)
+            mht = getattr(self, "_mu_hat_test", None)
             if mht is not None:
                 return mht
             else:
@@ -4119,7 +4197,7 @@ class BCFModel:
                 )
 
         if term in ["sigma2_x_train", "var_x_train"]:
-            s2x = getattr(self, "sigma2_x_train", None)
+            s2x = getattr(self, "_sigma2_x_train", None)
             if s2x is not None:
                 return s2x
             else:
@@ -4128,7 +4206,7 @@ class BCFModel:
                 )
 
         if term in ["sigma2_x_test", "var_x_test"]:
-            s2x = getattr(self, "sigma2_x_test", None)
+            s2x = getattr(self, "_sigma2_x_test", None)
             if s2x is not None:
                 return s2x
             else:
@@ -4137,7 +4215,7 @@ class BCFModel:
                 )
 
         if term in ["tau_0", "treatment_intercept", "tau_intercept"]:
-            t0 = getattr(self, "tau_0_samples", None)
+            t0 = getattr(self, "_tau_0_samples", None)
             if t0 is not None:
                 return t0
             else:
@@ -4168,7 +4246,7 @@ class BCFModel:
 
         # Global error scale
         if self.sample_sigma2_global:
-            sigma2_samples = self.global_var_samples
+            sigma2_samples = self._global_var_samples
             n_samples = len(sigma2_samples)
             mean_sigma2 = np.mean(sigma2_samples)
             sd_sigma2 = np.std(sigma2_samples)
@@ -4180,7 +4258,7 @@ class BCFModel:
 
         # Leaf scale mu
         if self.sample_sigma2_leaf_mu:
-            sigma2_leaf_samples = self.leaf_scale_mu_samples
+            sigma2_leaf_samples = self._leaf_scale_mu_samples
             n_samples = len(sigma2_leaf_samples)
             mean_sigma2 = np.mean(sigma2_leaf_samples)
             sd_sigma2 = np.std(sigma2_leaf_samples)
@@ -4192,7 +4270,7 @@ class BCFModel:
 
         # Leaf scale tau
         if self.sample_sigma2_leaf_tau:
-            sigma2_leaf_samples = self.leaf_scale_tau_samples
+            sigma2_leaf_samples = self._leaf_scale_tau_samples
             n_samples = len(sigma2_leaf_samples)
             mean_sigma2 = np.mean(sigma2_leaf_samples)
             sd_sigma2 = np.std(sigma2_leaf_samples)
@@ -4204,8 +4282,8 @@ class BCFModel:
 
         # Adaptive coding parameters
         if self.adaptive_coding:
-            b0_samples = self.b0_samples
-            b1_samples = self.b1_samples
+            b0_samples = self._b0_samples
+            b1_samples = self._b1_samples
             n_samples = len(b0_samples)
             mean_b0 = np.mean(b0_samples)
             mean_b1 = np.mean(b1_samples)
@@ -4223,7 +4301,7 @@ class BCFModel:
 
         # Treatment effect intercept (tau_0)
         if self.sample_tau_0:
-            tau_0_samp = getattr(self, "tau_0_samples", None)
+            tau_0_samp = getattr(self, "_tau_0_samples", None)
             if tau_0_samp is not None:
                 tau_0_vec = tau_0_samp.ravel()
                 n_samples = tau_0_samp.shape[1]
@@ -4238,7 +4316,7 @@ class BCFModel:
                     output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # In-sample predictions
-        yht = getattr(self, "y_hat_train", None)
+        yht = getattr(self, "_y_hat_train", None)
         if yht is not None:
             y_hat_train_mean = np.mean(yht, axis=1)
             n_y_hat_train = len(y_hat_train_mean)
@@ -4250,7 +4328,7 @@ class BCFModel:
                 output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # Test-set predictions
-        yht = getattr(self, "y_hat_test", None)
+        yht = getattr(self, "_y_hat_test", None)
         if yht is not None:
             y_hat_test_mean = np.mean(yht, axis=1)
             n_y_hat_test = len(y_hat_test_mean)
@@ -4262,7 +4340,7 @@ class BCFModel:
                 output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # In-sample treatment effect function estimates
-        tauhat_train = getattr(self, "tau_hat_train", None)
+        tauhat_train = getattr(self, "_tau_hat_train", None)
         if tauhat_train is not None:
             if not self.multivariate_treatment:
                 tau_hat_train_mean = np.mean(tauhat_train, axis=1)
@@ -4275,7 +4353,7 @@ class BCFModel:
                     output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # Test set treatment effect function estimates
-        tauhat_test = getattr(self, "tau_hat_test", None)
+        tauhat_test = getattr(self, "_tau_hat_test", None)
         if tauhat_test is not None:
             if not self.multivariate_treatment:
                 tau_hat_test_mean = np.mean(tauhat_test, axis=1)

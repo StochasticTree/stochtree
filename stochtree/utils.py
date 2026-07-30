@@ -1,6 +1,7 @@
 from typing import Union, Tuple
 import json
 import math
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -115,6 +116,33 @@ class NotSampledError(ValueError, AttributeError):
     Renamed from scikit-learn's "NotFittedError"
     https://github.com/scikit-learn/scikit-learn/blob/8721245511de2f225ff5f9aa5f5fadce663cd4a3/sklearn/exceptions.py#L45C7-L45C21
     """
+
+
+def _warn_deprecated_accessor(class_name: str, attribute: str, replacement: str) -> None:
+    """Emit a ``DeprecationWarning`` for a retained-but-deprecated direct accessor.
+
+    The sampled parameters / cached predictions these accessors expose are owned by the
+    ``BARTSamplesCpp`` / ``BCFSamplesCpp`` object on ``model.samples``. The properties still
+    work, but the supported path is the corresponding ``extract_parameter`` term. The
+    equivalent R fields have already been removed outright, so this warns rather than
+    breaking Python code a second time in the same release.
+
+    Parameters
+    ----------
+    class_name : str
+        Name of the model class, used to render the deprecated attribute in the message.
+    attribute : str
+        Name of the deprecated attribute.
+    replacement : str
+        Supported call to use instead, rendered as ``model.<replacement>``.
+    """
+    warnings.warn(
+        f"`{class_name}.{attribute}` is deprecated and will be removed in a future release. "
+        f"The sampled values are owned by `model.samples`; use `model.{replacement}` instead.",
+        DeprecationWarning,
+        # 1 = this helper, 2 = the property getter, 3 = the caller's own code
+        stacklevel=3,
+    )
 
 
 def _standardize_array_to_list(input: Union[list, np.ndarray]) -> list:

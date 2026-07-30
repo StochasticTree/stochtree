@@ -1762,7 +1762,11 @@ bcf <- function(
 #' They are no longer stored or accessible via `$forests_mu` / `$forests_tau` / `$forests_variance`.
 #' Similarly, sampled parameter vectors are no longer stored or accessible via `$sigma2_global_samples` / `$sigma2_leaf_mu_samples` / `$sigma2_leaf_tau_samples`
 #' and cached predictions are no longer accessible via `$y_hat_train` / `$y_hat_test` / `$mu_hat_train` / `$mu_hat_test` / `$tau_hat_train` / `$tau_hat_test` /
-#' `$sigma2_x_hat_train` / `$sigma2_x_hat_test`. Accessing any of these model terms by name raises an error pointing at the supported extraction path.
+#' `$sigma2_x_hat_train` / `$sigma2_x_hat_test`. Sampled random effects terms are likewise no longer accessible via `$rfx_samples`.
+#' Cached predictions are likewise no longer stored on the model, so `$y_hat` / `$mu_hat` / `$tau_hat` / `$cate` /
+#' `$prognostic_function` / `$variance_forest_predictions` / `$rfx_predictions` / `$rfx_preds_train` / `$rfx_preds_test`
+#' are unavailable and are served by `predict()` instead.
+#' Accessing any of these model terms by name raises an error pointing at the supported extraction path.
 #' @noRd
 #' @export
 `$.bcfmodel` <- function(x, name) {
@@ -1778,6 +1782,14 @@ bcf <- function(
           "extract a standalone copy with `extractForest()`."
         ),
         name
+      ),
+      call. = FALSE
+    )
+  } else if (identical(name, "rfx_samples")) {
+    stop(
+      paste0(
+        "`bcfmodel$rfx_samples` has been removed. The sampled random effects are owned by ",
+        "`model$samples`; extract a standalone copy with `extractRandomEffectSamples()`."
       ),
       call. = FALSE
     )
@@ -1804,6 +1816,40 @@ bcf <- function(
           "you can extract a standalone copy with `extractParameter()`."
         ),
         name
+      ),
+      call. = FALSE
+    )
+  } else if (
+    identical(name, "y_hat") ||
+      identical(name, "mu_hat") ||
+      identical(name, "tau_hat") ||
+      identical(name, "cate") ||
+      identical(name, "prognostic_function") ||
+      identical(name, "variance_forest_predictions") ||
+      identical(name, "rfx_predictions") ||
+      identical(name, "rfx_preds_train") ||
+      identical(name, "rfx_preds_test")
+  ) {
+    term <- switch(
+      name,
+      "y_hat" = "y_hat",
+      "mu_hat" = "mu",
+      "tau_hat" = "tau",
+      "cate" = "cate",
+      "prognostic_function" = "prognostic_function",
+      "variance_forest_predictions" = "variance_forest",
+      "rfx_predictions" = ,
+      "rfx_preds_train" = ,
+      "rfx_preds_test" = "rfx"
+    )
+    stop(
+      sprintf(
+        paste0(
+          "`bcfmodel$%s` has been removed. Cached predictions are no longer stored on the model; ",
+          "call `predict()` with `terms = \"%s\"` instead."
+        ),
+        name,
+        term
       ),
       call. = FALSE
     )

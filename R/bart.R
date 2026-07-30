@@ -1273,6 +1273,10 @@ bart <- function(
 #' They are no longer stored or accessible via `$mean_forests` / `$variance_forests`.
 #' Similarly, sampled parameter vectors are no longer stored or accessible via `$sigma2_global_samples` / `$sigma2_leaf_samples`
 #' and cached predictions are not accessible via `$y_hat_train` / `$y_hat_test` / `$sigma2_x_hat_train` / `$sigma2_x_hat_test`.
+#' Sampled random effects terms are likewise no longer accessible via `$rfx_samples`.
+#' Cached predictions are likewise no longer stored on the model, so `$y_hat` / `$mean_forest_predictions` /
+#' `$variance_forest_predictions` / `$rfx_predictions` / `$rfx_preds_train` / `$rfx_preds_test` are unavailable
+#' and are served by `predict()` instead.
 #' Accessing any of these model terms by name raises an error pointing at the supported extraction path.
 #' @noRd
 #' @export
@@ -1285,6 +1289,14 @@ bart <- function(
           "you can extract a standalone copy with `extractForest()`."
         ),
         name
+      ),
+      call. = FALSE
+    )
+  } else if (identical(name, "rfx_samples")) {
+    stop(
+      paste0(
+        "`bartmodel$rfx_samples` has been removed. The sampled random effects are owned by ",
+        "`model$samples`; you can extract a standalone copy with `extractRandomEffectSamples()`."
       ),
       call. = FALSE
     )
@@ -1304,6 +1316,34 @@ bart <- function(
           "you can extract a standalone copy with `extractParameter()`."
         ),
         name
+      ),
+      call. = FALSE
+    )
+  } else if (
+    identical(name, "y_hat") ||
+      identical(name, "mean_forest_predictions") ||
+      identical(name, "variance_forest_predictions") ||
+      identical(name, "rfx_predictions") ||
+      identical(name, "rfx_preds_train") ||
+      identical(name, "rfx_preds_test")
+  ) {
+    term <- switch(
+      name,
+      "y_hat" = "y_hat",
+      "mean_forest_predictions" = "mean_forest",
+      "variance_forest_predictions" = "variance_forest",
+      "rfx_predictions" = ,
+      "rfx_preds_train" = ,
+      "rfx_preds_test" = "rfx"
+    )
+    stop(
+      sprintf(
+        paste0(
+          "`bartmodel$%s` has been removed. Cached predictions are no longer stored on the model; ",
+          "call `predict()` with `terms = \"%s\"` instead."
+        ),
+        name,
+        term
       ),
       call. = FALSE
     )
