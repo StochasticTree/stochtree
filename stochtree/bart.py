@@ -30,6 +30,7 @@ from .utils import (
     _get_stochtree_version,
     _infer_stochtree_version,
     _posterior_predictive_heuristic_multiplier,
+    _warn_deprecated_accessor,
     _resolve_variable_subset,
     _summarize_interval,
 )
@@ -214,7 +215,14 @@ class BARTModel:
         )
 
     @property
-    def global_var_samples(self):
+    def rfx_container(self):
+        raise AttributeError(
+            "`BARTModel.rfx_container` has been removed. The sampled random effects are owned by "
+            "`model.samples`; extract a standalone copy with `model.extract_random_effect_samples()`."
+        )
+
+    @property
+    def _global_var_samples(self):
         # None when unsampled or not sampled in this model (preserves getattr(..., None) semantics).
         if self._samples is None:
             return None
@@ -222,11 +230,21 @@ class BARTModel:
         return arr if arr.size else None
 
     @property
-    def leaf_scale_samples(self):
+    def global_var_samples(self):
+        _warn_deprecated_accessor("BARTModel", "global_var_samples", 'extract_parameter("sigma2_global")')
+        return self._global_var_samples
+
+    @property
+    def _leaf_scale_samples(self):
         if self._samples is None:
             return None
         arr = self._samples.leaf_scale_samples()
         return arr if arr.size else None
+
+    @property
+    def leaf_scale_samples(self):
+        _warn_deprecated_accessor("BARTModel", "leaf_scale_samples", 'extract_parameter("sigma2_leaf")')
+        return self._leaf_scale_samples
 
     @property
     def num_samples(self):
@@ -239,31 +257,51 @@ class BARTModel:
         return flat.reshape(n_obs, self._samples.num_samples(), order="F")
 
     @property
-    def y_hat_train(self):
+    def _y_hat_train(self):
         if self._samples is None:
             return None
         return self._reshape_pred(self._samples.y_hat_train(), self.n_train)
 
     @property
-    def y_hat_test(self):
+    def y_hat_train(self):
+        _warn_deprecated_accessor("BARTModel", "y_hat_train", 'extract_parameter("y_hat_train")')
+        return self._y_hat_train
+
+    @property
+    def _y_hat_test(self):
         if self._samples is None or not self.has_test:
             return None
         return self._reshape_pred(self._samples.y_hat_test(), self.n_test)
 
     @property
-    def sigma2_x_train(self):
+    def y_hat_test(self):
+        _warn_deprecated_accessor("BARTModel", "y_hat_test", 'extract_parameter("y_hat_test")')
+        return self._y_hat_test
+
+    @property
+    def _sigma2_x_train(self):
         if self._samples is None:
             return None
         return self._reshape_pred(self._samples.variance_forest_predictions_train(), self.n_train)
 
     @property
-    def sigma2_x_test(self):
+    def sigma2_x_train(self):
+        _warn_deprecated_accessor("BARTModel", "sigma2_x_train", 'extract_parameter("sigma2_x_train")')
+        return self._sigma2_x_train
+
+    @property
+    def _sigma2_x_test(self):
         if self._samples is None or not self.has_test:
             return None
         return self._reshape_pred(self._samples.variance_forest_predictions_test(), self.n_test)
 
     @property
-    def cloglog_cutpoint_samples(self):
+    def sigma2_x_test(self):
+        _warn_deprecated_accessor("BARTModel", "sigma2_x_test", 'extract_parameter("sigma2_x_test")')
+        return self._sigma2_x_test
+
+    @property
+    def _cloglog_cutpoint_samples(self):
         if self._samples is None:
             return None
         arr = self._samples.cloglog_cutpoint_samples()
@@ -272,6 +310,11 @@ class BARTModel:
         return arr.reshape(
             self.cloglog_num_categories - 1, self._samples.num_samples(), order="F"
         )
+
+    @property
+    def cloglog_cutpoint_samples(self):
+        _warn_deprecated_accessor("BARTModel", "cloglog_cutpoint_samples", 'extract_parameter("cloglog_cutpoints")')
+        return self._cloglog_cutpoint_samples
 
     def sample(
         self,
@@ -2228,7 +2271,7 @@ class BARTModel:
         scale_int = 0 if not probability_scale and not class_scale else (1 if probability_scale else 2)
 
         # # Convert cloglog cutpoint samples to fortran (column-major) array if present and not already aligned as such
-        # cloglog_cutpoints = getattr(self, "cloglog_cutpoint_samples", None)
+        # cloglog_cutpoints = getattr(self, "_cloglog_cutpoint_samples", None)
         # if cloglog_cutpoints is not None:
         #     cloglog_cutpoints = np.asfortranarray(cloglog_cutpoints)
 
@@ -2763,7 +2806,7 @@ class BARTModel:
             else:
                 if samples_global_variance:
                     ppd_variance = np.tile(
-                        self.global_var_samples, (num_observations, 1)
+                        self._global_var_samples, (num_observations, 1)
                     )
                 else:
                     ppd_variance = self.sigma2_init
@@ -3310,7 +3353,7 @@ class BARTModel:
         """
         if term in ["sigma2", "global_error_scale", "sigma2_global"]:
             if self.sample_sigma2_global:
-                return self.global_var_samples
+                return self._global_var_samples
             else:
                 raise ValueError(
                     "This model does not have global variance parameter samples"
@@ -3318,14 +3361,14 @@ class BARTModel:
 
         if term in ["sigma2_leaf", "leaf_scale"]:
             if self.sample_sigma2_leaf:
-                return self.leaf_scale_samples
+                return self._leaf_scale_samples
             else:
                 raise ValueError(
                     "This model does not have leaf variance parameter samples"
                 )
 
         if term in ["y_hat_train"]:
-            yht = getattr(self, "y_hat_train", None)
+            yht = getattr(self, "_y_hat_train", None)
             if yht is not None:
                 return yht
             else:
@@ -3334,7 +3377,7 @@ class BARTModel:
                 )
 
         if term in ["y_hat_test"]:
-            yht = getattr(self, "y_hat_test", None)
+            yht = getattr(self, "_y_hat_test", None)
             if yht is not None:
                 return yht
             else:
@@ -3343,7 +3386,7 @@ class BARTModel:
                 )
 
         if term in ["sigma2_x_train", "var_x_train"]:
-            s2x = getattr(self, "sigma2_x_train", None)
+            s2x = getattr(self, "_sigma2_x_train", None)
             if s2x is not None:
                 return s2x
             else:
@@ -3352,7 +3395,7 @@ class BARTModel:
                 )
 
         if term in ["sigma2_x_test", "var_x_test"]:
-            s2x = getattr(self, "sigma2_x_test", None)
+            s2x = getattr(self, "_sigma2_x_test", None)
             if s2x is not None:
                 return s2x
             else:
@@ -3365,7 +3408,7 @@ class BARTModel:
                 self.outcome_model.outcome == "ordinal"
                 and self.outcome_model.link == "cloglog"
             ):
-                return self.cloglog_cutpoint_samples
+                return self._cloglog_cutpoint_samples
             else:
                 raise ValueError("This model does not have ordinal cutpoint samples")
 
@@ -3392,7 +3435,7 @@ class BARTModel:
 
         # Global error scale
         if self.sample_sigma2_global:
-            sigma2_samples = self.global_var_samples
+            sigma2_samples = self._global_var_samples
             n_samples = len(sigma2_samples)
             mean_sigma2 = np.mean(sigma2_samples)
             sd_sigma2 = np.std(sigma2_samples)
@@ -3404,7 +3447,7 @@ class BARTModel:
 
         # Leaf scale
         if self.sample_sigma2_leaf:
-            sigma2_leaf_samples = self.leaf_scale_samples
+            sigma2_leaf_samples = self._leaf_scale_samples
             n_samples = len(sigma2_leaf_samples)
             mean_sigma2 = np.mean(sigma2_leaf_samples)
             sd_sigma2 = np.std(sigma2_leaf_samples)
@@ -3415,7 +3458,7 @@ class BARTModel:
                 output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # In-sample predictions
-        yht = getattr(self, "y_hat_train", None)
+        yht = getattr(self, "_y_hat_train", None)
         if yht is not None:
             y_hat_train_mean = np.mean(yht, axis=1)
             n_y_hat_train = len(y_hat_train_mean)
@@ -3427,7 +3470,7 @@ class BARTModel:
                 output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # Test-set predictions
-        yht = getattr(self, "y_hat_test", None)
+        yht = getattr(self, "_y_hat_test", None)
         if yht is not None:
             y_hat_test_mean = np.mean(yht, axis=1)
             n_y_hat_test = len(y_hat_test_mean)
