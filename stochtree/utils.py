@@ -656,3 +656,31 @@ def _compute_bcf_forest_weights(
         variable_weights_variance
     )
     return variable_weights_mu, variable_weights_tau, variable_weights_variance
+
+
+def _as_cpp_writeable(array: np.ndarray, dtype=None, order: str = "F") -> np.ndarray:
+    """Return a contiguous array that the C++ bindings may take mutable access to.
+
+    ``np.asfortranarray`` / ``np.ascontiguousarray`` return their input unchanged when the
+    array already has the requested dtype and a compatible memory layout, which preserves a
+    ``writeable=False`` flag. Read-only inputs are easy to produce without meaning to: under
+    pandas Copy-on-Write (the default from pandas 3.0) ``DataFrame.loc[:, col].to_numpy()``
+    hands back a read-only view. Several C++ bindings request mutable access to their input
+    buffers, so a read-only array raises ``ValueError: array is not writeable``. Copy only in
+    that case; writeable inputs are passed through unchanged, as before.
+
+    Pass ``order="C"`` for the row-major buffers used by ``Dataset``. ``dtype`` defaults to
+    ``None`` (preserve the input dtype) so this never changes what the bindings receive:
+    pybind11 force-casts a mismatched dtype, and that cast is itself a copy, so a read-only
+    array only reaches C++ unchanged when its dtype and layout already match.
+    """
+    if array is None:
+        return None
+    converted = (
+        np.asfortranarray(array, dtype=dtype)
+        if order == "F"
+        else np.ascontiguousarray(array, dtype=dtype)
+    )
+    if not converted.flags.writeable:
+        converted = np.array(converted, dtype=dtype, order=order, copy=True)
+    return converted

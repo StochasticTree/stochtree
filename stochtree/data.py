@@ -1,6 +1,8 @@
 import numpy as np
 from stochtree_cpp import ForestDatasetCpp, ResidualCpp
 
+from .utils import _as_cpp_writeable
+
 
 class Dataset:
     """
@@ -31,11 +33,7 @@ class Dataset:
             np.expand_dims(covariates, 1) if np.ndim(covariates) == 1 else covariates
         )
         n, p = covariates_.shape
-        covariates_rowmajor = np.ascontiguousarray(covariates_)
-        # if covariates_.flags.writeable:
-        #     covariates_rowmajor = np.ascontiguousarray(covariates_)
-        # else:
-        #     covariates_rowmajor = np.array(covariates_, order="C", copy=True)
+        covariates_rowmajor = _as_cpp_writeable(covariates_, order="C")
         self.dataset_cpp.AddCovariates(covariates_rowmajor, n, p, True)
 
     def add_basis(self, basis: np.array):
@@ -49,11 +47,7 @@ class Dataset:
         """
         basis_ = np.expand_dims(basis, 1) if np.ndim(basis) == 1 else basis
         n, p = basis_.shape
-        basis_rowmajor = np.ascontiguousarray(basis_)
-        # if basis_.flags.writeable:
-        #     basis_rowmajor = np.ascontiguousarray(basis_)
-        # else:
-        #     basis_rowmajor = np.array(basis_, order="C", copy=True)
+        basis_rowmajor = _as_cpp_writeable(basis_, order="C")
         self.dataset_cpp.AddBasis(basis_rowmajor, n, p, True)
 
     def update_basis(self, basis: np.array):
@@ -79,11 +73,7 @@ class Dataset:
         else:
             raise ValueError("basis must be a numpy array with one or two dimension.")
         n, p = basis_.shape
-        basis_rowmajor = np.ascontiguousarray(basis_)
-        # if basis_.flags.writeable:
-        #     basis_rowmajor = np.ascontiguousarray(basis_)
-        # else:
-        #     basis_rowmajor = np.array(basis_, order="C", copy=True)
+        basis_rowmajor = _as_cpp_writeable(basis_, order="C")
         if self.num_basis() != p:
             raise ValueError(
                 f"The number of columns in the new basis ({p}) must match the number of columns in the existing basis ({self.num_basis()})."
@@ -108,13 +98,9 @@ class Dataset:
         variance_weights_ = np.squeeze(variance_weights)
         if variance_weights_.ndim != 1:
             raise ValueError("variance_weights must be a 1-dimensional numpy array.")
-        # if variance_weights_.flags.writeable:
-        #     variance_weights_passed_ = variance_weights_
-        # else:
-        #     variance_weights_passed_ = variance_weights_.copy()
+        variance_weights_ = _as_cpp_writeable(variance_weights_)
         n = variance_weights_.size
         self.dataset_cpp.AddVarianceWeights(variance_weights_, n)
-        # self.dataset_cpp.AddVarianceWeights(variance_weights_passed_, n)
 
     def update_variance_weights(
         self, variance_weights: np.array, exponentiate: bool = False
@@ -140,16 +126,12 @@ class Dataset:
         n = variance_weights_.size
         if variance_weights_.ndim != 1:
             raise ValueError("variance_weights must be a 1-dimensional numpy array.")
-        # if variance_weights_.flags.writeable:
-        #     variance_weights_passed_ = variance_weights_
-        # else:
-        #     variance_weights_passed_ = variance_weights_.copy()
+        variance_weights_ = _as_cpp_writeable(variance_weights_)
         if self.num_observations() != n:
             raise ValueError(
                 f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()})."
             )
         self.dataset_cpp.UpdateVarianceWeights(variance_weights_, n, exponentiate)
-        # self.dataset_cpp.UpdateVarianceWeights(variance_weights_passed_, n, exponentiate)
 
     def num_observations(self) -> int:
         """
@@ -320,8 +302,9 @@ class Residual:
         residual : np.array
             Univariate numpy array of residual values.
         """
-        n = residual.size
-        self.residual_cpp = ResidualCpp(residual, n)
+        residual_ = _as_cpp_writeable(residual)
+        n = residual_.size
+        self.residual_cpp = ResidualCpp(residual_, n)
 
     def get_residual(self) -> np.array:
         """
@@ -343,8 +326,9 @@ class Residual:
         new_vector : np.array
             Univariate numpy array of new residual values.
         """
-        n = new_vector.size
-        self.residual_cpp.ReplaceData(new_vector, n)
+        new_vector_ = _as_cpp_writeable(new_vector)
+        n = new_vector_.size
+        self.residual_cpp.ReplaceData(new_vector_, n)
 
     def add_vector(self, update_vector: np.array) -> None:
         """
@@ -360,6 +344,7 @@ class Residual:
         update_vector_ = np.squeeze(update_vector)
         if not update_vector_.ndim == 1:
             raise ValueError("update_vector must be a 1-dimensional numpy array.")
+        update_vector_ = _as_cpp_writeable(update_vector_)
         n = update_vector_.size
         self.residual_cpp.AddToData(update_vector_, n)
 
@@ -377,5 +362,6 @@ class Residual:
         update_vector_ = np.squeeze(update_vector)
         if not update_vector_.ndim == 1:
             raise ValueError("update_vector must be a 1-dimensional numpy array.")
+        update_vector_ = _as_cpp_writeable(update_vector_)
         n = update_vector_.size
         self.residual_cpp.SubtractFromData(update_vector_, n)
