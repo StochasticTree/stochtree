@@ -16,7 +16,7 @@ While most of the changes are internal, there are several user-facing changes in
 
 * Direct access sampler outputs (either external pointers to C++ objects like forest containers or arrays with parameter traces) is no longer supported. 
   * Any code which accesses parameter traces like `bart_model$sigma2_global_samples` in R or `bart_model.global_var_samples` in Python must be converted to `extractParameter(bart_model, "sigma2_global")` or `bart_model.extract_parameter("sigma2_global")`. [*Note that member-based parameter access (i.e. `bart_model.global_var_samples`) is still technically supported in Python, but will be removed in future releases and we encourage users to migrate to method-based parameter acceess.*]
-  * Any code which accesses forest pointers directly as in `bart_model$mean_forests` in R or `bart_model.forest_container_mean.` in Python must be converted to `extractForest(bart_model, "mean")` or `bart_model.extract_forest("mean")`
+  * Any code which accesses forest pointers directly as in `bart_model$mean_forests` in R or `bart_model.forest_container_mean` in Python must be converted to `extractForest(bart_model, "mean")` or `bart_model.extract_forest("mean")`
   * Any code which accesses random effects pointers directly as in `bart_model$rfx_samples` in R or `bart_model.rfx_container` in Python must be converted to `extractRandomEffectSamples(bart_model)` or `bart_model.extract_random_effect_samples()`
 * The generic `getRandomEffectSamples` in R still runs, but is a wrapper around `extractRandomEffectSamples`, which was created for API consistency and should be used going forward.
 
