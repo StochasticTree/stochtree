@@ -56,7 +56,7 @@ void sample_gfr_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDatas
     else StochTree::Log::Fatal("Invalid model type");
 
     // Unpack leaf model parameters
-    double leaf_scale;
+    double leaf_scale = 0.0;
     Eigen::MatrixXd leaf_scale_matrix;
     if ((model_type == StochTree::ModelType::kConstantLeafGaussian) ||
         (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian)) {
@@ -141,7 +141,7 @@ void sample_mcmc_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestData
     else StochTree::Log::Fatal("Invalid model type");
 
     // Unpack leaf model parameters
-    double leaf_scale;
+    double leaf_scale = 0.0;
     Eigen::MatrixXd leaf_scale_matrix;
     if ((model_type == StochTree::ModelType::kConstantLeafGaussian) ||
         (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian)) {
