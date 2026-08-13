@@ -1,6 +1,6 @@
 #include <stochtree/distributions.h>
 #include <stochtree/leaf_model.h>
-#include <boost/math/special_functions/gamma.hpp>
+#include <cmath>
 
 namespace StochTree {
 
@@ -219,11 +219,11 @@ double LogLinearVarianceLeafModel::NoSplitLogMarginalLikelihood(LogLinearVarianc
 }
 
 double LogLinearVarianceLeafModel::SuffStatLogMarginalLikelihood(LogLinearVarianceSuffStat& suff_stat, double global_variance) {
-  double prior_terms = a_ * std::log(b_) - boost::math::lgamma(a_);
+  double prior_terms = a_ * std::log(b_) - std::lgamma(a_);
   double a_term = a_ + 0.5 * suff_stat.n;
   double b_term = b_ + ((0.5 * suff_stat.weighted_sum_ei) / global_variance);
   double log_b_term = std::log(b_term);
-  double lgamma_a_term = boost::math::lgamma(a_term);
+  double lgamma_a_term = std::lgamma(a_term);
   double resid_term = a_term * log_b_term;
   double log_ml = prior_terms + lgamma_a_term - resid_term;
   return log_ml;
@@ -285,11 +285,11 @@ double CloglogOrdinalLeafModel::NoSplitLogMarginalLikelihood(CloglogOrdinalSuffS
 }
 
 double CloglogOrdinalLeafModel::SuffStatLogMarginalLikelihood(CloglogOrdinalSuffStat& suff_stat, double global_variance) {
-  double prior_terms = a_ * std::log(b_) - boost::math::lgamma(a_);
+  double prior_terms = a_ * std::log(b_) - std::lgamma(a_);
   double a_term = a_ + suff_stat.sum_Y_less_K;
   double b_term = b_ + suff_stat.other_sum;
   double log_b_term = std::log(b_term);
-  double lgamma_a_term = boost::math::lgamma(a_term);
+  double lgamma_a_term = std::lgamma(a_term);
   double resid_term = a_term * log_b_term;
   double log_ml = prior_terms + lgamma_a_term - resid_term;
   return log_ml;
