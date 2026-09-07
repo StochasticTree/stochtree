@@ -859,6 +859,70 @@ static inline void GFRSampleOneIter(TreeEnsemble& active_forest, ForestTracker& 
   }
 }
 
+// Proposal availability uses observation counts only. Selecting a constant
+// variable or a leaf at maximum depth still yields a rejected grow proposal.
+struct MCMCProposalState {
+  int leaves;
+  int leaf_parents;
+  int grow_candidates;
+  double GrowProbability() const {
+    return grow_candidates > 0 ? (leaf_parents > 0 ? 0.5 : 1.0) : 0.0;
+  }
+  double PruneProbability() const {
+    return leaf_parents > 0 ? (grow_candidates > 0 ? 0.5 : 1.0) : 0.0;
+  }
+};
+
+static inline bool MCMCSizeAllowsGrow(data_size_t n, int minimum) {
+  // Equality permits two children with exactly minimum observations each.
+  return n >= 2 * minimum;
+}
+
+static inline MCMCProposalState MCMCGetProposalState(Tree* tree, ForestTracker& tracker, int tree_num, int minimum) {
+  MCMCProposalState state{tree->NumLeaves(), tree->NumLeafParents(), 0};
+  for (int leaf : tree->GetLeaves()) {
+    state.grow_candidates += MCMCSizeAllowsGrow(tracker.UnsortedNodeSize(tree_num, leaf), minimum);
+  }
+  return state;
+}
+
+static inline MCMCProposalState MCMCStateAfterGrow(Tree* tree, MCMCProposalState state, int leaf,
+                                                  data_size_t left_n, data_size_t right_n, int minimum) {
+  state.leaves += 1;
+  state.leaf_parents += 1;
+  if (!tree->IsRoot(leaf) && tree->IsLeafParent(tree->Parent(leaf))) {
+    state.leaf_parents -= 1;
+  }
+  state.grow_candidates += MCMCSizeAllowsGrow(left_n, minimum) + MCMCSizeAllowsGrow(right_n, minimum)
+                          - MCMCSizeAllowsGrow(left_n + right_n, minimum);
+  return state;
+}
+
+static inline MCMCProposalState MCMCStateAfterPrune(Tree* tree, MCMCProposalState state, int node,
+                                                   data_size_t left_n, data_size_t right_n, int minimum) {
+  state.leaves -= 1;
+  state.leaf_parents -= 1;
+  if (!tree->IsRoot(node)) {
+    int parent = tree->Parent(node);
+    int sibling = tree->LeftChild(parent) == node ? tree->RightChild(parent) : tree->LeftChild(parent);
+    if (tree->IsLeaf(sibling)) state.leaf_parents += 1;
+  }
+  state.grow_candidates += MCMCSizeAllowsGrow(left_n + right_n, minimum)
+                          - MCMCSizeAllowsGrow(left_n, minimum) - MCMCSizeAllowsGrow(right_n, minimum);
+  return state;
+}
+
+// The split-rule density cancels with the corresponding conditional tree prior.
+// These terms cover move type and uniform leaf / leaf-parent selection only.
+static inline double MCMCLogProposalRatio(const MCMCProposalState& from, const MCMCProposalState& to, bool grow) {
+  if (grow) {
+    return std::log(to.PruneProbability()) - std::log(static_cast<double>(to.leaf_parents))
+           - std::log(from.GrowProbability()) + std::log(static_cast<double>(from.leaves));
+  }
+  return std::log(to.GrowProbability()) - std::log(static_cast<double>(to.leaves))
+         - std::log(from.PruneProbability()) + std::log(static_cast<double>(from.leaf_parents));
+}
+
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, ColumnVector& residual, 
                                        TreePrior& tree_prior, std::mt19937& gen, int tree_num, std::vector<double>& variable_weights, 
@@ -923,28 +987,13 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
       double pgl = tree_prior.GetAlpha() * std::pow(1+leaf_depth+1, -tree_prior.GetBeta());
       double pgr = tree_prior.GetAlpha() * std::pow(1+leaf_depth+1, -tree_prior.GetBeta());
 
-      // Determine whether a "grow" move is possible from the newly formed tree
-      // in order to compute the probability of choosing "prune" from the new tree
-      // (which is always possible by construction)
-      bool non_constant = NodesNonConstantAfterSplit(dataset, tracker, split, tree_num, leaf_chosen, var_chosen);
-      bool min_samples_left_check = left_n >= 2*tree_prior.GetMinSamplesLeaf();
-      bool min_samples_right_check = right_n >= 2*tree_prior.GetMinSamplesLeaf();
-      double prob_prune_new;
-      if (non_constant && (min_samples_left_check || min_samples_right_check)) {
-        prob_prune_new = 0.5;
-      } else {
-        prob_prune_new = 1.0;
-      }
-
-      // Determine the number of leaves in the current tree and leaf parents in the proposed tree
-      int num_leaf_parents = tree->NumLeafParents();
-      double p_leaf = 1/static_cast<double>(num_leaves);
-      double p_leaf_parent = 1/static_cast<double>(num_leaf_parents+1);
+      auto old_state = MCMCGetProposalState(tree, tracker, tree_num, tree_prior.GetMinSamplesLeaf());
+      auto new_state = MCMCStateAfterGrow(tree, old_state, leaf_chosen, left_n, right_n, tree_prior.GetMinSamplesLeaf());
 
       // Compute the final MH ratio
       double log_mh_ratio = (
-        std::log(pg) + std::log(1-pgl) + std::log(1-pgr) - std::log(1-pg) + std::log(prob_prune_new) +
-        std::log(p_leaf_parent) - std::log(prob_grow_old) - std::log(p_leaf) - no_split_log_marginal_likelihood + split_log_marginal_likelihood
+        std::log(pg) + std::log(1-pgl) + std::log(1-pgr) - std::log(1-pg) +
+        MCMCLogProposalRatio(old_state, new_state, true) - no_split_log_marginal_likelihood + split_log_marginal_likelihood
       );
       // Threshold at 0
       if (log_mh_ratio > 0) {
@@ -997,36 +1046,13 @@ static inline void MCMCPruneTreeOneIter(Tree* tree, ForestTracker& tracker, Leaf
   double pgl = tree_prior.GetAlpha() * std::pow(1+leaf_parent_depth+1, -tree_prior.GetBeta());
   double pgr = tree_prior.GetAlpha() * std::pow(1+leaf_parent_depth+1, -tree_prior.GetBeta());
 
-  // Determine whether a "prune" move is possible from the new tree,
-  // in order to compute the probability of choosing "grow" from the new tree
-  // (which is always possible by construction)
-  bool non_root_tree = tree->NumNodes() > 1;
-  double prob_grow_new;
-  if (non_root_tree) {
-    prob_grow_new = 0.5;
-  } else {
-    prob_grow_new = 1.0;
-  }
-
-  // Determine whether a "grow" move was possible from the old tree,
-  // in order to compute the probability of choosing "prune" from the old tree
-  bool non_constant_left = NodeNonConstant(dataset, tracker, tree_num, left_node);
-  bool non_constant_right = NodeNonConstant(dataset, tracker, tree_num, right_node);
-  double prob_prune_old;
-  if (non_constant_left && non_constant_right) {
-    prob_prune_old = 0.5;
-  } else {
-    prob_prune_old = 1.0;
-  }
-
-  // Determine the number of leaves in the current tree and leaf parents in the proposed tree
-  double p_leaf = 1/static_cast<double>(num_leaves-1);
-  double p_leaf_parent = 1/static_cast<double>(num_leaf_parents);
+  auto old_state = MCMCGetProposalState(tree, tracker, tree_num, tree_prior.GetMinSamplesLeaf());
+  auto new_state = MCMCStateAfterPrune(tree, old_state, leaf_parent_chosen, left_n, right_n, tree_prior.GetMinSamplesLeaf());
 
   // Compute the final MH ratio
   double log_mh_ratio = (
-    std::log(1-pg) - std::log(pg) - std::log(1-pgl) - std::log(1-pgr) + std::log(prob_prune_old) +
-    std::log(p_leaf) - std::log(prob_grow_new) - std::log(p_leaf_parent) + no_split_log_marginal_likelihood - split_log_marginal_likelihood
+    std::log(1-pg) - std::log(pg) - std::log(1-pgl) - std::log(1-pgr) +
+    MCMCLogProposalRatio(old_state, new_state, false) + no_split_log_marginal_likelihood - split_log_marginal_likelihood
   );
   // Threshold at 0
   if (log_mh_ratio > 0) {
@@ -1048,37 +1074,12 @@ template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatCon
 static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset,
                                          ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
                                          int tree_num, double global_variance, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
-  // Determine whether it is possible to grow any of the leaves
-  bool grow_possible = false;
-  std::vector<int> leaves = tree->GetLeaves();
-  for (auto& leaf: leaves) {
-    if (tracker.UnsortedNodeSize(tree_num, leaf) > 2 * tree_prior.GetMinSamplesLeaf()) {
-      grow_possible = true;
-      break;
-    }
-  }
-
-  // Determine whether it is possible to prune the tree
-  bool prune_possible = false;
-  if (tree->NumValidNodes() > 1) {
-    prune_possible = true;
-  }
-
-  // Determine the relative probability of grow vs prune (0 = grow, 1 = prune)
-  double prob_grow;
-  std::vector<double> step_probs(2);
-  if (grow_possible && prune_possible) {
-    step_probs = {0.5, 0.5};
-    prob_grow = 0.5;
-  } else if (!grow_possible && prune_possible) {
-    step_probs = {0.0, 1.0};
-    prob_grow = 0.0;
-  } else if (grow_possible && !prune_possible) {
-    step_probs = {1.0, 0.0};
-    prob_grow = 1.0;
-  } else {
-    Log::Fatal("In this tree, neither grow nor prune is possible");
-  }
+  auto state = MCMCGetProposalState(tree, tracker, tree_num, tree_prior.GetMinSamplesLeaf());
+  double prob_grow = state.GrowProbability();
+  double prob_prune = state.PruneProbability();
+  // An undersized root has no legal move; retain the current tree.
+  if (prob_grow == 0.0 && prob_prune == 0.0) return;
+  std::vector<double> step_probs{prob_grow, prob_prune};
   walker_vose step_dist(step_probs.begin(), step_probs.end());
 
   // Draw a split rule at random
