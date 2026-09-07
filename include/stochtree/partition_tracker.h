@@ -31,6 +31,7 @@
 #include <stochtree/openmp_utils.h>
 #include <stochtree/tree.h>
 
+#include <cmath>
 #include <numeric>
 
 namespace StochTree {
@@ -495,10 +496,16 @@ class FeaturePresortRoot {
     }
     std::iota(feature_sort_indices_.begin(), feature_sort_indices_.end(), 0);
 
-    // Define a custom comparator to be used with stable_sort:
-    // For every two indices l and r store as elements of `data_sort_indices_`, 
-    // compare them for sorting purposes by indexing the covariate's raw data with both l and r
-    auto comp_op = [&](size_t const &l, size_t const &r) { return std::less<double>{}(covariates(l, feature_index_), covariates(r, feature_index_)); };
+    // Ordinary floating-point less-than is not a strict weak ordering with NaNs.
+    // Sort NaNs last, consistent with numeric splits routing them right, while
+    // stable_sort preserves the input order of equal values (including NaNs).
+    auto comp_op = [&](size_t const &l, size_t const &r) {
+      const double left_value = covariates(l, feature_index_);
+      const double right_value = covariates(r, feature_index_);
+      if (std::isnan(left_value)) return false;
+      if (std::isnan(right_value)) return true;
+      return left_value < right_value;
+    };
     std::stable_sort(feature_sort_indices_.begin(), feature_sort_indices_.end(), comp_op);
   }
 
