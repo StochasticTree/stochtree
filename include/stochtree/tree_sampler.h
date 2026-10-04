@@ -47,7 +47,7 @@ namespace StochTree {
  */
 static inline void VarSplitRange(ForestTracker& tracker, ForestDataset& dataset, int tree_num, int leaf_split, int feature_split, double& var_min, double& var_max) {
   var_min = std::numeric_limits<double>::max();
-  var_max = std::numeric_limits<double>::min();
+  var_max = std::numeric_limits<double>::lowest();
   double feature_value;
   
   std::vector<data_size_t>::iterator node_begin_iter = tracker.UnsortedNodeBeginIterator(tree_num, leaf_split);
@@ -58,7 +58,8 @@ static inline void VarSplitRange(ForestTracker& tracker, ForestDataset& dataset,
     feature_value = dataset.CovariateValue(idx, feature_split);
     if (feature_value < var_min) {
       var_min = feature_value;
-    } else if (feature_value > var_max) {
+    }
+    if (feature_value > var_max) {
       var_max = feature_value;
     }
   }
@@ -88,9 +89,9 @@ static inline bool NodesNonConstantAfterSplit(ForestDataset& dataset, ForestTrac
   for (int j = 0; j < p; j++) {
     auto node_begin_iter = tracker.UnsortedNodeBeginIterator(tree_num, leaf_split);
     auto node_end_iter = tracker.UnsortedNodeEndIterator(tree_num, leaf_split);
-    var_max_left = std::numeric_limits<double>::min();
+    var_max_left = std::numeric_limits<double>::lowest();
     var_min_left = std::numeric_limits<double>::max();
-    var_max_right = std::numeric_limits<double>::min();
+    var_max_right = std::numeric_limits<double>::lowest();
     var_min_right = std::numeric_limits<double>::max();
 
     for (auto i = node_begin_iter; i != node_end_iter; i++) {
@@ -100,13 +101,15 @@ static inline bool NodesNonConstantAfterSplit(ForestDataset& dataset, ForestTrac
       if (split.SplitTrue(split_feature_value)) {
         if (var_max_left < feature_value) {
           var_max_left = feature_value;
-        } else if (var_min_left > feature_value) {
+        }
+        if (var_min_left > feature_value) {
           var_min_left = feature_value;
         }
       } else {
         if (var_max_right < feature_value) {
           var_max_right = feature_value;
-        } else if (var_min_right > feature_value) {
+        }
+        if (var_min_right > feature_value) {
           var_min_right = feature_value;
         }
       }
@@ -128,7 +131,7 @@ static inline bool NodeNonConstant(ForestDataset& dataset, ForestTracker& tracke
   for (int j = 0; j < p; j++) {
     auto node_begin_iter = tracker.UnsortedNodeBeginIterator(tree_num, node_id);
     auto node_end_iter = tracker.UnsortedNodeEndIterator(tree_num, node_id);
-    var_max = std::numeric_limits<double>::min();
+    var_max = std::numeric_limits<double>::lowest();
     var_min = std::numeric_limits<double>::max();
 
     for (auto i = node_begin_iter; i != node_end_iter; i++) {
@@ -136,7 +139,8 @@ static inline bool NodeNonConstant(ForestDataset& dataset, ForestTracker& tracke
       feature_value = dataset.CovariateValue(idx, j);
       if (var_max < feature_value) {
         var_max = feature_value;
-      } else if (var_min > feature_value) {
+      }
+      if (var_min > feature_value) {
         var_min = feature_value;
       }
     }
