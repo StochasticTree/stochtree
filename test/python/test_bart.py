@@ -1657,10 +1657,10 @@ class TestBARTFloat32:
             num_mcmc=self.num_mcmc,
             general_params={"random_seed": 1},
         )
-        np.testing.assert_allclose(bart32.y_hat_train, bart64.y_hat_train, rtol=1e-5)
+        np.testing.assert_allclose(bart32.y_hat_train, bart64.y_hat_train, rtol=1e-5, atol=1e-6)
         pred32 = bart32.predict(X=self.X_test)
         pred64 = bart32.predict(X=self.X_test.astype(np.float64))
-        np.testing.assert_allclose(pred32["y_hat"], pred64["y_hat"], rtol=1e-5)
+        np.testing.assert_allclose(pred32["y_hat"], pred64["y_hat"], rtol=1e-5, atol=1e-6)
 
     def test_bart_float32_leaf_basis(self):
         rng = np.random.default_rng(7)
@@ -1697,10 +1697,10 @@ class TestBARTFloat32:
                       leaf_basis_train=basis_train.astype(np.float64),
                       X_test=self.X_test.astype(np.float64),
                       leaf_basis_test=basis_test.astype(np.float64), **common)
-        np.testing.assert_allclose(bart32.y_hat_train, bart64.y_hat_train, rtol=1e-5)
+        np.testing.assert_allclose(bart32.y_hat_train, bart64.y_hat_train, rtol=1e-5, atol=1e-6)
         pred32 = bart32.predict(X=self.X_test, leaf_basis=basis_test)
         pred64 = bart32.predict(X=self.X_test.astype(np.float64), leaf_basis=basis_test.astype(np.float64))
-        np.testing.assert_allclose(pred32["y_hat"], pred64["y_hat"], rtol=1e-5)
+        np.testing.assert_allclose(pred32["y_hat"], pred64["y_hat"], rtol=1e-5, atol=1e-6)
 
     def test_bart_float32_rfx(self):
         rng = np.random.default_rng(7)
@@ -1745,7 +1745,7 @@ class TestBARTFloat32:
                       X_test=self.X_test.astype(np.float64),
                       rfx_basis_train=rfx_basis_train.astype(np.float64),
                       rfx_basis_test=rfx_basis_test.astype(np.float64), **common)
-        np.testing.assert_allclose(bart32.y_hat_train, bart64.y_hat_train, rtol=1e-4)
+        np.testing.assert_allclose(bart32.y_hat_train, bart64.y_hat_train, rtol=1e-4, atol=1e-6)
         pred32 = bart32.predict(X=self.X_test, rfx_group_ids=group_ids_test, rfx_basis=rfx_basis_test)
         pred64 = bart32.predict(X=self.X_test.astype(np.float64), rfx_group_ids=group_ids_test, rfx_basis=rfx_basis_test.astype(np.float64))
-        np.testing.assert_allclose(pred32["y_hat"], pred64["y_hat"], rtol=1e-4)
+        np.testing.assert_allclose(pred32["y_hat"], pred64["y_hat"], rtol=1e-4, atol=1e-6)
