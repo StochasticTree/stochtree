@@ -1,5 +1,9 @@
 # stochtree 0.4.6.9000
 
+## Documentation and Other Maintenance
+
+* Add absolute tolerance to several python floating point comparison tests [#430](https://github.com/StochasticTree/stochtree/pull/430).
+
 # stochtree 0.4.5
 
 ## Bug Fixes
