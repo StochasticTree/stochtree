@@ -53,6 +53,7 @@ include deps/eigen/Eigen/SparseCore
 include deps/eigen/Eigen/SparseQR
 include deps/eigen/Eigen/misc
 include deps/eigen/Eigen/plugins
+include deps/eigen/Eigen/Version
 recursive-include deps/eigen/Eigen/src/Cholesky *.h
 recursive-include deps/eigen/Eigen/src/Core *.h
 recursive-include deps/eigen/Eigen/src/Dense *.h
