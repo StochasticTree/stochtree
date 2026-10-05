@@ -9,7 +9,83 @@
 #include <stochtree/random_effects.h>
 #include <stochtree/tree.h>
 #include <iostream>
+#include <cmath>
 #include <memory>
+
+TEST(RandomEffects, VarianceConditional) {
+  std::vector<int32_t> groups {10, 10, 20, 30, 30, 30};
+  std::vector<double> y(groups.size(), 0.0);
+  StochTree::RandomEffectsDataset dataset;
+  dataset.AddGroupLabels(groups);
+  StochTree::ColumnVector residual(y.data(), y.size());
+  StochTree::RandomEffectsTracker tracker(groups);
+  StochTree::MultivariateRegressionRandomEffectsModel model(2, 3);
+  model.SetVariancePriorShape(2.5);
+  model.SetVariancePriorScale(3.0);
+  Eigen::MatrixXd xi(2, 3);
+  xi << -1.0, 2.0, -3.0,
+         0.0, 0.5, -1.5;
+  model.SetGroupParameters(xi);
+
+  // Three Gaussian group coefficients contribute 3/2 to the shape,
+  // regardless of the six observations or the number of components.
+  EXPECT_DOUBLE_EQ(model.VarianceComponentShape(dataset, residual, tracker, 1.0, 0), 4.0);
+  EXPECT_DOUBLE_EQ(model.VarianceComponentShape(dataset, residual, tracker, 1.0, 1), 4.0);
+  EXPECT_DOUBLE_EQ(model.VarianceComponentScale(dataset, residual, tracker, 1.0, 0), 10.0);
+  EXPECT_DOUBLE_EQ(model.VarianceComponentScale(dataset, residual, tracker, 1.0, 1), 4.25);
+
+  // Only the Gaussian contribution is halved, not the prior scale.
+  xi.setZero();
+  model.SetGroupParameters(xi);
+  EXPECT_DOUBLE_EQ(model.VarianceComponentScale(dataset, residual, tracker, 1.0, 0), 3.0);
+  EXPECT_DOUBLE_EQ(model.VarianceComponentShape(dataset, residual, tracker, 1.0, 0), 4.0);
+}
+
+TEST(RandomEffects, SampleVarianceConditional) {
+  std::vector<int32_t> groups {10, 20, 30};
+  std::vector<double> y(groups.size(), 0.0);
+  StochTree::RandomEffectsDataset dataset;
+  dataset.AddGroupLabels(groups);
+  StochTree::ColumnVector residual(y.data(), y.size());
+  StochTree::RandomEffectsTracker tracker(groups);
+  StochTree::MultivariateRegressionRandomEffectsModel model(2, 3);
+  model.SetVariancePriorShape(2.5);
+  model.SetVariancePriorScale(3.0);
+  Eigen::MatrixXd xi(2, 3);
+  xi << -1.0, 2.0, -3.0,
+         0.0, 0.5, -1.5;
+  model.SetGroupParameters(xi);
+  Eigen::MatrixXd covariance = Eigen::MatrixXd::Identity(2, 2);
+  model.SetGroupParameterCovariance(covariance);
+  std::mt19937 gen(20260914);
+  const int draws = 20000;
+  double sum[2] {0.0, 0.0};
+  double sum_squared[2] {0.0, 0.0};
+  for (int i = 0; i < draws; i++) {
+    model.SampleVarianceComponents(dataset, residual, tracker, 1.0, gen);
+    for (int k = 0; k < 2; k++) {
+      double precision = 1.0 / model.GetGroupParameterCovariance()(k, k);
+      ASSERT_TRUE(std::isfinite(precision));
+      ASSERT_GT(precision, 0.0);
+      sum[k] += precision;
+      sum_squared[k] += precision * precision;
+    }
+  }
+  // If v ~ IG(shape, rate), 1/v ~ Gamma(shape, rate). Check two
+  // analytical moments with six-MCSE tolerances, allowing RNG differences
+  // between standard-library implementations without accepting the old law.
+  const double shape = 4.0;
+  const double rates[2] {10.0, 4.25};
+  for (int k = 0; k < 2; k++) {
+    double rate = rates[k];
+    double mean = shape / rate;
+    double second_moment = shape * (shape + 1.0) / (rate * rate);
+    double mean_se = std::sqrt(shape / draws) / rate;
+    double second_moment_se = std::sqrt(shape * (shape + 1.0) * (4.0 * shape + 6.0) / draws) / (rate * rate);
+    EXPECT_NEAR(sum[k] / draws, mean, 6.0 * mean_se);
+    EXPECT_NEAR(sum_squared[k] / draws, second_moment, 6.0 * second_moment_se);
+  }
+}
 
 TEST(RandomEffects, Setup) {
   // Load test data

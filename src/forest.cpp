@@ -492,15 +492,17 @@ void initialize_forest_model_cpp(cpp11::external_pointer<StochTree::ForestDatase
     else if (leaf_model_int == 1) model_type = StochTree::ModelType::kUnivariateRegressionLeafGaussian;
     else if (leaf_model_int == 2) model_type = StochTree::ModelType::kMultivariateRegressionLeafGaussian;
     else if (leaf_model_int == 3) model_type = StochTree::ModelType::kLogLinearVariance;
+    else if (leaf_model_int == 4) model_type = StochTree::ModelType::kCloglogOrdinal;
     else StochTree::Log::Fatal("Invalid model type");
     
     // Unpack initial value
     int num_trees = forest_samples->NumTrees();
-    double init_val;
+    double init_val = 0.0;
     std::vector<double> init_value_vector;
     if ((model_type == StochTree::ModelType::kConstantLeafGaussian) || 
         (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) || 
-        (model_type == StochTree::ModelType::kLogLinearVariance)) {
+        (model_type == StochTree::ModelType::kLogLinearVariance) ||
+        (model_type == StochTree::ModelType::kCloglogOrdinal)) {
         init_val = init_values.at(0);
     } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
         int leaf_dim = init_values.size();
@@ -529,6 +531,10 @@ void initialize_forest_model_cpp(cpp11::external_pointer<StochTree::ForestDatase
         int n = data->NumObservations();
         std::vector<double> initial_preds(n, init_val);
         data->AddVarianceWeights(initial_preds.data(), n);
+    } else if (model_type == StochTree::ModelType::kCloglogOrdinal) {
+        forest_samples->InitializeRoot(init_val / static_cast<double>(num_trees));
+        UpdateResidualEntireForest(*tracker, *data, *residual, forest_samples->GetEnsemble(0), false, std::minus<double>());
+        tracker->UpdatePredictions(forest_samples->GetEnsemble(0), *data);
     }
 }
 
@@ -812,11 +818,12 @@ void initialize_forest_model_active_forest_cpp(cpp11::external_pointer<StochTree
     
     // Unpack initial value
     int num_trees = active_forest->NumTrees();
-    double init_val;
+    double init_val = 0.0;
     std::vector<double> init_value_vector;
     if ((model_type == StochTree::ModelType::kConstantLeafGaussian) || 
         (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) || 
-        (model_type == StochTree::ModelType::kLogLinearVariance)) {
+        (model_type == StochTree::ModelType::kLogLinearVariance) ||
+        (model_type == StochTree::ModelType::kCloglogOrdinal)) {
         init_val = init_values.at(0);
     } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
         int leaf_dim = init_values.size();

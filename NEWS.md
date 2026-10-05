@@ -1,8 +1,18 @@
 # stochtree 0.4.6.9000
 
+## Bug Fixes
+
+* Fix the covariate range used to propose MCMC split points, which was computed incorrectly when all of a node's values for a feature were negative or when the node's first observation held its largest value, causing grow proposals to be rejected or drawn from the wrong range [#425](https://github.com/StochasticTree/stochtree/pull/425)
+* Fix the move-type and node-selection probabilities in the MCMC grow / prune Metropolis-Hastings acceptance ratios, so that the tree sampler targets the correct posterior over trees [#426](https://github.com/StochasticTree/stochtree/pull/426)
+* Fix ordering of missing (`NaN`) covariate values when presorting features for the grow-from-root (GFR) sampler, which now sorts `NaN`s last, consistent with how numeric splits route them [#427](https://github.com/StochasticTree/stochtree/pull/427)
+* Fix the conditional posterior of the random effects variance components, which was missing factors of one half in its inverse gamma shape and scale [#428](https://github.com/StochasticTree/stochtree/pull/428)
+
+Fixes in [#425](https://github.com/StochasticTree/stochtree/pull/425), [#426](https://github.com/StochasticTree/stochtree/pull/426), and [#428](https://github.com/StochasticTree/stochtree/pull/428) change sampler output, as does [#427](https://github.com/StochasticTree/stochtree/pull/427) for covariates with missing values, so results for a given random seed will differ from previous versions.
+
 ## Documentation and Other Maintenance
 
 * Add absolute tolerance to several python floating point comparison tests [#430](https://github.com/StochasticTree/stochtree/pull/430).
+* Add exact-posterior tests of the MCMC tree sampler in R and Python, which check that a long chain on a small problem reproduces the analytically enumerated posterior over trees [#431](https://github.com/StochasticTree/stochtree/pull/431)
 
 # stochtree 0.4.5
 
