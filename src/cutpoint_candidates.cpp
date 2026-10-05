@@ -135,7 +135,6 @@ void FeatureCutpointGrid::CalculateStridesUnorderedCategorical(Eigen::MatrixXd& 
   bool last_element;
   bool stride_complete;
   double current_val, next_val;
-  double current_outcome, next_outcome;
   double bin_sum = 0;
   for (data_size_t i = node_begin; i < node_end; i++){
     current_sort_ind = feature_node_sort_tracker->SortIndex(i, feature_index);
