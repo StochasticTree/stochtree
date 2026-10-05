@@ -54,21 +54,21 @@ include deps/eigen/Eigen/SparseQR
 include deps/eigen/Eigen/misc
 include deps/eigen/Eigen/plugins
 include deps/eigen/Eigen/Version
-recursive-include deps/eigen/Eigen/src/Cholesky *.h
-recursive-include deps/eigen/Eigen/src/Core *.h
-recursive-include deps/eigen/Eigen/src/Dense *.h
-recursive-include deps/eigen/Eigen/src/Eigenvalues *.h
-recursive-include deps/eigen/Eigen/src/Geometry *.h
-recursive-include deps/eigen/Eigen/src/Householder *.h
-recursive-include deps/eigen/Eigen/src/IterativeLinearSolvers *.h
-recursive-include deps/eigen/Eigen/src/Jacobi *.h
-recursive-include deps/eigen/Eigen/src/LU *.h
-recursive-include deps/eigen/Eigen/src/OrderingMethods *.h
-recursive-include deps/eigen/Eigen/src/QR *.h
-recursive-include deps/eigen/Eigen/src/SVD *.h
-recursive-include deps/eigen/Eigen/src/Sparse *.h
-recursive-include deps/eigen/Eigen/src/SparseCholesky *.h
-recursive-include deps/eigen/Eigen/src/SparseCore *.h
-recursive-include deps/eigen/Eigen/src/SparseQR *.h
-recursive-include deps/eigen/Eigen/src/misc *.h
-recursive-include deps/eigen/Eigen/src/plugins *.h
+recursive-include deps/eigen/Eigen/src/Cholesky *.h *.inc
+recursive-include deps/eigen/Eigen/src/Core *.h *.inc
+recursive-include deps/eigen/Eigen/src/Dense *.h *.inc
+recursive-include deps/eigen/Eigen/src/Eigenvalues *.h *.inc
+recursive-include deps/eigen/Eigen/src/Geometry *.h *.inc
+recursive-include deps/eigen/Eigen/src/Householder *.h *.inc
+recursive-include deps/eigen/Eigen/src/IterativeLinearSolvers *.h *.inc
+recursive-include deps/eigen/Eigen/src/Jacobi *.h *.inc
+recursive-include deps/eigen/Eigen/src/LU *.h *.inc
+recursive-include deps/eigen/Eigen/src/OrderingMethods *.h *.inc
+recursive-include deps/eigen/Eigen/src/QR *.h *.inc
+recursive-include deps/eigen/Eigen/src/SVD *.h *.inc
+recursive-include deps/eigen/Eigen/src/Sparse *.h *.inc
+recursive-include deps/eigen/Eigen/src/SparseCholesky *.h *.inc
+recursive-include deps/eigen/Eigen/src/SparseCore *.h *.inc
+recursive-include deps/eigen/Eigen/src/SparseQR *.h *.inc
+recursive-include deps/eigen/Eigen/src/misc *.h *.inc
+recursive-include deps/eigen/Eigen/src/plugins *.h *.inc

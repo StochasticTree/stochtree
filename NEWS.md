@@ -11,7 +11,7 @@ Fixes in [#425](https://github.com/StochasticTree/stochtree/pull/425), [#426](ht
 
 ## Documentation and Other Maintenance
 
-* Updated Eigen version to 5.0.1
+* Updated Eigen version to 5.0.1 [#424](https://github.com/StochasticTree/stochtree/pull/424)
 * Add absolute tolerance to several python floating point comparison tests [#430](https://github.com/StochasticTree/stochtree/pull/430).
 * Add exact-posterior tests of the MCMC tree sampler in R and Python, which check that a long chain on a small problem reproduces the analytically enumerated posterior over trees [#431](https://github.com/StochasticTree/stochtree/pull/431)
 
