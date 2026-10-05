@@ -155,7 +155,7 @@ class MultivariateRegressionRandomEffectsModel {
     group_parameters_ = group_parameters;
   }
   void SetGroupParameter(Eigen::VectorXd& group_parameter, int32_t group_id) {
-    group_parameters_(Eigen::all, group_id) = group_parameter;
+    group_parameters_(Eigen::placeholders::all, group_id) = group_parameter;
   }
   void SetWorkingParameterCovariance(Eigen::MatrixXd& working_parameter_covariance) {
     working_parameter_covariance_ = working_parameter_covariance;
@@ -211,7 +211,7 @@ class MultivariateRegressionRandomEffectsModel {
     std::int32_t group_ind;
     for (int i = 0; i < n; i++) {
       group_ind = tracker.CategoryNumber(group_labels[i]);
-      output[i] = X(i, Eigen::all) * alpha_diag * group_parameters_(Eigen::all, group_ind);
+      output[i] = X(i, Eigen::placeholders::all) * alpha_diag * group_parameters_(Eigen::placeholders::all, group_ind);
     }
   }
 
@@ -238,7 +238,7 @@ class MultivariateRegressionRandomEffectsModel {
     std::int32_t group_ind;
     for (int i = 0; i < n; i++) {
       group_ind = tracker.CategoryNumber(group_labels[i]);
-      new_pred = X(i, Eigen::all) * alpha_diag * group_parameters_(Eigen::all, group_ind);
+      new_pred = X(i, Eigen::placeholders::all) * alpha_diag * group_parameters_(Eigen::placeholders::all, group_ind);
       new_resid = residual.GetElement(i) - new_pred;
       residual.SetElement(i, new_resid);
       tracker.SetPrediction(i, new_pred);
