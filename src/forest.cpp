@@ -496,7 +496,7 @@ void initialize_forest_model_cpp(cpp11::external_pointer<StochTree::ForestDatase
     
     // Unpack initial value
     int num_trees = forest_samples->NumTrees();
-    double init_val;
+    double init_val = 0.0;
     std::vector<double> init_value_vector;
     if ((model_type == StochTree::ModelType::kConstantLeafGaussian) || 
         (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) || 
@@ -812,7 +812,7 @@ void initialize_forest_model_active_forest_cpp(cpp11::external_pointer<StochTree
     
     // Unpack initial value
     int num_trees = active_forest->NumTrees();
-    double init_val;
+    double init_val = 0.0;
     std::vector<double> init_value_vector;
     if ((model_type == StochTree::ModelType::kConstantLeafGaussian) || 
         (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) || 
