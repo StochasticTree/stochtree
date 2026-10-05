@@ -219,7 +219,8 @@ Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::GroupParameterVariance
 }
 
 double MultivariateRegressionRandomEffectsModel::VarianceComponentShape(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance, int32_t component_id) {
-  return static_cast<double>(variance_prior_shape_ + num_groups_);
+  // Gaussian group coefficients contribute J/2 to the inverse-gamma shape.
+  return static_cast<double>(variance_prior_shape_ + 0.5 * num_groups_);
 }
 
 double MultivariateRegressionRandomEffectsModel::VarianceComponentScale(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance, int32_t component_id) {
@@ -227,7 +228,7 @@ double MultivariateRegressionRandomEffectsModel::VarianceComponentScale(RandomEf
   Eigen::MatrixXd xi = group_parameters_;
   double output = variance_prior_scale_;
   for (int i = 0; i < num_groups; i++) {
-    output += xi(component_id, i)*xi(component_id, i);
+    output += 0.5 * xi(component_id, i)*xi(component_id, i);
   }
   return output;
 }
