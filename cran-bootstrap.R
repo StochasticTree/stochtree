@@ -520,11 +520,16 @@ if (all(file.exists(eigen_files_to_vendor_src))) {
 }
 
 # Clean up pragmas that suppress warnings in Eigen and JSON headers
-# File 1: Eigen "DisableStupidWarnings" header
-cran_eigen_suppress_warnings <- file.path(
+# Eigen files: the "DisableStupidWarnings" header, plus the AltiVec (PowerPC)
+# packet math header, which gained a GCC diagnostic block in Eigen 5
+cran_eigen_pragma_files <- file.path(
   cran_dir,
-  "src/include/Eigen/src/Core/util/DisableStupidWarnings.h"
+  c(
+    "src/include/Eigen/src/Core/util/DisableStupidWarnings.h",
+    "src/include/Eigen/src/Core/arch/AltiVec/PacketMath.h"
+  )
 )
+for (cran_eigen_suppress_warnings in cran_eigen_pragma_files) {
 eigen_suppress_warnings_lines <- readLines(cran_eigen_suppress_warnings)
 for (i in 1:length(eigen_suppress_warnings_lines)) {
   line <- eigen_suppress_warnings_lines[i]
@@ -560,3 +565,4 @@ for (i in 1:length(eigen_suppress_warnings_lines)) {
   )
 }
 writeLines(eigen_suppress_warnings_lines, cran_eigen_suppress_warnings)
+}
