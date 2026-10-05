@@ -134,8 +134,8 @@ TEST(RandomEffects, Construction) {
   Eigen::MatrixXd sigma(test_dataset.rfx_basis_cols, test_dataset.rfx_basis_cols);
   alpha << 1.5;
   xi << 2, 4;
-  Eigen::VectorXd xi0 = xi(Eigen::all, 0);
-  Eigen::VectorXd xi1 = xi(Eigen::all, 1);
+  Eigen::VectorXd xi0 = xi(Eigen::placeholders::all, 0);
+  Eigen::VectorXd xi1 = xi(Eigen::placeholders::all, 1);
   sigma << 1;
   model.SetWorkingParameter(alpha);
   model.SetGroupParameter(xi0, 0);
@@ -148,8 +148,8 @@ TEST(RandomEffects, Construction) {
   // Change values and push a second "sample" to the container
   alpha << 2.0;
   xi << 1, 3;
-  xi0 = xi(Eigen::all, 0);
-  xi1 = xi(Eigen::all, 1);
+  xi0 = xi(Eigen::placeholders::all, 0);
+  xi1 = xi(Eigen::placeholders::all, 1);
   sigma << 1;
   model.SetWorkingParameter(alpha);
   model.SetGroupParameter(xi0, 0);
@@ -200,9 +200,9 @@ TEST(RandomEffects, Computation) {
   Eigen::MatrixXd sigma(test_dataset.rfx_basis_cols, test_dataset.rfx_basis_cols);
   alpha << 1., 1.;
   xi << 1., 1., 1., 1., 1., 1.;
-  Eigen::VectorXd xi0 = xi(Eigen::all, 0);
-  Eigen::VectorXd xi1 = xi(Eigen::all, 1);
-  Eigen::VectorXd xi2 = xi(Eigen::all, 2);
+  Eigen::VectorXd xi0 = xi(Eigen::placeholders::all, 0);
+  Eigen::VectorXd xi1 = xi(Eigen::placeholders::all, 1);
+  Eigen::VectorXd xi2 = xi(Eigen::placeholders::all, 2);
   sigma << 1, 0, 0, 1;
   model.SetWorkingParameter(alpha);
   model.SetGroupParameter(xi0, 0);
@@ -256,8 +256,8 @@ TEST(RandomEffects, Predict) {
   Eigen::MatrixXd sigma(test_dataset.rfx_basis_cols, test_dataset.rfx_basis_cols);
   alpha << 1.5;
   xi << 2, 4;
-  Eigen::VectorXd xi0 = xi(Eigen::all, 0);
-  Eigen::VectorXd xi1 = xi(Eigen::all, 1);
+  Eigen::VectorXd xi0 = xi(Eigen::placeholders::all, 0);
+  Eigen::VectorXd xi1 = xi(Eigen::placeholders::all, 1);
   sigma << 1;
   model.SetWorkingParameter(alpha);
   model.SetGroupParameter(xi0, 0);
@@ -270,8 +270,8 @@ TEST(RandomEffects, Predict) {
   // Change values and push a second "sample" to the container
   alpha << 2.0;
   xi << 1, 3;
-  xi0 = xi(Eigen::all, 0);
-  xi1 = xi(Eigen::all, 1);
+  xi0 = xi(Eigen::placeholders::all, 0);
+  xi1 = xi(Eigen::placeholders::all, 1);
   sigma << 1;
   model.SetWorkingParameter(alpha);
   model.SetGroupParameter(xi0, 0);
@@ -318,8 +318,8 @@ TEST(RandomEffects, Serialization) {
   Eigen::MatrixXd sigma(test_dataset.rfx_basis_cols, test_dataset.rfx_basis_cols);
   alpha << 1.5;
   xi << 2, 4;
-  Eigen::VectorXd xi0 = xi(Eigen::all, 0);
-  Eigen::VectorXd xi1 = xi(Eigen::all, 1);
+  Eigen::VectorXd xi0 = xi(Eigen::placeholders::all, 0);
+  Eigen::VectorXd xi1 = xi(Eigen::placeholders::all, 1);
   sigma << 1;
   model.SetWorkingParameter(alpha);
   model.SetGroupParameter(xi0, 0);
@@ -332,8 +332,8 @@ TEST(RandomEffects, Serialization) {
   // Change values and push a second "sample" to the container
   alpha << 2.0;
   xi << 1, 3;
-  xi0 = xi(Eigen::all, 0);
-  xi1 = xi(Eigen::all, 1);
+  xi0 = xi(Eigen::placeholders::all, 0);
+  xi1 = xi(Eigen::placeholders::all, 1);
   sigma << 1;
   model.SetWorkingParameter(alpha);
   model.SetGroupParameter(xi0, 0);

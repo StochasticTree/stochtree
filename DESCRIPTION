@@ -11,6 +11,7 @@ Authors@R:
     person("Pedro", "Lima", role = "ctb"),
     person("Entejar", "Alam", role = "ctb"),
     person("David", "Wachsmuth", role = "ctb"),
+    person("Michael", "Chirico", role = "ctb"),
     person("stochtree", "contributors", role = c("cph")),
     person("Eigen", "contributors", role = c("cph"), comment = "C++ source uses the Eigen library for matrix operations, see inst/COPYRIGHTS"),
     person("xgboost", "contributors", role = c("cph"), comment = "C++ tree code and related operations include or are inspired by code from the xgboost library, see inst/COPYRIGHTS"),
