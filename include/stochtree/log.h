@@ -110,7 +110,7 @@ class Log {
     Write(LogLevel::Warning, "Warning", format, val);
     va_end(val);
   }
-  static void Fatal(const char *format, ...) {
+  [[noreturn]] static void Fatal(const char *format, ...) {
     va_list val;
     const size_t kBufSize = 1024;
     char str_buf[kBufSize];
