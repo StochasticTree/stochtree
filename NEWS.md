@@ -6,12 +6,17 @@
 * Fix the move-type and node-selection probabilities in the MCMC grow / prune Metropolis-Hastings acceptance ratios, so that the tree sampler targets the correct posterior over trees [#426](https://github.com/StochasticTree/stochtree/pull/426)
 * Fix ordering of missing (`NaN`) covariate values when presorting features for the grow-from-root (GFR) sampler, which now sorts `NaN`s last, consistent with how numeric splits route them [#427](https://github.com/StochasticTree/stochtree/pull/427)
 * Fix the conditional posterior of the random effects variance components, which was missing factors of one half in its inverse gamma shape and scale [#428](https://github.com/StochasticTree/stochtree/pull/428)
+* Fix an uninitialized starting value when initializing cloglog forests in R, which could crash or corrupt the outcome data for binary and ordinal models with a cloglog link [#420](https://github.com/StochasticTree/stochtree/pull/420)
 
 Fixes in [#425](https://github.com/StochasticTree/stochtree/pull/425), [#426](https://github.com/StochasticTree/stochtree/pull/426), and [#428](https://github.com/StochasticTree/stochtree/pull/428) change sampler output, as does [#427](https://github.com/StochasticTree/stochtree/pull/427) for covariates with missing values, so results for a given random seed will differ from previous versions.
 
 ## Documentation and Other Maintenance
 
-* Updated Eigen version to 5.0.1 [#424](https://github.com/StochasticTree/stochtree/pull/424)
+* Remove unused variables flagged by compiler warnings [#417](https://github.com/StochasticTree/stochtree/pull/417)
+* Mark `Log::Fatal` as `[[noreturn]]`, which silences "may be used uninitialized" compiler warnings [#418](https://github.com/StochasticTree/stochtree/pull/418)
+* Explicitly initialize variables in the R forest initialization and sampling code [#421](https://github.com/StochasticTree/stochtree/pull/421)
+* Use shallow clones and canonical `.git` URLs for git submodules [#422](https://github.com/StochasticTree/stochtree/pull/422)
+* Updated Eigen version to 5.0.1, which also fixes builds on PowerPC without VSX support [#424](https://github.com/StochasticTree/stochtree/pull/424)
 * Add absolute tolerance to several python floating point comparison tests [#430](https://github.com/StochasticTree/stochtree/pull/430).
 * Add exact-posterior tests of the MCMC tree sampler in R and Python, which check that a long chain on a small problem reproduces the analytically enumerated posterior over trees [#431](https://github.com/StochasticTree/stochtree/pull/431)
 
