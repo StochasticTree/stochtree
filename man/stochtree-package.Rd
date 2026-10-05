@@ -32,6 +32,7 @@ Other contributors:
 \itemize{
   \item Pedro Lima [contributor]
   \item Entejar Alam [contributor]
+  \item David Wachsmuth [contributor]
   \item stochtree contributors [copyright holder]
   \item Eigen contributors (C++ source uses the Eigen library for matrix operations, see inst/COPYRIGHTS) [copyright holder]
   \item xgboost contributors (C++ tree code and related operations include or are inspired by code from the xgboost library, see inst/COPYRIGHTS) [copyright holder]
