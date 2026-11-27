@@ -1162,3 +1162,33 @@ test_that("Cloglog BART JSON round-trip", {
   )
   expect_equal(pred_orig, pred_loaded)
 })
+
+test_that("BART with standardize = FALSE handles nonzero outcome mean", {
+  skip_on_cran()
+
+  set.seed(123)
+  n <- 150
+  X <- matrix(runif(n * 2), ncol = 2)
+  y_shifted <- 2 * X[, 1] - X[, 2] + rnorm(n, 0, 0.5) + 10.0
+
+  m_std <- bart(
+    X_train = X,
+    y_train = y_shifted,
+    num_gfr = 5,
+    num_burnin = 10,
+    num_mcmc = 20,
+    general_params = list(standardize = TRUE, random_seed = 1)
+  )
+  m_unstd <- bart(
+    X_train = X,
+    y_train = y_shifted,
+    num_gfr = 5,
+    num_burnin = 10,
+    num_mcmc = 20,
+    general_params = list(standardize = FALSE, random_seed = 1)
+  )
+
+  rmse_unstd <- sqrt(mean((rowMeans(m_unstd$y_hat_train) - y_shifted)^2))
+  expect_lt(rmse_unstd, 1.0)
+  expect_equal(mean(m_unstd$sigma2_global_samples), mean(m_std$sigma2_global_samples), tolerance = 0.35)
+})

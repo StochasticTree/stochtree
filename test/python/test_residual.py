@@ -112,3 +112,35 @@ class TestResidual:
         # Get the current residual after running the sampler
         updated_resid = residual.get_residual()
         np.testing.assert_almost_equal(expected_resid, updated_resid)
+
+    def test_prepare_for_sampler_and_adjust_residual_nonzero(self):
+        n = 5
+        num_trees = 3
+        dataset = Dataset()
+        dataset.add_covariates(np.arange(n, dtype=float).reshape(-1, 1))
+        residual = Residual(np.zeros(n))
+        sampler = ForestSampler(
+            dataset,
+            GlobalModelConfig(global_error_variance=1.0),
+            ForestModelConfig(
+                num_trees=num_trees,
+                num_features=1,
+                num_observations=n,
+                feature_types=np.array([0], dtype=int),
+                variable_weights=np.array([1.0]),
+            ),
+        )
+        forest = Forest(num_trees, 1, True, False)
+        sampler.prepare_for_sampler(dataset, residual, forest, 0, np.array([3.0]))
+
+        np.testing.assert_allclose(forest.predict(dataset), np.full(n, 3.0))
+        np.testing.assert_allclose(residual.get_residual().ravel(), np.full(n, -3.0))
+        np.testing.assert_allclose(
+            sampler.get_cached_forest_predictions(), np.full(n, 3.0)
+        )
+
+        sampler.adjust_residual(dataset, residual, forest, False, True)
+        np.testing.assert_allclose(residual.get_residual().ravel(), np.zeros(n))
+        np.testing.assert_allclose(
+            sampler.get_cached_forest_predictions(), np.full(n, 3.0)
+        )

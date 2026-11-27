@@ -71,13 +71,6 @@ test_that("Residual updates correctly propagated after forest sampling step", {
     0,
     mean(resid)
   )
-  active_forest$adjust_residual(
-    forest_dataset,
-    residual,
-    forest_model,
-    FALSE,
-    FALSE
-  )
 
   # Run the forest sampling algorithm for a single iteration
   forest_model$sample_one_iteration(
@@ -117,4 +110,46 @@ test_that("Residual updates correctly propagated after forest sampling step", {
 
   # Assertion
   expect_equal(expected_resid, updated_resid)
+})
+
+test_that("prepare_for_sampler and adjust_residual handle nonzero initial forest", {
+  n <- 5
+  num_trees <- 3
+  X <- matrix(as.numeric(0:(n - 1)), ncol = 1)
+  forest_dataset <- createForestDataset(X)
+  residual <- createOutcome(matrix(rep(0., n), ncol = 1))
+  global_model_config <- createGlobalModelConfig(global_error_variance = 1.0)
+  forest_model_config <- createForestModelConfig(
+    feature_types = 0L,
+    num_trees = num_trees,
+    num_observations = n,
+    variable_weights = 1.0
+  )
+  forest_model <- createForestModel(
+    forest_dataset,
+    forest_model_config,
+    global_model_config
+  )
+  active_forest <- createForest(num_trees, 1, TRUE)
+
+  active_forest$prepare_for_sampler(
+    forest_dataset,
+    residual,
+    forest_model,
+    0,
+    3.0
+  )
+  expect_equal(as.numeric(active_forest$predict(forest_dataset)), rep(3.0, n))
+  expect_equal(as.numeric(residual$get_data()), rep(-3.0, n))
+  expect_equal(as.numeric(forest_model$get_cached_forest_predictions()), rep(3.0, n))
+
+  active_forest$adjust_residual(
+    forest_dataset,
+    residual,
+    forest_model,
+    FALSE,
+    TRUE
+  )
+  expect_equal(as.numeric(residual$get_data()), rep(0.0, n))
+  expect_equal(as.numeric(forest_model$get_cached_forest_predictions()), rep(3.0, n))
 })

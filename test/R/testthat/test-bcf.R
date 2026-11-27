@@ -1150,3 +1150,40 @@ test_that("predict(terms='tau') == tau_hat_test, tau==cate without treatment RFX
     sweep(bcf_no_int$tau_hat_test, 1, as.numeric(Z_test), "*")
   expect_equal(bcf_no_int$y_hat_test, expected_y_no_int)
 })
+
+test_that("BCF with standardize = FALSE handles nonzero outcome mean", {
+  skip_on_cran()
+
+  set.seed(123)
+  n <- 150
+  X <- matrix(runif(n * 2), ncol = 2)
+  pi_x <- 0.3 + 0.4 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  y_shifted <- 2 * X[, 2] + Z + rnorm(n, 0, 0.5) + 10.0
+
+  m_std <- bcf(
+    X_train = X,
+    Z_train = Z,
+    y_train = y_shifted,
+    propensity_train = pi_x,
+    num_gfr = 5,
+    num_burnin = 10,
+    num_mcmc = 20,
+    general_params = list(standardize = TRUE, random_seed = 1)
+  )
+  m_unstd <- bcf(
+    X_train = X,
+    Z_train = Z,
+    y_train = y_shifted,
+    propensity_train = pi_x,
+    num_gfr = 5,
+    num_burnin = 10,
+    num_mcmc = 20,
+    general_params = list(standardize = FALSE, random_seed = 1)
+  )
+
+  rmse_unstd <- sqrt(mean((rowMeans(m_unstd$y_hat_train) - y_shifted)^2))
+  expect_lt(rmse_unstd, 0.75)
+  expect_equal(mean(m_unstd$tau_hat_train), mean(m_std$tau_hat_train), tolerance = 0.25)
+  expect_equal(mean(m_unstd$sigma2_global_samples), mean(m_std$sigma2_global_samples), tolerance = 0.35)
+})

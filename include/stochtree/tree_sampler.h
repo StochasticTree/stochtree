@@ -215,13 +215,14 @@ static inline void UpdateModelVarianceForest(ForestTracker& tracker, ForestDatas
   double new_resid = 0.;
   int32_t leaf_pred;
   for (data_size_t i = 0; i < n; i++) {
+    pred_value = 0.;
     for (int j = 0; j < forest->NumTrees(); j++) {
       Tree* tree = forest->GetTree(j);
       leaf_pred = tracker.GetNodeId(i, j);
       if (requires_basis) {
-        tree_pred += tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
+        tree_pred = tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
       } else {
-        tree_pred += tree->PredictFromNode(leaf_pred);
+        tree_pred = tree->PredictFromNode(leaf_pred);
       }
       tracker.SetTreeSamplePrediction(i, j, tree_pred);
       pred_value += tree_pred;
@@ -242,13 +243,14 @@ static inline void UpdateResidualNoTrackerUpdate(ForestTracker& tracker, ForestD
   double new_resid = 0.;
   int32_t leaf_pred;
   for (data_size_t i = 0; i < n; i++) {
+    pred_value = 0.;
     for (int j = 0; j < forest->NumTrees(); j++) {
       Tree* tree = forest->GetTree(j);
       leaf_pred = tracker.GetNodeId(i, j);
       if (requires_basis) {
-        tree_pred += tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
+        tree_pred = tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
       } else {
-        tree_pred += tree->PredictFromNode(leaf_pred);
+        tree_pred = tree->PredictFromNode(leaf_pred);
       }
       pred_value += tree_pred;
     }
@@ -267,13 +269,14 @@ static inline void UpdateResidualEntireForest(ForestTracker& tracker, ForestData
   double new_resid = 0.;
   int32_t leaf_pred;
   for (data_size_t i = 0; i < n; i++) {
+    pred_value = 0.;
     for (int j = 0; j < forest->NumTrees(); j++) {
       Tree* tree = forest->GetTree(j);
       leaf_pred = tracker.GetNodeId(i, j);
       if (requires_basis) {
-        tree_pred += tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
+        tree_pred = tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
       } else {
-        tree_pred += tree->PredictFromNode(leaf_pred);
+        tree_pred = tree->PredictFromNode(leaf_pred);
       }
       tracker.SetTreeSamplePrediction(i, j, tree_pred);
       pred_value += tree_pred;
