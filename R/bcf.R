@@ -1890,13 +1890,6 @@ bcf <- function(
     leaf_model_mu_forest,
     init_mu
   )
-  active_forest_mu$adjust_residual(
-    forest_dataset_train,
-    outcome_train,
-    forest_model_mu,
-    FALSE,
-    FALSE
-  )
 
   # Initialize the leaves of each tree in the treatment effect forest
   init_tau <- rep(0., ncol(Z_train))
@@ -1906,13 +1899,6 @@ bcf <- function(
     forest_model_tau,
     leaf_model_tau_forest,
     init_tau
-  )
-  active_forest_tau$adjust_residual(
-    forest_dataset_train,
-    outcome_train,
-    forest_model_tau,
-    TRUE,
-    FALSE
   )
 
   # Initialize the leaves of each tree in the variance forest

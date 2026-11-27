@@ -7,6 +7,7 @@
 * Fix ordering of missing (`NaN`) covariate values when presorting features for the grow-from-root (GFR) sampler, which now sorts `NaN`s last, consistent with how numeric splits route them [#427](https://github.com/StochasticTree/stochtree/pull/427)
 * Fix the conditional posterior of the random effects variance components, which was missing factors of one half in its inverse gamma shape and scale [#428](https://github.com/StochasticTree/stochtree/pull/428)
 * Fix an uninitialized starting value when initializing cloglog forests in R, which could crash or corrupt the outcome data for binary and ordinal models with a cloglog link [#420](https://github.com/StochasticTree/stochtree/pull/420)
+* Fix cumulative residual and cached-prediction corruption in `UpdateResidualEntireForest` (and duplicate initial residual subtraction in R `bcf()`), which caused unstandardized (`standardize = FALSE`) models with nonzero outcome means to diverge [#437](https://github.com/StochasticTree/stochtree/issues/437)
 
 Fixes in [#425](https://github.com/StochasticTree/stochtree/pull/425), [#426](https://github.com/StochasticTree/stochtree/pull/426), and [#428](https://github.com/StochasticTree/stochtree/pull/428) change sampler output, as does [#427](https://github.com/StochasticTree/stochtree/pull/427) for covariates with missing values, so results for a given random seed will differ from previous versions.
 

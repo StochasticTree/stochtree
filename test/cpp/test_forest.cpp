@@ -7,7 +7,10 @@
 #include <stochtree/data.h>
 #include <stochtree/ensemble.h>
 #include <stochtree/log.h>
+#include <stochtree/partition_tracker.h>
 #include <stochtree/tree.h>
+#include <stochtree/tree_sampler.h>
+#include <functional>
 #include <iostream>
 #include <memory>
 
@@ -187,6 +190,38 @@ TEST(Forest, UnivariateForestAdd) {
   ensemble1.PredictInplace(dataset.GetCovariates(), result, 0);
   for (int i = 0; i < n; i++) {
     ASSERT_NEAR(expected_pred[i], result[i], 0.01);
+  }
+}
+
+TEST(Forest, UpdateResidualEntireForest) {
+  int n = 5;
+  int p = 1;
+  int num_trees = 3;
+  std::vector<double> covariates = {0., 1., 2., 3., 4.};
+  std::vector<double> outcome(n, 0.);
+  std::vector<StochTree::FeatureType> feature_types(p, StochTree::FeatureType::kNumeric);
+
+  StochTree::ForestDataset dataset;
+  dataset.AddCovariates(covariates.data(), n, p, true);
+  StochTree::ColumnVector residual(outcome.data(), n);
+  StochTree::ForestTracker tracker(dataset.GetCovariates(), feature_types, num_trees, n);
+
+  StochTree::TreeEnsemble ensemble(num_trees, 1, true);
+  ensemble.SetLeafValue(1.0);  // 3 trees * 1.0 = 3.0 per observation
+
+  StochTree::UpdateResidualEntireForest(tracker, dataset, residual, &ensemble, false, std::minus<double>());
+  for (int i = 0; i < n; i++) {
+    ASSERT_DOUBLE_EQ(residual.GetElement(i), -3.0);
+    ASSERT_DOUBLE_EQ(tracker.GetSamplePrediction(i), 3.0);
+    for (int j = 0; j < num_trees; j++) {
+      ASSERT_DOUBLE_EQ(tracker.GetTreeSamplePrediction(i, j), 1.0);
+    }
+  }
+
+  StochTree::UpdateResidualEntireForest(tracker, dataset, residual, &ensemble, false, std::plus<double>());
+  for (int i = 0; i < n; i++) {
+    ASSERT_DOUBLE_EQ(residual.GetElement(i), 0.0);
+    ASSERT_DOUBLE_EQ(tracker.GetSamplePrediction(i), 3.0);
   }
 }
 

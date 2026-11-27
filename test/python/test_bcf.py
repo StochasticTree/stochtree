@@ -1277,3 +1277,50 @@ class TestBCFFloat32:
                                propensity=self.pi_test.astype(np.float64),
                                rfx_group_ids=group_ids_test, rfx_basis=rfx_basis_test.astype(np.float64))
         np.testing.assert_allclose(pred32["y_hat"], pred64["y_hat"], rtol=1e-4, atol=1e-6)
+
+
+class TestBCFUnstandardized:
+    def test_bcf_unstandardized_nonzero_mean(self):
+        rng = np.random.default_rng(0)
+        n = 150
+        X = rng.uniform(size=(n, 2))
+        pi = 0.3 + 0.4 * X[:, 0]
+        Z = rng.binomial(1, pi).astype(float)
+        y = 2 * X[:, 1] + Z + rng.normal(scale=0.5, size=n)
+        y_shifted = y + 10.0
+
+        m_std = BCFModel()
+        m_std.sample(
+            X_train=X,
+            Z_train=Z,
+            y_train=y_shifted,
+            propensity_train=pi,
+            num_gfr=5,
+            num_burnin=10,
+            num_mcmc=20,
+            general_params={"standardize": True, "random_seed": 1},
+        )
+        m_unstd = BCFModel()
+        m_unstd.sample(
+            X_train=X,
+            Z_train=Z,
+            y_train=y_shifted,
+            propensity_train=pi,
+            num_gfr=5,
+            num_burnin=10,
+            num_mcmc=20,
+            general_params={"standardize": False, "random_seed": 1},
+        )
+
+        rmse_unstd = np.sqrt(np.mean((m_unstd.y_hat_train.mean(axis=1) - y_shifted) ** 2))
+        assert rmse_unstd < 0.75
+        np.testing.assert_allclose(
+            m_unstd.tau_hat_train.mean(),
+            m_std.tau_hat_train.mean(),
+            atol=0.25,
+        )
+        np.testing.assert_allclose(
+            m_unstd.global_var_samples.mean(),
+            m_std.global_var_samples.mean(),
+            rtol=0.35,
+        )

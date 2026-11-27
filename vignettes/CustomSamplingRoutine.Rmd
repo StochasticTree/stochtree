@@ -157,7 +157,6 @@ if (leaf_regression) {
 
 # Initialize the leaves of each tree in the forest
 active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, outcome_model_type, mean(resid))
-active_forest$adjust_residual(forest_dataset, outcome, forest_model, ifelse(outcome_model_type==1, T, F), F)
 ```
 
 Prepare to run the sampler
@@ -361,7 +360,6 @@ if (leaf_regression) {
 
 # Initialize the leaves of each tree in the forest
 active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, outcome_model_type, mean(resid))
-active_forest$adjust_residual(forest_dataset, outcome, forest_model, ifelse(outcome_model_type==1, T, F), F)
 
 # Random effects dataset
 rfx_basis <- as.matrix(rfx_basis)
@@ -611,7 +609,6 @@ if (leaf_regression) {
 
 # Initialize the leaves of each tree in the forest
 active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, outcome_model_type, mean(resid))
-active_forest$adjust_residual(forest_dataset, outcome, forest_model, ifelse(outcome_model_type==1, T, F), F)
 
 # Random effects dataset
 rfx_basis <- as.matrix(rfx_basis)
@@ -860,7 +857,6 @@ if (leaf_regression) {
 
 # Initialize the leaves of each tree in the forest
 active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, outcome_model_type, mean(resid))
-active_forest$adjust_residual(forest_dataset, outcome, forest_model, ifelse(outcome_model_type==1, T, F), F)
 ```
 
 Prepare to run the sampler
@@ -1220,11 +1216,9 @@ active_forest_tau <- createForest(num_trees_tau, 1, F)
 
 # Initialize the leaves of each tree in the prognostic forest
 active_forest_mu$prepare_for_sampler(forest_dataset_mu, outcome, forest_model_mu, 0, mean(resid))
-active_forest_mu$adjust_residual(forest_dataset_mu, outcome, forest_model_mu, F, F)
 
 # Initialize the leaves of each tree in the treatment effect forest
 active_forest_tau$prepare_for_sampler(forest_dataset_tau, outcome, forest_model_tau, 1, 0.)
-active_forest_tau$adjust_residual(forest_dataset_tau, outcome, forest_model_tau, T, F)
 ```
 
 Run the grow-from-root sampler to "warm-start" BART, also updating the adaptive coding parameter $b_0$ and $b_1$
