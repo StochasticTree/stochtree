@@ -1324,3 +1324,89 @@ class TestBCFUnstandardized:
             m_std.global_var_samples.mean(),
             rtol=0.35,
         )
+
+
+class TestBCFBooleanTreatment:
+    def test_bcf_bool_treatment_matches_float64(self):
+        rng = np.random.default_rng(0)
+        n_train, n_test = 150, 30
+        n = n_train + n_test
+        X = rng.uniform(size=(n, 3))
+        pi = 0.3 + 0.4 * X[:, 1]
+        Z_bool = rng.uniform(size=n) < pi
+        Z_float = Z_bool.astype(np.float64)
+        tau = 1.0 + X[:, 2]
+        y = X[:, 0] + tau * Z_float + rng.normal(scale=0.2, size=n)
+
+        X_tr, X_te = X[:n_train], X[n_train:]
+        pi_tr, pi_te = pi[:n_train], pi[n_train:]
+        y_tr = y[:n_train]
+        Z_bool_tr, Z_bool_te = Z_bool[:n_train], Z_bool[n_train:]
+        Z_float_tr, Z_float_te = Z_float[:n_train], Z_float[n_train:]
+
+        common = dict(
+            X_train=X_tr,
+            y_train=y_tr,
+            propensity_train=pi_tr,
+            X_test=X_te,
+            propensity_test=pi_te,
+            num_gfr=5,
+            num_burnin=5,
+            num_mcmc=10,
+            general_params={"random_seed": 1},
+        )
+        m_bool = BCFModel()
+        m_bool.sample(Z_train=Z_bool_tr, Z_test=Z_bool_te, **common)
+
+        m_float = BCFModel()
+        m_float.sample(Z_train=Z_float_tr, Z_test=Z_float_te, **common)
+
+        np.testing.assert_array_equal(m_bool.tau_0_samples, m_float.tau_0_samples)
+        np.testing.assert_array_equal(m_bool.tau_hat_train, m_float.tau_hat_train)
+        np.testing.assert_array_equal(m_bool.y_hat_train, m_float.y_hat_train)
+        np.testing.assert_array_equal(m_bool.y_hat_test, m_float.y_hat_test)
+
+        pred_bool = m_bool.predict(X=X_te, Z=Z_bool_te, propensity=pi_te)
+        pred_float = m_float.predict(X=X_te, Z=Z_float_te, propensity=pi_te)
+        np.testing.assert_array_equal(pred_bool["y_hat"], pred_float["y_hat"])
+        np.testing.assert_array_equal(pred_bool["tau_hat"], pred_float["tau_hat"])
+
+    def test_bcf_bool_treatment_internal_propensity_and_multivariate(self):
+        rng = np.random.default_rng(42)
+        n = 120
+        X = rng.uniform(size=(n, 3))
+        pi = 0.3 + 0.4 * X[:, 0]
+        Z_bool = rng.uniform(size=n) < pi
+        y = X[:, 1] + 1.5 * Z_bool.astype(float) + rng.normal(scale=0.3, size=n)
+
+        # Internal propensity model (propensity_train=None) with boolean Z_train
+        m_int_bool = BCFModel()
+        m_int_bool.sample(
+            X_train=X, Z_train=Z_bool, y_train=y,
+            num_gfr=5, num_burnin=0, num_mcmc=10,
+            general_params={"random_seed": 7},
+        )
+        m_int_float = BCFModel()
+        m_int_float.sample(
+            X_train=X, Z_train=Z_bool.astype(np.float64), y_train=y,
+            num_gfr=5, num_burnin=0, num_mcmc=10,
+            general_params={"random_seed": 7},
+        )
+        np.testing.assert_array_equal(m_int_bool.tau_hat_train, m_int_float.tau_hat_train)
+
+        # Multivariate boolean Z_train
+        Z2_bool = np.column_stack([Z_bool, rng.uniform(size=n) < 0.5])
+        y2 = X[:, 1] + Z2_bool[:, 0].astype(float) - 0.5 * Z2_bool[:, 1].astype(float) + rng.normal(scale=0.3, size=n)
+        m_mv_bool = BCFModel()
+        m_mv_bool.sample(
+            X_train=X, Z_train=Z2_bool, y_train=y2,
+            num_gfr=5, num_burnin=0, num_mcmc=10,
+            general_params={"random_seed": 11, "propensity_covariate": "none"},
+        )
+        m_mv_float = BCFModel()
+        m_mv_float.sample(
+            X_train=X, Z_train=Z2_bool.astype(np.float64), y_train=y2,
+            num_gfr=5, num_burnin=0, num_mcmc=10,
+            general_params={"random_seed": 11, "propensity_covariate": "none"},
+        )
+        np.testing.assert_array_equal(m_mv_bool.tau_hat_train, m_mv_float.tau_hat_train)

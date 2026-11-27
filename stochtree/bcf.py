@@ -719,9 +719,13 @@ class BCFModel:
         if Z_train is not None:
             if Z_train.ndim == 1:
                 Z_train = np.expand_dims(Z_train, 1)
+            if not np.issubdtype(Z_train.dtype, np.float64):
+                Z_train = Z_train.astype(np.float64)
         if propensity_train is not None:
             if propensity_train.ndim == 1:
                 propensity_train = np.expand_dims(propensity_train, 1)
+            if not np.issubdtype(propensity_train.dtype, np.float64):
+                propensity_train = propensity_train.astype(np.float64)
         if y_train.ndim == 1:
             y_train = np.expand_dims(y_train, 1)
         if not np.issubdtype(y_train.dtype, np.float64):
@@ -733,9 +737,13 @@ class BCFModel:
         if Z_test is not None:
             if Z_test.ndim == 1:
                 Z_test = np.expand_dims(Z_test, 1)
+            if not np.issubdtype(Z_test.dtype, np.float64):
+                Z_test = Z_test.astype(np.float64)
         if propensity_test is not None:
             if propensity_test.ndim == 1:
                 propensity_test = np.expand_dims(propensity_test, 1)
+            if not np.issubdtype(propensity_test.dtype, np.float64):
+                propensity_test = propensity_test.astype(np.float64)
         if rfx_group_ids_train is not None:
             if rfx_group_ids_train.ndim != 1:
                 rfx_group_ids_train = np.squeeze(rfx_group_ids_train)
@@ -3389,9 +3397,13 @@ class BCFModel:
         else:
             if Z.ndim != 2:
                 raise ValueError("treatment must have 1 or 2 dimensions")
+        if not np.issubdtype(Z.dtype, np.float64):
+            Z = Z.astype(np.float64)
         if propensity is not None:
             if propensity.ndim == 1:
                 propensity = np.expand_dims(propensity, 1)
+            if not np.issubdtype(propensity.dtype, np.float64):
+                propensity = propensity.astype(np.float64)
 
         # Data checks
         if Z.shape[0] != X.shape[0]:
